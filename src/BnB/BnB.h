@@ -19,6 +19,7 @@ private:
     int numMachines;
     std::vector<int> jobDurations;
     std::atomic<int> upperBound = std::numeric_limits<int>::max();
+    int initialUpperBound = std::numeric_limits<int>::max();
     std::atomic<int> offset = 0;
 
     int lowerBound;
@@ -33,6 +34,8 @@ private:
     int right(int i, int u);
     void updateBound(int newBound);
     bool lpt(std::vector<int> state, int job);
+    bool lookupRet(int i, int j, int job);
+    bool lookupRetFur(int i, int j, int job);
 };
 
 #endif // BNB_H

@@ -76,10 +76,11 @@ void BnBSolver::irrelevanceIndex() { // this this will only be usefull with a be
 void BnBSolver::init() {
     upperBound = std::numeric_limits<int>::max();
     lowerBound = trivialLowerBound(); // TODO better lower bopnding techniques
+    
     irrelevanceIndex();
     std::vector<int> upper(numMachines, 0);
     lpt(upper,0); // use multiple upper bound techniques in parallel
-
+    initialUpperBound = upperBound;
     fillRET();
 
     // set index for one  relevant JobSize Left 
@@ -96,7 +97,7 @@ int BnBSolver::solve(int numMachine, const std::vector<int>& jobDuration) {
     jobDurations = jobDuration;
     std::sort(jobDurations.begin(), jobDurations.end(), std::greater<int>()); // are instances big enough to sort in parallel? because for 20 items it is not worth to sort them in parallel"
 
-
+ 
     init(); 
     
 
@@ -110,8 +111,16 @@ void BnBSolver::updateBound(int newBound) {
         !upperBound.compare_exchange_weak(currentUpperBound, newBound)) { // TODO offsetupdate
     }
 }
+bool BnBSolver::lookupRet(int i, int j, int job) {
+    const int off = offset; // !! i am not 100% sure wether the compiler could optimizes that to allow race conditions
+    return RET[job][i + off] == RET[job][j + off];
+}
+bool BnBSolver::lookupRetFur(int i, int j, int job) { // this is awful codestyle needs to be refactored
+    return RET[job][i + (initialUpperBound - upperBound)] == RET[job][upperBound - j]; // need to make sure that upperbound and offset are correct done with initialBound (suboptimal)
+}
 
 bool BnBSolver::solveInstance(std::vector<int> state, int job) {
+    visitedNodes++; // this is not 100% accurate atm only tracks the solve Instancve calls, but f.e. Rule 5 counts as one visited node
     int makespan = *std::max_element(state.begin(), state.end());
     if (job >= jobDurations.size()) {
         if (makespan < upperBound) {
@@ -142,14 +151,31 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) {
             updateBound(makespan);
             return true;
         } else return false;
+    } 
+    std::sort(state.begin(), state.end()); // currently for simplification
+    for (int i = (state.size() - 1); i >= 0; i--) { // FUR
+        if (state[i] + jobDurations[job] < upperBound && lookupRetFur(state[i], jobDurations[job], job)) {
+            std::vector<int> next = state; // when implemented carefully there is no copy needed (but we are not that far yet)
+            next[i] += jobDurations[job];
+            if (solveInstance(next, job + 1)) {
+                if (state[i] + jobDurations[job] <= upperBound) { // we need to check for smaller or equal because if a better upper bound was found (by another thread) we still need to re solvethis
+                    continue; // no need to check everything again only the clearly infeasible rule could theoretically be true but the others don't change
+                }
+            } else if (state[i] + jobDurations[job] > upperBound) { // has to be handled, because another thread could find a new upperBound that makes this assignment invalid
+                continue;
+            } else return false;
+        }
     }
     //TODO more Rules
     //TODO Benchmarks might not be that interesting at first
-    visitedNodes++;
     // first trivial recursion
     bool foundBetterSolution = false;
     tbb::task_group tg;
-    for (int i = 0; i < state.size(); i++) {
+    int endState = state.size();
+    if (state.size() > jobDurations.size() - job ) endState = jobDurations.size() - job; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
+    for (int i = 0; i < endState; i++) {
+        if ( i > 0 && state[i] == state[i - 1]) continue; // Rule 1 (not Rule 6 for now because unsure see notes)
+        
         std::vector<int> next = state;
         next[i] += jobDurations[job];
         tg.run([=, &tg, &foundBetterSolution] {
@@ -159,7 +185,6 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) {
                 });    
     }
     tg.wait();
-    //std::cout << "job " << job << "done " << std::endl;
     return foundBetterSolution; // needed 
 
 }
