@@ -11,7 +11,7 @@ public:
     BnBSolver();
 
     int solve(int numMachines, const std::vector<int>& jobDurations);
-    std::atomic<int> visitedNodes;
+    std::atomic<uint64_t> visitedNodes;
 
 private:
 

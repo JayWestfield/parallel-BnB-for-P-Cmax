@@ -56,7 +56,12 @@ void BnBSolver::fillRET() {
                 RET[i][u] = RET[i][u + 1] + 1;
             }
         }
-    }
+    }/*
+    for (int i = 0; i < upperBound; i++) {
+        if (RET[6][i] == RET[6][i + 1]) {
+        std::cout << i  << " " << RET[6][i] << std::endl;
+        }
+    }*/
 }
 
 // do not consider Elements that are irreleveant to the instance according to Theorem 2
@@ -76,10 +81,12 @@ void BnBSolver::irrelevanceIndex() { // this this will only be usefull with a be
 void BnBSolver::init() {
     upperBound = std::numeric_limits<int>::max();
     lowerBound = trivialLowerBound(); // TODO better lower bopnding techniques
-    
     irrelevanceIndex();
     std::vector<int> upper(numMachines, 0);
     lpt(upper,0); // use multiple upper bound techniques in parallel
+    std::cout << "Initial Upper Bound provided by lpt is: " << upperBound << std::endl;
+    std::cout << "Initial lower trivial Bound is: " << lowerBound << std::endl;
+
     initialUpperBound = upperBound;
     fillRET();
 
@@ -120,7 +127,11 @@ bool BnBSolver::lookupRetFur(int i, int j, int job) { // this is awful codestyle
 }
 
 bool BnBSolver::solveInstance(std::vector<int> state, int job) {
+    if (upperBound == lowerBound) return false; // works better if the lower bound gets better
     visitedNodes++; // this is not 100% accurate atm only tracks the solve Instancve calls, but f.e. Rule 5 counts as one visited node
+    if (visitedNodes % 10000000 == 0) {
+        std::cout << "nodes: " << visitedNodes  << "current Bound: " << upperBound << std::endl;
+    }
     int makespan = *std::max_element(state.begin(), state.end());
     if (job >= jobDurations.size()) {
         if (makespan < upperBound) {
@@ -169,6 +180,7 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) {
     //TODO more Rules
     //TODO Benchmarks might not be that interesting at first
     // first trivial recursion
+    // TODO better Recursion (Rule 2 is missing i think and we should directly ignore the ones at or above the upper bound)
     bool foundBetterSolution = false;
     tbb::task_group tg;
     int endState = state.size();
