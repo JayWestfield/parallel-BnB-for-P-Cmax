@@ -71,7 +71,7 @@ int main() {
         std::string optimalSolutionsFile = "benchmarks/opt-known-instances-berndt.txt";
 
         readOptimalSolutions(optimalSolutionsFile, optimalSolutions);
-        int testInstances = 150;//optimalSolutions.size();
+        int testInstances = 200;//optimalSolutions.size();
         const int excludeLast = 0;
         auto it = optimalSolutions.begin();
         for (int s = 0; s < excludeLast; s++) {

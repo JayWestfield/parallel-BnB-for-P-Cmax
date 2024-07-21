@@ -170,7 +170,7 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || vis
     int makespan = state[state.size() - 1];
     visitedNodes++; // this is not 100% accurate atm only tracks the solve Instancve calls, but f.e. Rule 5 counts as one visited node
 
-    if (visitedNodes % 10000000 == 0) {
+    if (visitedNodes % 100000000 == 0) {
         std::cout.precision(5);
         std::cout << "nodes: " << std::scientific << visitedNodes  << " current Bound: " << upperBound << " " << job << " makespan " << makespan  << std:: endl;
         for (int i : state) std::cout << " " << i;
