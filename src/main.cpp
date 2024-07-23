@@ -32,6 +32,8 @@ void readOptimalSolutions(const std::string& filename, std::unordered_map<std::s
     if (!infile) {
         throw std::runtime_error("Unable to open file");
     }
+    
+
     std::string line;
     while (std::getline(infile, line)) {
         std::istringstream iss(line);
@@ -40,6 +42,7 @@ void readOptimalSolutions(const std::string& filename, std::unordered_map<std::s
         if (iss >> name >> optimalMakespan) {
             optimalSolutions[name] = optimalMakespan;
         }
+        
     }
 }
 
@@ -52,26 +55,27 @@ int main() {
         std::vector<std::string> failed;
         std::vector<std::string> succesfull;
         BnBSolver solver(true, true, true);
-        
-    std::vector<int> plantedKnownOptimal={699 ,461 ,249 ,207 ,746 ,270 ,790 ,514 ,498, 682};
-    int result = solver.solve(2, plantedKnownOptimal);
+        //tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 1);                
+    for (int i = 0 ; i < 1; i++) {
+    std::vector<int> plantedKnownOptimal={92,69,26,126,180,118,79,47,36,118,65,113,82,137,65,49,103,169,8,147,0};
+    int result = solver.solve(8,plantedKnownOptimal); 
+    std::cout << result << std::endl;// really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
+    if (result != 231) {
+        std::cout << "Error This would be a false run " << std::endl;
+        return 0;
+    }
 
-    std::cout << "The optimal solution is: " << 2563 << std::endl;
-    std::cout << "The best found solution is: " << result << std::endl;
+
+     }    
+     
+    std::cout << "The optimal solution is: " << 231 << std::endl; // really weird error if this is 
+    //std::cout << "The best found solution is: " << result << std::endl;
     std::cout << "nodes visited: " << solver.visitedNodes << std::endl;
-         std::vector<int> plantedKnownOptimal2={117,117,115,114,101,95,95,84,78,76,75,75,71,67,66,60,54,53,52,52,51,50,48,46,43,43,42,41,41,40,39,38,38,37,35,34,33,29,28,28,27,26,26,24,22,22,22,18,17,17,16,15,15,15,15,15,14,14,13,13,12,12,12,11,9,9,9,9,9,9,8,8,8,8,7,7,7,7,6,6,6,6,5,5,5,5,4,4,4,4,4,4,3,2,2,2,2,1,1,1,0
-        };
-             result = solver.solve(10, plantedKnownOptimal2);
-
-            std::cout << "The optimal solution is: " << 301 << std::endl;
-            std::cout << "The best found solution is: " << result << std::endl;
-            std::cout << "With nodes visited: " << solver.visitedNodes << std::endl;
-
         // Read the known optimal solutions
-        std::string optimalSolutionsFile = "benchmarks/opt-known-instances-berndt.txt";
+        std::string optimalSolutionsFile = "benchmarks/opt-known-instances-lawrinenko.txt";
 
         readOptimalSolutions(optimalSolutionsFile, optimalSolutions);
-        int testInstances = 200;//optimalSolutions.size();
+        int testInstances = optimalSolutions.size();
         const int excludeLast = 0;
         auto it = optimalSolutions.begin();
         for (int s = 0; s < excludeLast; s++) {
@@ -81,15 +85,17 @@ int main() {
         for (int i = 0; i < testInstances; i++) {
             const auto instanceFile = it->first;
             const auto knownOptimal = it++->second;
+            if (instanceFile.find("n22-") == -1) continue; // only test specific instances
 
             int numJobs, numMachines;
             std::vector<int> jobDurations;
 
-            std::string instanceFilePath = "benchmarks/berndt/" + instanceFile;
+            std::string instanceFilePath = "benchmarks/lawrinenko/" + instanceFile;
             readInstance(instanceFilePath, numJobs, numMachines, jobDurations);
 
             std::vector<std::chrono::duration<double>> runtimes;
             std::vector<int> results;
+            std::vector<int> visitedNodes;
             std::cout << "Instance: " << instanceFile << std::endl;
             for (int numThreads:  {1, 2, 4, 8, 12}) { // i have locally "only" 12 threads 
                 //std::cout << "Start try with: " << numThreads << std::endl; 
@@ -99,6 +105,7 @@ int main() {
                 auto end = std::chrono::high_resolution_clock::now();
                 results.push_back(result);
                 runtimes.push_back( end - start);
+                visitedNodes.push_back(solver.visitedNodes);
             }
             std::cout << "runtimes: ";
             for (auto time : runtimes) {
@@ -111,18 +118,22 @@ int main() {
                 speedups[speedups.size() -1].push_back(runtimes[0].count() / time.count()); 
                 std::cout << runtimes[0].count() / time.count() <<  " ";
             }
-
-
-            std::cout << std::endl << "Calculated makespan: " << results[0] << std::endl;
-            std::cout << "Known optimal makespan: " << knownOptimal << std::endl;
-            std::cout << "visited Nodes: " << solver.visitedNodes << std::endl;
-            
-            if (results[0] == knownOptimal) { // TODO curretnly onnly the last resolt with 12 threads is checked the others are ignored
+            std::cout <<std::endl <<  "Visited Nodes : ";
+            for (auto visited : visitedNodes) {
+                std::cout << visited <<  " ";
+            }
+            std::cout <<std::endl <<  "increase Nodes: ";
+            for (auto visited : visitedNodes) {
+                std::cout << (double) visited / (double) visitedNodes[0]  <<  " ";
+            }
+            std::cout <<std::endl;
+           
+            if (results[4] == knownOptimal) { // TODO curretnly onnly the last resolt with 12 threads is checked the others are ignored
                 succesfull.push_back("" + instanceFilePath);
                 std::cout << "Success: Found the optimal makespan with "<<  solver.visitedNodes << " visited nodes on the last try"<< std::endl;
             } else {
                 failed.push_back(instanceFilePath);
-                std::cout << "Error: The calculated makespan does not match the known optimal value." << std::endl;
+                std::cout << "Error: The calculated makespan of " <<results[4] <<  " does not match the known optimal value of " << knownOptimal << std::endl;
             }
             std::cout << "--------------------------------------------------------------------------------------------------------" << std::endl;
         }
@@ -134,16 +145,38 @@ int main() {
             }
             std::vector<double> best(5,0);
             std::vector<double> worst(5,7);
+            std::vector<double> average(5,0);
+            int speedupInstances = 0;
+            int speedupInstancesWeak = 0;
             for (auto speedup : speedups) {
                 if (speedup[speedup.size() - 1] > best[4] ) best = speedup;
                 if (speedup[speedup.size() - 1] < worst[4] ) worst = speedup;
-            }  
+                for (int i = 0; i < average.size(); i++) average[i] += speedup[i];
+                bool better = true;
+                for (int i = 1; i < speedup.size(); i++) better &= (speedup[i] > 1.0002);
+                if (better) speedupInstances++;
+                better = false;
+                for (int i = 1; i < speedup.size(); i++) better |= (speedup[i] > 1);
+                if (better) speedupInstancesWeak++;
+             }  
+            for (int i = 0; i < average.size(); i++) average[i] = average[i] / speedups.size();
+
             std::cout << "worst found Speedups: ";
             for (auto time : worst) std::cout << time << " ";
 
             std::cout << std::endl <<  "best found Speedups: ";
             for (auto time : best) std::cout << time << " ";
+
+            std::cout << std::endl << "average found Speedups: ";
+            for (auto time : average) std::cout << time << " ";
+
+            std::cout << std::endl << "Instances with a speedup for all threads: ";
+            std::cout << ((double) speedupInstances / speedups.size()) * 100 << "%";
+
+            std::cout << std::endl << "Instances with a speedup for at least one threads: ";
+            std::cout << ((double) speedupInstancesWeak / speedups.size()) * 100 << "%";
             std::cout << std::endl;
+
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

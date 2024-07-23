@@ -34,7 +34,7 @@ private:
     void fillRET();
     void init();
     int computeIrrelevanceIndex();
-    int irrelevanceIndex;
+    int lastRelevantJobIndex;
     int trivialLowerBound();
     int lPTUpperBound();
     bool solveInstance(const std::vector<int> state, int job);
@@ -45,6 +45,7 @@ private:
     bool lookupRet(int i, int j, int job);
     bool lookupRetFur(int i, int j, int job);
     std::shared_mutex mutex;
+    tbb::task_arena arena;
 };
 
 #endif // BNB_H

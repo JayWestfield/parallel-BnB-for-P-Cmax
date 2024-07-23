@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 #include <iomanip>
+#include <future>
 
 // Constructor
 BnBSolver::BnBSolver(bool irrelevance = true, bool gist = true, bool fur = true)  {
@@ -94,17 +95,16 @@ int BnBSolver::computeIrrelevanceIndex() { // this this will only be usefull wit
         i--;
     }
 
-    //std::cout << "number of irrelevant jobs: " << jobDurations.size() - i - 1 << std::endl;
-    return i + 1;
+    return i;
 }
 
 // Solve the problem using Branch and Bound
 void BnBSolver::init() {
     upperBound = lPTUpperBound();
     lowerBound = trivialLowerBound(); // TODO better lower bopnding techniques
-    irrelevanceIndex = jobDurations.size();
+    lastRelevantJobIndex = jobDurations.size() - 1;
     offset = 0;
-    if (irrelevance) irrelevanceIndex = computeIrrelevanceIndex();
+    if (irrelevance) lastRelevantJobIndex = computeIrrelevanceIndex();
 
     //std::cout << "Initial Upper Bound: " << upperBound  << " Initial lower Bound: "  << lowerBound << std::endl;
     initialUpperBound = upperBound;
@@ -113,8 +113,8 @@ void BnBSolver::init() {
     STInstance = std::make_unique<STImpl>( jobDurations.size(), &upperBound, &offset, &RET); // TODO create after irrelevance index
 
     // set index for one  relevant JobSize Left 
-    lastJobSize = irrelevanceIndex;
-    int i = jobDurations.size() - 1;
+    lastJobSize = lastRelevantJobIndex;
+    int i = lastRelevantJobIndex;
     int lastJoblength = jobDurations[i];
     while (jobDurations[--i] == lastJoblength && i > 0) {}
     lastJobSize = i + 1;
@@ -132,6 +132,7 @@ int BnBSolver::solve(int numMachine, const std::vector<int>& jobDuration) {
     std::vector<int> initialState(numMachines, 0);
 
     solveInstance(initialState, 0);
+    arena.execute([&]() { /* This ensures that all tasks are completed */ });
     return upperBound;
 }
 void BnBSolver::updateBound(int newBound) {
@@ -149,7 +150,7 @@ void BnBSolver::updateBound(int newBound) {
         !offset.compare_exchange_weak(currentOffset, newOffset)) { // TODO offsetupdate
     }*/
     //TODO find a good way to clear the map wihtout interfering with accesses of other threads
-    STInstance->boundUpdate();
+    if(gist) STInstance->boundUpdate();
 }
 
 bool BnBSolver::lookupRet(int i, int j, int job) {
@@ -164,20 +165,22 @@ bool BnBSolver::lookupRetFur(int i, int j, int job) { // this is awful codestyle
 }
 
 bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || visitedNodes > 15000000
-    if (upperBound == lowerBound ) return false; // works better if the lower bound gets better abort for long runs because it takes quite long some times
     std::sort(state.begin(), state.end()); // currently for simplification
+    // TODO add the gist first previously and in the find enqueu it in the arena
+    if (upperBound == lowerBound ) return false; // works better if the lower bound gets better abort for long runs because it takes quite long some times
    
     int makespan = state[state.size() - 1];
     visitedNodes++; // this is not 100% accurate atm only tracks the solve Instancve calls, but f.e. Rule 5 counts as one visited node
 
     if (visitedNodes % 100000000 == 0) {
         std::cout.precision(5);
-        std::cout << "nodes: " << std::scientific << visitedNodes  << " current Bound: " << upperBound << " " << job << " makespan " << makespan  << std:: endl;
+        std::cout << "visited nodes: " <<  std::scientific << visitedNodes  << " current Bound: " << upperBound << " " << job << " makespan " << makespan  << std:: endl;
+        std::cout << "current state: ";
         for (int i : state) std::cout << " " << i;
         std::cout << std::endl;
     }
 
-    if (job >= jobDurations.size()) {
+    if (job > lastRelevantJobIndex) {
         if (makespan < upperBound) {
             updateBound(makespan);
             return true;
@@ -185,7 +188,7 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || vis
     } else if (makespan >= upperBound) return false; //clearly infeasible
 
 
-    if (job == jobDurations.size() - 4) { // 3 jobs remaining
+    if (job == lastRelevantJobIndex - 2) { // 3 jobs remaining
         std::sort(state.begin(), state.end()); // for the first try
         std::vector<int> one = state;
         bool first = lpt(one, job);
@@ -193,7 +196,7 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || vis
         two[1] += jobDurations[job++];
         bool second = lpt(two, job);
         return first || second;
-    }
+    } 
     
     else if (job >= lastJobSize) { // Rule 5
         // TODO it should be able to do this faster (at least for many jobs with the same size) by keeping the state in a priority queu or sth like that
@@ -207,20 +210,34 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || vis
             updateBound(makespan);
             return true;
         } else return false;
-    }
+    } 
 
-    if (STInstance->exists(state, job) == 2) return false; // case für ein mit anderer task arbeiten
-    for (int i = (state.size() - 1); i >= 0; i--) { // FUR
-        if (state[i] + jobDurations[job] < upperBound && lookupRetFur(state[i], jobDurations[job], job)) {
-            std::vector<int> next = state; // when implemented carefully there is no copy needed (but we are not that far yet)
-            next[i] += jobDurations[job];
-            if (solveInstance(next, job + 1)) {
-                if (state[i] + jobDurations[job] <= upperBound) { // we need to check for smaller or equal because if a better upper bound was found (by another thread) we still need to re solvethis
-                    continue; // no need to check everything again only the clearly infeasible rule could theoretically be true but the others don't change
-                }
-            } else if (state[i] + jobDurations[job] > upperBound) { // has to be handled, because another thread could find a new upperBound that makes this assignment invalid
-                continue;
-            } else return false;
+    if (gist )  { // TODO the gist checks were in the front check which is better
+        auto exists = STInstance->exists(state, job);
+        if (exists == 2) return false;
+        else if (exists == 1) {
+            std::promise<bool> promise;
+            auto future = promise.get_future();
+            arena.enqueue([=, &promise]  {
+                bool result = solveInstance(state, job);
+                promise.set_value(result);
+            });
+            return future.get();  
+        } else STInstance->addPreviously(state, job);
+    }
+    if(fur) {
+        for (int i = (state.size() - 1); i >= 0; i--) { // FUR
+            if (state[i] + jobDurations[job] < upperBound && lookupRetFur(state[i], jobDurations[job], job)) {
+                std::vector<int> next = state; // when implemented carefully there is no copy needed (but we are not that far yet)
+                next[i] += jobDurations[job];
+                if (solveInstance(next, job + 1)) {
+                    if (state[i] + jobDurations[job] <= upperBound) { // we need to check for smaller or equal because if a better upper bound was found (by another thread) we still need to re solvethis
+                        continue; // no need to check everything again only the clearly infeasible rule could theoretically be true but the others don't change
+                    }
+                } else if (state[i] + jobDurations[job] > upperBound) { // has to be handled, because another thread could find a new upperBound that makes this assignment invalid
+                    continue;
+                } else return false;
+            }
         }
     }
 
@@ -228,12 +245,14 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || vis
     //TODO Benchmarks might not be that interesting at first
     // first trivial recursion
     // TODO better Recursion (Rule 2 is missing i think and we should directly ignore the ones at or above the upper bound)
+
+
+
     bool foundBetterSolution = false;
     tbb::task_group tg;
     int endState = state.size();
     std::vector<int> repeat;
-    std::sort(state.begin(), state.end());
-    if (state.size() > jobDurations.size() - job ) endState = jobDurations.size() - job; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
+    if (numMachines > lastRelevantJobIndex - job + 1 ) endState = lastRelevantJobIndex - job + 1; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
     for (int i = 0; i < endState; i++) {
         if (( i > 0 && state[i] == state[i - 1]) || state[i] + jobDurations[job] >= upperBound) continue; // Rule 1 + check directly wether the new state would be feasible
         if ( i > 0 && lookupRet(state[i], state[i - 1], job)) { //Rule 6
@@ -252,14 +271,14 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || vis
     tg.wait();
     for (int i : repeat) {
         if (!lookupRet(state[i], state[i - 1], job)) { //Rule 6
-           // std::cout << "repeat ";
+           //std::cout << "repeat " << job << " " << i << " ";
             std::vector<int> next = state;
             next[i] += jobDurations[job];
-            if (solveInstance(next, job + 1)) {
+            if (solveInstance(next, job + 1)) { // TODO parallel?
                         foundBetterSolution = true; // Update the flag if any task found a better solution
                     }
         }
     }
-    STInstance->addGist(state, job);
+    if (gist) STInstance->addGist(state, job);
     return foundBetterSolution; // needed 
 }

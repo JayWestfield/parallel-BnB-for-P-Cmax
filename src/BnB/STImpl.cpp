@@ -22,9 +22,11 @@ public:
     }
 
     void addGist(std::vector<int> state, int job) override {
-        if (maps[job].size()  >= 500000) {
+        if (maps[job].size()  >= 5000000) {
+            std::unique_lock<std::shared_mutex> lock(mutex); //for this swap use a mutex for each hashtable and do not lock the whole one
             tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher> newMap;
             maps[job].swap(newMap);
+            lock.unlock();
         }
         std::shared_lock<std::shared_mutex> lock(mutex);
         if (job >= 0 && job < jobSize) {
