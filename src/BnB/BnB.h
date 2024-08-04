@@ -37,7 +37,7 @@ private:
     int lastRelevantJobIndex;
     int trivialLowerBound();
     int lPTUpperBound();
-    bool solveInstance(const std::vector<int> state, int job);
+    bool volatile solveInstance(const std::vector<int> state, int job);
     int left(int i, int u);
     int right(int i, int u);
     void updateBound(int newBound);

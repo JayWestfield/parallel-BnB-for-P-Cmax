@@ -1,0 +1,7 @@
+startup (sorting filling ret etc) do asnc / in parallel
+
+might recompute the irrelevance index on lowerBound update, but not sure 
+
+run more heuristics for a better upper bound and use one thread etc to compute a better lower bound because they are crucial
+
+TODO error handling for adding a gist that has makespan > upperbound (due to boundUpdate) => memory conflicts

@@ -10,9 +10,10 @@
 
 // Constructor
 BnBSolver::BnBSolver(bool irrelevance = true, bool gist = true, bool fur = true)  {
-    irrelevance = irrelevance;
-    gist = gist;
-    fur = fur;
+    this->irrelevance = irrelevance;
+    std::cout << gist << std::endl;
+    this->gist = gist;
+    this->fur = fur;
 }
 
 int lowerBound;
@@ -110,7 +111,7 @@ void BnBSolver::init() {
     initialUpperBound = upperBound;
 
     fillRET();
-    STInstance = std::make_unique<STImpl>( jobDurations.size(), &upperBound, &offset, &RET); // TODO create after irrelevance index
+    STInstance = std::make_unique<STImpl>( jobDurations.size(), &upperBound, &offset, &RET, &mutex); // TODO create after irrelevance index
 
     // set index for one  relevant JobSize Left 
     lastJobSize = lastRelevantJobIndex;
@@ -164,7 +165,7 @@ bool BnBSolver::lookupRetFur(int i, int j, int job) { // this is awful codestyle
     return RET[job][i + (initialUpperBound - upperBound)] == RET[job][upperBound - j]; // need to make sure that upperbound and offset are correct done with initialBound (suboptimal)
 }
 
-bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || visitedNodes > 15000000
+bool volatile BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || visitedNodes > 15000000
     std::sort(state.begin(), state.end()); // currently for simplification
     // TODO add the gist first previously and in the find enqueu it in the arena
     if (upperBound == lowerBound ) return false; // works better if the lower bound gets better abort for long runs because it takes quite long some times
@@ -211,11 +212,14 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || vis
             return true;
         } else return false;
     } 
-
+    std::cout << gist;
     if (gist )  { // TODO the gist checks were in the front check which is better
+        
         auto exists = STInstance->exists(state, job);
+        std::cout << exists << std::endl;
         if (exists == 2) return false;
         else if (exists == 1) {
+            std::cout << "test" << std::endl;
             std::promise<bool> promise;
             auto future = promise.get_future();
             arena.enqueue([=, &promise]  {
@@ -223,7 +227,7 @@ bool BnBSolver::solveInstance(std::vector<int> state, int job) { //limits || vis
                 promise.set_value(result);
             });
             return future.get();  
-        } else STInstance->addPreviously(state, job);
+        } //else STInstance->addPreviously(state, job);
     }
     if(fur) {
         for (int i = (state.size() - 1); i >= 0; i--) { // FUR

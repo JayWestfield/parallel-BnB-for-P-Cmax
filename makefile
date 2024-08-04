@@ -1,10 +1,10 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -O3 -Wall -I/usr/include/tbb 
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb 
 LDFLAGS = -ltbb
 
 # Define the source and target files
-SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp
+SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_refactored.cpp src/BnB/BnB_base.cpp
 TARGET = dst/parallel_solver
 
 # Define the rule to build the target executable
