@@ -5,7 +5,8 @@
 #include <tbb/tbb.h>
 #include <iostream>
 #include <bitset>
-
+#include <sstream>
+#include <cassert>
 
 const size_t MAX_SIZE = 5000000;
 const size_t BITMAP_SIZE = MAX_SIZE;
@@ -15,67 +16,65 @@ public:
     using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
     using HashDelayedMap = tbb::concurrent_hash_map<std::vector<int>, std::vector<oneapi::tbb::task::suspend_point>, VectorHasher>; // might have more than one suspension point for a gist
 
-    STImpl(int jobSize, std::atomic<int>* upperBound, std::atomic<int>* offset, std::vector<std::vector<int>>* RET, std::shared_mutex *boundLock) : ST(jobSize, upperBound, offset, RET, boundLock), maps(jobSize),delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {}
+    STImpl(int jobSize, std::atomic<int>* upperBound, std::atomic<int>* offset, std::vector<std::vector<int>>* RET, std::shared_mutex *boundLock) :  ST(jobSize, upperBound, offset, RET, boundLock),maps(jobSize),delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {}
     // assume the state is sorted
     std::vector<int> computeGist(std::vector<int> state, int job) override {
+        assert(job < jobSize && job >= 0);
         std::shared_lock lock(boundLock);
         std::sort(state.begin(), state.end());
         std::vector<int> gist(state.size(), 0);
-        if (state.back() > *upperBound) return gist; // for the case that the boundupdate makes the instance invalid
-        // for (auto val: state) std::cout << val << " ";
         const int off = offset->load(std::memory_order_acquire);
-        // std::cout <<  " => "; 
-        for (int i = 0; i < state.size(); i++ ) {
+        if (state.back() + off > (*RET)[job].size()) throw ("invalid");
+        for (std::vector<int>::size_type i = 0; i < state.size(); i++ ) {
             gist[i] = (*RET)[job][state[i] + off];
         }
-        // for (auto val: gist) std::cout << val << " ";
-        // std::cout << std::endl;
+
 
         return gist;
     }
 
     void addGist(std::vector<int> state, int job) override {
+        assert(job < jobSize && job >= 0);
+
         if (maps[job].size() >= MAX_SIZE) {
-            std::unique_lock<std::shared_mutex> lock(mutex); // todo combine try lock with tthe if condition
             std::cout << "Evict " << std::endl;
             evictEntries(job);
-            lock.unlock();
         }
+        std::stringstream gis;
+        gis << "add Gist ";
+        for (auto vla : computeGist(state, job)) gis << vla << " ";
+        gis << "\n";
+
+        std::cout << gis.str();;
 
         std::shared_lock<std::shared_mutex> lock(mutex);
-                // std::cout << job << " ";
 
-        if (job >= 0 && job < jobSize) {
-            HashMap::accessor acc;
-            maps[job].insert(acc, computeGist(state, job));
-            acc->second = true;
-        }
-        std::unique_lock<std::shared_mutex> delayLock(delayed); // do i even need the lock with the accessor or just the shared one because of the clear
-        HashDelayedMap::accessor acc;
-        if (delayedTasks[job].find(acc, computeGist(state, job))) {
-            for (auto tag : acc->second) {oneapi::tbb::task::resume(tag); delCount--;}
-            std::cout << "during add "<< delCount << std::endl;
-            delayedTasks[job].erase(acc);
-            int count = 0;
-                HashMap::const_accessor acc;
+        HashMap::accessor acc;
+        maps[job].insert(acc, computeGist(state, job));
+        acc->second = true;
+        assert(acc->second == true);
+        std::stringstream gise;
+        gise << " inserted Gist ";
+        for (auto vla : computeGist(state, job)) gise << vla << " ";
 
-                for (int i = 0; i < jobSize; i++) {
-                    for(auto entry: delayedTasks[i]) {
-                        count += entry.second.size();
-                        for (auto t : entry.first) std::cout << t << " " ;
-                        if (maps[i].find(acc, entry.first))                        std::cout <<  "finder " <<acc->second << std::endl;
-                        else std::cout << "notfound ata ll" << std::endl;
-                    }
-                }
-                std::cout << "in delayed " << count  << " vs delcount "<< delCount <<std::endl;
-            
-        }       
+        acc.release();
+        gise << exists(state, job);
+                gise << "\n";
+
+        std::cout << gise.str();
         
-        delayLock.unlock();
+        std::shared_lock<std::shared_mutex> delayLock(delayed); // do i even need the lock with the accessor or just the shared one because of the clear
+        HashDelayedMap::accessor accDel;
+        if (delayedTasks[job].find(accDel, computeGist(state, job))) {
+            for (auto tag : accDel->second) {oneapi::tbb::task::resume(tag); delCount--;}
+            delayedTasks[job].erase(accDel);
+        }    
+        std::cout << delCount << std::endl;
     } 
 
     int exists(std::vector<int> state, int job) override {
-        // std::cout << job << " ";
+        assert(job < jobSize);
+
         std::shared_lock<std::shared_mutex> lock(mutex);
         if (job >= 0 && job < jobSize) {
             HashMap::const_accessor acc;
@@ -88,20 +87,22 @@ public:
     }
 
     void addPreviously(std::vector<int> state, int job) override {
-
         std::shared_lock<std::shared_mutex> lock(mutex);
         if (job >= 0 && job < jobSize) {
             HashMap::accessor acc;
+            if (maps[job].find(acc, computeGist(state, job))) return;
             if(maps[job].insert(acc, computeGist(state, job))) acc->second = false;
-            acc.release();
         }
+        std::stringstream gis;
+        gis << "add Prev ";
+        for (auto vla : computeGist(state, job)) gis << vla << " ";
+        gis << "\n";
+        std::cout << gis.str();
     }
 
     void boundUpdate() override {
-
-        // Sperre die Mutex exklusiv, um parallele Zugriffe zu verhindern
+        std::cout << "bound" << std::endl;
         std::unique_lock<std::shared_mutex> lock(mutex);
-        resumeAllDelayedTasks(); // TODO does thos need the other lock?
         std::vector<HashMap> newMaps(jobSize);
         maps.swap(newMaps);
         if (useBitmaps) {
@@ -110,6 +111,8 @@ public:
             }
         }
         clear();
+        resumeAllDelayedTasks(); // TODO does thos need the other lock?
+        lock.unlock();
     }
     void clear() override {
         //std::unique_lock<std::shared_mutex> lock(mutex);
@@ -120,57 +123,66 @@ public:
                 bitmap.reset();
             }
         }
-        for (auto map : maps) {
-            for (auto et : map) {
-                std::cout << et.second << "asd" << std::endl;
-            }
-        }
     }
-    void resumeAllDelayedTasks() override{
+    void resumeAllDelayedTasks() override {
+        std::cout << "resume " << delCount << std::endl;
+
         std::unique_lock<std::shared_mutex> lock(delayed);
         for (auto& delayedMap : delayedTasks) {
                 for (auto it :delayedMap) {
                     for (auto tag : it.second) {oneapi::tbb::task::resume(tag);
                     delCount--;}
                 }
-            }
+        } 
 
         std::vector<HashDelayedMap> newMaps(jobSize);
+        std::cout << "resumed " << delCount << std::endl;
         delayedTasks.swap(newMaps);
     }
 
 
     void addDelayed(std::vector<int> gist, int job, oneapi::tbb::task::suspend_point tag) override {
-        std::unique_lock<std::shared_mutex> lockU(allLock);
+        assert(job < jobSize);
 
-        std::unique_lock<std::shared_mutex> lock(delayed);
+        std::cout << "add delay " << delCount << std::endl;
+
+        std::shared_lock<std::shared_mutex> mapLock(mutex);
+        std::shared_lock<std::shared_mutex> lock(delayed);
         HashMap::const_accessor acc;
-        if (maps[job].find(acc, computeGist(gist, job))) { //can that even happen? yes it can and does
+        if (maps[job].find(acc, computeGist(gist, job))) { 
             if (acc->second){
                 tbb::task::resume(tag);
                 return;
-            }  
-        }
-        if (job >= 0 && job < jobSize) {
-            HashDelayedMap::accessor acc;
-            delayedTasks[job].insert(acc, computeGist(gist, job));
-            delCount++;
-            acc->second.push_back(tag);
-        } else {std::cout << "rollasdasdasd" ;}
+            }  else {
+                HashDelayedMap::accessor acc;
+                delayedTasks[job].insert(acc, computeGist(gist, job));
+                delCount++;
+                acc->second.push_back(tag);
+            }
+        } else {tbb::task::resume(tag); std::cout << "intre"; return;} //TODO that should only happen on bound update or evict and should not be an issue
+            
+        std::stringstream gis;
+        gis << "end delay ";
+        for (auto vla : computeGist(gist, job)) gis << vla << " ";
+        gis << "\n";
+        std::cout << gis.str();
+
+
     }
 
 private:
     std::atomic<int> delCount = 0;
     std::vector<HashMap> maps;
-    std::shared_mutex mutex; // shared_mutex zum Schutz der Hashmaps während boundUpdate
-    std::vector<std::bitset<BITMAP_SIZE>> bitmaps;
     std::vector<HashDelayedMap> delayedTasks;
+    std::vector<std::bitset<BITMAP_SIZE>> bitmaps;
+    std::shared_mutex mutex; // shared_mutex zum Schutz der Hashmaps während boundUpdate
     bool useBitmaps = false;
     std::shared_mutex delayed; // shared_mutex zum Schutz der Hashmaps während boundUpdate
     std::vector<oneapi::tbb::task::suspend_point> delayedTa;
     std::shared_mutex allLock; // shared_mutex zum Schutz der Hashmaps während boundUpdate
 
     void updateBitmap(int job, const std::vector<int>& gist) {
+        assert(job < jobSize);
         if (useBitmaps) {
             size_t hashValue = VectorHasher().hash(gist) % BITMAP_SIZE;
             bitmaps[job].set(hashValue);
@@ -178,6 +190,9 @@ private:
     }
     //TODO look for deadlocks etc
     void evictEntries(int job) {
+                std::cout << "evicte " << std::endl;
+
+        std::unique_lock<std::shared_mutex> lock(mutex); // todo combine try lock with tthe if condition
         auto& map = maps[job];
         HashMap newMap;
         if (useBitmaps) {
@@ -192,6 +207,33 @@ private:
             bitmap = newBitmap;
         }
         map.swap(newMap);
+    }
+    void printHashDelayedMap() {
+        std::ostringstream oss;
+        std::cout << "start print" << std::endl;
+
+        std::unique_lock<std::shared_mutex> mapLock(mutex);
+        std::unique_lock<std::shared_mutex> lock(delayed);
+        oss << "Bound: " << upperBound->load() << "\n";
+        for (auto i = 0; i < delayedTasks.size(); i++) {
+            for (const auto& item : delayedTasks[i]) {
+                std::cout << "newGist\n";
+                oss << "Gist: ";
+                for (int val : item.first) {
+                    oss << val << " ";
+                }
+                std::cout << "look\n";
+
+                HashMap::const_accessor acc;
+                oss << "found "<< maps[i].find(acc, computeGist(item.first, i)) ;
+                if (maps[i].find(acc, computeGist(item.first, i))) oss << " flag " << acc->second;
+                oss << "\n";
+                std::cout << "look\n";
+            }
+        }
+
+        // Output the entire constructed string at once
+        std::cout << oss.str();
     }
 };
 

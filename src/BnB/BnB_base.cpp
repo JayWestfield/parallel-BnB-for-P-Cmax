@@ -3,6 +3,7 @@
 
 #include "ST.h"
 #include "STImpl.cpp"
+#include <sstream>
 
 #include "BnB_base.h"
 #include <numeric>  
@@ -91,7 +92,7 @@ private:
     // Logging
     bool logNodes = true;
     bool logInitialBounds = false;
-    bool logBound = false;
+    bool logBound = true;
 
 
     int lastRelevantJobIndex;
@@ -103,7 +104,8 @@ private:
     }
 
 
-    void volatile solvePartial(std::vector<int> state, int job) {
+    void solvePartial(std::vector<int> state, int job) {
+        
         if (foundOptimal || cancel) return;
 
         std::sort(state.begin(), state.end()); // currently for simplification
@@ -141,20 +143,23 @@ private:
                 lpt(state, job);
                 return;
             } 
+        logging(state, job, "before lookup");
 
         // Gist Lookup
         if (gist) {
             auto exists = STInstance->exists(state,job);
+            logging(state, job, exists);
             int bound = upperBound;
             if (exists == 2) return;
             else if (exists == 1) {
                 while (STInstance->exists(state, job) == 1) {
-                    oneapi::tbb::task::suspend_point tag;
-                    oneapi::tbb::task::suspend( [=](oneapi::tbb::task::suspend_point tag) mutable {
-                        std::cout << "delay " << tag << std::endl;
+                    logging(state, job, "suspend");
+                    oneapi::tbb::task::suspend( [=](oneapi::tbb::task::suspend_point tag) {
                         STInstance->addDelayed(state, job, tag);
+                        //oneapi::tbb::task::resume(tag);
                     }); 
-                    // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since
+                    logging(state, job, "restarted");
+                    // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || 
                     if ( makespan > upperBound || foundOptimal || cancel) return;
                 }
                 if (STInstance->exists(state, job) == 2) return;
@@ -169,11 +174,15 @@ private:
                     std::vector<int> next = state; // when implemented carefully there is no copy needed (but we are not that far yet)
                     next[i] += jobDurations[job];
                     solvePartial(next, job + 1);
-                    if (state[i] + jobDurations[job] <= upperBound) return;
+                    if (state[i] + jobDurations[job] <= upperBound) {
+                        if (gist) STInstance->addGist(state, job);
+                        return;
+                    }
                 }
             }
         }
-            
+        logging(state, job, "after Fur");
+
         tbb::task_group tg;
         int endState = state.size();
         std::vector<int> repeat;
@@ -186,10 +195,12 @@ private:
             }
             std::vector<int> next = state;
             next[i] += jobDurations[job];
+            logging(next, job + 1, "child from recursion");
             tg.run([=, &tg] { solvePartial(next, job + 1); });  
         }
 
         tg.wait();
+        logging(state, job, "after recursion");
         for (int i : repeat) {
             if (!lookupRet(state[i], state[i - 1], job)) { //Rule 6
                 std::vector<int> next = state;
@@ -201,7 +212,18 @@ private:
 
         std::sort(state.begin(), state.end());
         if (gist) STInstance->addGist(state, job);
+        logging(state, job, "after add");
         return; 
+    }
+
+    void logging(std::vector<int> state, int job, auto message = "") {
+        std::stringstream gis;
+        gis << message << " ";
+        for (auto vla : state) gis << vla << " ";
+        gis << " => ";
+        for (auto vla : STInstance->computeGist(state, job)) gis << vla << " ";
+        gis << " Job: " << job << "\n";
+        std::cout << gis.str();
     }
     
     bool lookupRet(int i, int j, int job) {
@@ -218,7 +240,7 @@ private:
     /**
      * @brief runs Lpt on the given partialassignment
      */
-    bool lpt(std::vector<int> state, int job) {
+    void lpt(std::vector<int> state, int job) {
         for (long unsigned int i = job; i < jobDurations.size(); i++) {
             int minLoadMachine = std::min_element(state.begin(), state.end()) - state.begin();
             state[minLoadMachine] += jobDurations[i];
@@ -226,22 +248,24 @@ private:
         int makespan = *std::max_element(state.begin(), state.end());
         if (makespan <= upperBound) {
             updateBound(makespan);
-            return true;
-        } return false;
+        } return ;
     }
     /**
      * @brief tightens the upper bound and updates the offset for the RET
      */
     void updateBound(int newBound) {
-        if (newBound == lowerBound) foundOptimal = true;
+        if (newBound == lowerBound) {
+            foundOptimal = true;}
+                    if (logBound) std::cout <<"try Bound " << newBound << std::endl;
 
         std::unique_lock lock(boundLock); //Todo this can be done with CAS ( i think)
-        if (logBound) std::cout <<"new Bound " << newBound << std::endl;
         if (newBound > upperBound) return;
+        if (logBound) std::cout <<"new Bound " << newBound << std::endl;
         upperBound = newBound - 1;
         offset = initialUpperBound - upperBound; 
+        lock.unlock();            
         if(gist) STInstance->boundUpdate();
-        lock.unlock();
+        if (logBound) std::cout <<"new Bound " << newBound  << "finished" << std::endl;
     }
     
     /**
@@ -291,17 +315,17 @@ private:
             return RET[i + 1][u + jobDurations[i]];
         };
         RET = std::vector<std::vector<int>>(lastRelevantJobIndex + 1, std::vector<int>(initialUpperBound + 1));   
-        for (int u = 0; u <= initialUpperBound; u++) { // TODO there is some point u where everithing before is a 1 and after it is a 2 so 2 for loops could be less branches
+        for (auto u = 0; u <= initialUpperBound; u++) { // TODO there is some point u where everithing before is a 1 and after it is a 2 so 2 for loops could be less branches
             if (u + jobDurations[lastRelevantJobIndex] > initialUpperBound) {
                 RET[lastRelevantJobIndex][u] = 1;
             } else {
                 RET[lastRelevantJobIndex][u] = 2;
             }
         }
-        for (long unsigned int i = 0; i <= lastRelevantJobIndex; i++) {
+        for (auto i = 0; i <= lastRelevantJobIndex; i++) {
             RET[i][initialUpperBound] = 1;
         } 
-        for (int i = lastRelevantJobIndex - 1; i >= 0; i--) {
+        for (auto i = lastRelevantJobIndex - 1; i >= 0; i--) {
             for (int u = initialUpperBound - 1; u >= 0; u--) {
                 if (left(i, u) == left(i,u + 1) && right(i, u) == right(i,u + 1)) {
                     RET[i][u] = RET[i][u + 1];

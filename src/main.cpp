@@ -1,5 +1,4 @@
 #include <iostream>
-#include "BnB/BnB_refactored.cpp"
 #include "BnB/BnB_base.cpp"
 
 #include <fstream>
@@ -50,7 +49,23 @@ void readOptimalSolutions(const std::string& filename, std::unordered_map<std::s
     }
 }
 
+double geometricMean(const std::vector<double>& values) {
+    double product = 1.0;
+    for (const auto& val : values) {
+        product *= val;
+    }
+    return std::pow(product, 1.0 / values.size());
+}
 
+double median(std::vector<double>& values) {
+    size_t size = values.size();
+    std::sort(values.begin(), values.end());
+    if (size % 2 == 0) {
+        return (values[size / 2 - 1] + values[size / 2]) / 2.0;
+    } else {
+        return values[size / 2];
+    }
+}
 int main() {
     
 
@@ -61,25 +76,30 @@ int main() {
         std::vector<std::string> succesfull;
         //BnBSolver solver(true, true, true);
         uint64_t totalNodesVisited = 0;
-        tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 1);                
+    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 12);                
+
     int wrong = 0;
-    /* BnB_base_Impl solver(true, true, false, false);
-    std::vector<int> plantedKnownOptimal={97, 93, 82, 50, 95, 96, 56, 93, 97, 93, 82, 50, 95, 96, 56, 93};
-    int result = solver.solve(3,plantedKnownOptimal); 
-        std::cout << std::endl << result << std::endl;// really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
+        std::vector<int> plantedKnownOptimal={97, 93, 82, 50, 95, 96, 56, 93,50,96,60,50,23};
 
-    BnB_base_Impl solvew(true, true, true, false);
-    result = solvew.solve(3,plantedKnownOptimal); 
+    BnB_base_Impl solver(false, false, true, true);
+        for (int i = 0 ; i < 10; i++) {
 
-    std::cout << std::endl << result << std::endl; */// really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
+            solver.solve(3,plantedKnownOptimal); 
+        }
+            int result = solver.solve(3,plantedKnownOptimal); 
 
-    for (int i = 0 ; i < 1; i++) {
+    std::cout << std::endl << result << std::endl;// really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
+
+    return 0;
+
+    std::cout << std::endl << result << std::endl; // really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
+    for (int i = 0 ; i < 2; i++) {
         tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 12);                
-        BnB_base_Impl solver(true, true, true, false);
+        BnB_base_Impl solver(true, false, true, true);
 
         //BnBSolver solver(true, true, true);
         std::vector<int> plantedKnownOptimal={97,93,82,50,95,96,56,93,91,81,64,89,63,58,96,76,80,54,56,50,100,79,86,63,76,68,60,83,91,67,89,86,84,90,61,69};
-        int result = solver.solve(16,plantedKnownOptimal); 
+        int result = solver.solve(3,plantedKnownOptimal); 
         std::cout << result << std::endl;// really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
         if (result != 176) {
             std::cout << "Error This would be a false run "  <<  i <<  "with " << result << std::endl;
@@ -87,6 +107,7 @@ int main() {
             return 0;
         }
     }    
+    return 0;
     std::cout << wrong << " equals " << (double) wrong * 100 / (double) 20 << "%" << std::endl; 
     /*std::vector<int> plantedKnownOptimal2={188,202,162,137,116,214,189,112,192,126,135,98,111,174,130,174,200,162,131,132,154,161,122,144,124,134,180,101,211,59,117,136,114,107,77,112};
     int result = solver.solve(12,plantedKnownOptimal2); 
@@ -350,7 +371,7 @@ int main() {
 */          
             bool canceled = false;
 
-            for (int l = 0; l < threadsUsed.size(); l++) { // i have locally "only" 12 threads
+            for (std::vector<double>::size_type l = 0; l < threadsUsed.size(); l++) { // i have locally "only" 12 threads
                 int result = 0;
                 tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, threadsUsed[l]);
 
@@ -433,15 +454,27 @@ int main() {
             for (auto speedup : speedups) {
                 if (speedup[speedup.size() - 1] > best[4] ) best = speedup;
                 if (speedup[speedup.size() - 1] < worst[4] ) worst = speedup;
-                for (int i = 0; i < average.size(); i++) average[i] += speedup[i];
+                for (std::vector<double>::size_type i = 0; i < average.size(); i++) average[i] += speedup[i];
                 bool better = true;
-                for (int i = 1; i < speedup.size(); i++) better &= (speedup[i] > 1.0002);
+                for (std::vector<double>::size_type i = 1; i < speedup.size(); i++) better &= (speedup[i] > 1.0002);
                 if (better) speedupInstances++;
                 better = false;
-                for (int i = 1; i < speedup.size(); i++) better |= (speedup[i] > 1);
+                for (std::vector<double>::size_type i = 1; i < speedup.size(); i++) better |= (speedup[i] > 1);
                 if (better) speedupInstancesWeak++;
              }  
-            for (int i = 0; i < average.size(); i++) average[i] = average[i] / speedups.size();
+            for (std::vector<double>::size_type i = 0; i < average.size(); i++) average[i] = average[i] / speedups.size();
+            
+            std::vector<double> geoMeans(5, 0);
+            std::vector<double> medians(5, 0);
+
+            for (std::vector<double>::size_type i = 0; i < speedups[0].size(); i++) {
+                std::vector<double> threadSpeedups;
+                for (const auto& speedup : speedups) {
+                    threadSpeedups.push_back(speedup[i]);
+                }
+                geoMeans[i] = geometricMean(threadSpeedups);
+                medians[i] = median(threadSpeedups);
+            }
 
             std::cout << "worst found Speedups: ";
             for (auto time : worst) std::cout << time << " ";
@@ -451,6 +484,12 @@ int main() {
 
             std::cout << std::endl << "average found Speedups: ";
             for (auto time : average) std::cout << time << " ";
+
+            std::cout << std::endl << "geometric means of Speedups: ";
+            for (auto mean : geoMeans) std::cout << mean << " ";
+
+            std::cout << std::endl << "medians of Speedups: ";
+            for (auto med : medians) std::cout << med << " ";
 
             std::cout << std::endl << "Instances with a speedup for all threads: ";
             std::cout << ((double) speedupInstances / speedups.size()) * 100 << "%";
