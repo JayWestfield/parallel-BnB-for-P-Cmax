@@ -111,7 +111,7 @@ void BnBSolver::init() {
     initialUpperBound = upperBound;
 
     fillRET();
-    STInstance = std::make_unique<STImpl>( jobDurations.size(), &upperBound, &offset, &RET, &mutex); // TODO create after irrelevance index
+    STInstance = std::make_unique<STImpl>( jobDurations.size(), offset, &RET); // TODO create after irrelevance index
 
     // set index for one  relevant JobSize Left 
     lastJobSize = lastRelevantJobIndex;
@@ -151,7 +151,7 @@ void BnBSolver::updateBound(int newBound) {
         !offset.compare_exchange_weak(currentOffset, newOffset)) { // TODO offsetupdate
     }*/
     //TODO find a good way to clear the map wihtout interfering with accesses of other threads
-    if(gist) STInstance->boundUpdate();
+    if(gist) STInstance->boundUpdate(offset);
 }
 
 bool BnBSolver::lookupRet(int i, int j, int job) {

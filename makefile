@@ -4,7 +4,7 @@ CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g
 LDFLAGS = -ltbb
 
 # Define the source and target files
-SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp
+SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h
 TARGET = dst/parallel_solver
 
 # Define the rule to build the target executable

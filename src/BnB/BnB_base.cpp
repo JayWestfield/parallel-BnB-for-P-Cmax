@@ -46,7 +46,7 @@ public:
         fillRET();
 
         // ST for gists
-        STInstance = new STImpl( lastRelevantJobIndex + 1, &upperBound, &offset, &RET, &boundLock);
+        STInstance = new STImpl( lastRelevantJobIndex + 1, offset, &RET);
         
 
         // one JobSize left
@@ -263,9 +263,9 @@ private:
         if (logBound) std::cout <<"new Bound " << newBound << std::endl;
         upperBound = newBound - 1;
         offset = initialUpperBound - upperBound; 
-        lock.unlock();            
-        if(gist) STInstance->boundUpdate();
+        if(gist) STInstance->boundUpdate(offset);
         if (logBound) std::cout <<"new Bound " << newBound  << "finished" << std::endl;
+        lock.unlock();            
     }
     
     /**
