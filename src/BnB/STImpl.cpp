@@ -35,7 +35,6 @@ public:
         assert(job < jobSize && job >= 0);
 
         if (maps[job].size() >= MAX_SIZE) {
-            std::cout << "Evict " << std::endl;
             evictEntries(job);
         }
 
@@ -45,22 +44,14 @@ public:
         maps[job].insert(acc, computeGist(state, job));
         acc->second = true;
         assert(acc->second == true);
-        std::stringstream gise;
-        gise << " inserted Gist ";
-        for (auto vla : computeGist(state, job)) gise << vla << " ";
+        logging(state, job, "inserted Gist");
 
-        acc.release();
-        gise << exists(state, job);
-                gise << "\n";
-
-        std::cout << gise.str();
-        
+        acc.release();        
         HashDelayedMap::accessor accDel;
         if (delayedTasks[job].find(accDel, computeGist(state, job))) {
             for (auto tag : accDel->second) {oneapi::tbb::task::resume(tag); delCount--;}
             delayedTasks[job].erase(accDel);
         }    
-        std::cout << "resumedGists" << std::endl;
     } 
 
     int exists(std::vector<int> state, int job) override {
@@ -84,16 +75,11 @@ public:
             if (maps[job].find(acc, computeGist(state, job))) return;
             if(maps[job].insert(acc, computeGist(state, job))) acc->second = false;
         }
-        std::stringstream gis;
-        gis << "add Prev ";
-        for (auto vla : computeGist(state, job)) gis << vla << " ";
-        gis << "\n";
-        std::cout << gis.str();
+        logging(state, job, "add Prev");
     }
 
     void boundUpdate(int offset) override {
         std::unique_lock<std::shared_mutex> lock(updateBound);
-        std::cout << "bound" << std::endl;
         this->offset = offset;
         clear();
         resumeAllDelayedTasks(); // TODO does thos need the other lock?
@@ -109,7 +95,7 @@ public:
         }
     }
     void resumeAllDelayedTasks() override {
-        std::cout << "resume " << delCount << std::endl;
+        // std::cout << "resume " << delCount << std::endl;
 
         for (auto& delayedMap : delayedTasks) {
                 for (auto it :delayedMap) {
@@ -118,7 +104,7 @@ public:
                 }
         } 
         std::vector<HashDelayedMap> newMaps(jobSize);
-        std::cout << "resumed " << delCount << std::endl;
+        // std::cout << "resumed " << delCount << std::endl;
         delayedTasks.swap(newMaps);
     }
 
@@ -126,17 +112,17 @@ public:
     void addDelayed(std::vector<int> gist, int job, oneapi::tbb::task::suspend_point tag) override {
         assert(job < jobSize);
 
-        std::cout << "add delay " << delCount << std::endl;
+        // std::cout << "add delay " << delCount << std::endl;
 
         std::shared_lock<std::shared_mutex> mapLock(updateBound);
-                std::cout << "add delay: lock " << delCount << std::endl;
+                // std::cout << "add delay: lock " << delCount << std::endl;
 
         HashMap::const_accessor acc;
         if (maps[job].find(acc, computeGist(gist, job))) { 
-                std::cout << "add delay: find " << delCount << std::endl;
+                // std::cout << "add delay: find " << delCount << std::endl;
             if (acc->second){
                 tbb::task::resume(tag);
-                std::cout << "instantly resumed " << delCount << std::endl;
+                // std::cout << "instantly resumed " << delCount << std::endl;
                 return;
             }  else {
                 HashDelayedMap::accessor acc;
@@ -144,16 +130,13 @@ public:
                 delCount++;
                 acc->second.push_back(tag);
             }
-        } else {tbb::task::resume(tag); std::cout << "intre" << std::endl; return;} //TODO that should only happen on bound update or evict and should not be an issue
-            
-        std::stringstream gis;
-        gis << "end delay ";
-        for (auto vla : computeGist(gist, job)) gis << vla << " ";
-        gis << "\n";
-        std::cout << gis.str();
+        } /* else {tbb::task::resume(tag);// std::cout << "intre" << std::endl; 
+        return;} */ //TODO that should only happen on bound update or evict and should not be an issue
+        logging(gist, job, "endDelay");
     }
 
 private:
+    bool detailedLogging = false;
     std::atomic<int> delCount = 0;
     std::vector<HashMap> maps;
     std::vector<HashDelayedMap> delayedTasks;
@@ -171,10 +154,19 @@ private:
             bitmaps[job].set(hashValue);
         }
     }
+
+    void logging(std::vector<int> state, int job, auto message = "") {
+        if (!detailedLogging) return;
+        std::stringstream gis;
+        gis << message << " ";
+        for (auto vla : state) gis << vla << " ";
+        gis << " => ";
+        for (auto vla : computeGist(state, job)) gis << vla << " ";
+        gis << " Job: " << job << "\n";
+        std::cout << gis.str() << std::endl;
+    }
     //TODO look for deadlocks etc
     void evictEntries(int job) {
-                std::cout << "evicte " << std::endl;
-
         std::unique_lock<std::shared_mutex> lock(mapsLock); // todo combine try lock with tthe if condition
         auto& map = maps[job];
         HashMap newMap;

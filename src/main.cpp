@@ -81,22 +81,15 @@ int main() {
     int wrong = 0;
         std::vector<int> plantedKnownOptimal={97, 93, 82, 50, 95, 96, 56, 93,50,96,60,50,23};
 
-    BnB_base_Impl solver(false, false, true, true);
-        for (int i = 0 ; i < 10; i++) {
+    BnB_base_Impl solver(true, true, true, false);
+    for (int i = 0 ; i < 0; i++) {
 
-            solver.solve(3,plantedKnownOptimal); 
-        }
-            return 0;
-
-            int result = solver.solve(3,plantedKnownOptimal); 
-
-    std::cout << std::endl << result << std::endl;// really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
-
-
-    std::cout << std::endl << result << std::endl; // really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
-    for (int i = 0 ; i < 2; i++) {
+        solver.solve(3,plantedKnownOptimal); 
+    }
+            
+    for (int i = 0 ; i < 0; i++) {
         tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 12);                
-        BnB_base_Impl solver(true, false, true, true);
+        BnB_base_Impl solver(true, true, true, false);
 
         //BnBSolver solver(true, true, true);
         std::vector<int> plantedKnownOptimal={97,93,82,50,95,96,56,93,91,81,64,89,63,58,96,76,80,54,56,50,100,79,86,63,76,68,60,83,91,67,89,86,84,90,61,69};
@@ -108,8 +101,7 @@ int main() {
             return 0;
         }
     }    
-    return 0;
-    std::cout << wrong << " equals " << (double) wrong * 100 / (double) 20 << "%" << std::endl; 
+    // std::cout << wrong << " equals " << (double) wrong * 100 / (double) 20 << "%" << std::endl; 
     /*std::vector<int> plantedKnownOptimal2={188,202,162,137,116,214,189,112,192,126,135,98,111,174,130,174,200,162,131,132,154,161,122,144,124,134,180,101,211,59,117,136,114,107,77,112};
     int result = solver.solve(12,plantedKnownOptimal2); 
     std::cout << "The optimal solution is: " << 429 << std::endl; // really weird error if this is 
@@ -382,7 +374,7 @@ int main() {
                 BnB_base_Impl solver(true, true, true, false);
                 canceler = std::async(std::launch::async, [&solver, &results, &l, &canceled,  &cv, &mtx, &timerExpired]() {
                     std::unique_lock<std::mutex> lock(mtx);
-                    if(cv.wait_for(lock, std::chrono::milliseconds(3000), [&timerExpired]{ return timerExpired; })) {
+                    if(cv.wait_for(lock, std::chrono::milliseconds(30000), [&timerExpired]{ return timerExpired; })) {
                         return;
                     }
                     if (results[l] == 0) {

@@ -90,9 +90,10 @@ private:
     STImpl* STInstance = nullptr;
 
     // Logging
-    bool logNodes = true;
+    bool logNodes = false;
     bool logInitialBounds = false;
-    bool logBound = true;
+    bool logBound = false;
+    bool detailedLogging = false;
 
 
     int lastRelevantJobIndex;
@@ -219,6 +220,7 @@ private:
     }
 
     void logging(std::vector<int> state, int job, auto message = "") {
+        if (!detailedLogging) return;
         std::stringstream gis;
         gis << message << " ";
         for (auto vla : state) gis << vla << " ";
@@ -258,7 +260,7 @@ private:
     void updateBound(int newBound) {
         if (newBound == lowerBound) {
             foundOptimal = true;}
-                    if (logBound) std::cout <<"try Bound " << newBound << std::endl;
+        if (logBound) std::cout <<"try Bound " << newBound << std::endl;
 
         std::unique_lock lock(boundLock); //Todo this can be done with CAS ( i think)
         if (newBound > upperBound) return;
