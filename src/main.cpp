@@ -86,11 +86,12 @@ int main() {
 
             solver.solve(3,plantedKnownOptimal); 
         }
+            return 0;
+
             int result = solver.solve(3,plantedKnownOptimal); 
 
     std::cout << std::endl << result << std::endl;// really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
 
-    return 0;
 
     std::cout << std::endl << result << std::endl; // really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
     for (int i = 0 ; i < 2; i++) {

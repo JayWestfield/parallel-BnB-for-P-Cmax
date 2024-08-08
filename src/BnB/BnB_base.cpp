@@ -176,6 +176,7 @@ private:
                     solvePartial(next, job + 1);
                     if (state[i] + jobDurations[job] <= upperBound) {
                         if (gist) STInstance->addGist(state, job);
+                        logging(state, job, "after add");
                         return;
                     }
                 }
@@ -198,13 +199,14 @@ private:
             logging(next, job + 1, "child from recursion");
             tg.run([=, &tg] { solvePartial(next, job + 1); });  
         }
-
+        logging(state, job, "wait for tasks to finish");
         tg.wait();
         logging(state, job, "after recursion");
         for (int i : repeat) {
             if (!lookupRet(state[i], state[i - 1], job)) { //Rule 6
                 std::vector<int> next = state;
                 next[i] += jobDurations[job];
+                logging(next, job + 1, "Rule 6 from recursion");
                 tg.run([=, &tg] { solvePartial(next, job + 1); });  
             }
         }
@@ -223,7 +225,7 @@ private:
         gis << " => ";
         for (auto vla : STInstance->computeGist(state, job)) gis << vla << " ";
         gis << " Job: " << job << "\n";
-        std::cout << gis.str();
+        std::cout << gis.str() << std::endl;
     }
     
     bool lookupRet(int i, int j, int job) {

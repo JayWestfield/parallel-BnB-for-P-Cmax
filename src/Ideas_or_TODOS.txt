@@ -5,3 +5,19 @@ might recompute the irrelevance index on lowerBound update, but not sure
 run more heuristics for a better upper bound and use one thread etc to compute a better lower bound because they are crucial
 
 TODO error handling for adding a gist that has makespan > upperbound (due to boundUpdate) => memory conflicts
+
+
+Debugging Question:
+
+there the programm does not continue 
+wait for tasks to finish 192 239 281  => 9 5 2  Job: 8
+
+both children:
+child from recursion 248 239 281  => 4 3 2  Job: 9 
+this has a gist  2 239 248 281  => 4 3 2  Job: 9
+
+child from recursion 192 295 281  => 6 2 1  Job: 9
+this has a gist  2 192 281 295  => 6 2 1  Job: 9
+
+(no third child because 56 + 281 = 337 > 318 current upper Bound)
+but the taskgroup does not resume why
