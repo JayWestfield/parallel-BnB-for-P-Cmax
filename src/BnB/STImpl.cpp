@@ -7,6 +7,7 @@
 #include <bitset>
 #include <sstream>
 #include <cassert>
+#include <stdexcept>
 
 const size_t MAX_SIZE = 5000000;
 const size_t BITMAP_SIZE = MAX_SIZE;
@@ -21,6 +22,7 @@ public:
     std::vector<int> computeGist(std::vector<int> state, int job) override {
         assert(job < jobSize && job >= 0);
         std::sort(state.begin(), state.end());
+        if ((long unsigned int)(state.back() + offset) >= (*RET)[job].size()) throw std::runtime_error("infeasible");
         std::vector<int> gist(state.size(), 0);
         assert((long unsigned int)(state.back() + offset) < (*RET)[job].size()); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < state.size(); i++ ) {
