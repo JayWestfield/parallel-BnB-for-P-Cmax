@@ -28,8 +28,6 @@ public:
         for (std::vector<int>::size_type i = 0; i < state.size(); i++ ) {
             gist[i] = (*RET)[job][state[i] + offset];
         }
-
-
         return gist;
     }
 
@@ -81,11 +79,13 @@ public:
     }
 
     void boundUpdate(int offset) override {
+
+
         std::unique_lock<std::shared_mutex> lock(updateBound);
         this->offset = offset;
         clear();
-        resumeAllDelayedTasks(); // TODO does thos need the other lock?
         lock.unlock();
+        resumeAllDelayedTasks(); // TODO does thos need the other lock?
     }
     void clear() override {
         std::vector<HashMap> newMaps(jobSize);
@@ -98,11 +98,22 @@ public:
     }
     void resumeAllDelayedTasks() override {
         // std::cout << "resume " << delCount << std::endl;
+        // needs an own lock because it is also called on cancel
+        std::unique_lock<std::shared_mutex> lock(updateBound);
 
         for (auto& delayedMap : delayedTasks) {
-                for (auto it :delayedMap) {
-                    for (auto tag : it.second) {oneapi::tbb::task::resume(tag);
-                    delCount--;}
+                // for (auto it :delayedMap) {
+                //     for (auto tag : it.second) {oneapi::tbb::task::resume(tag);
+                //     delCount--;}
+                // }
+                for (auto it = delayedMap.begin(); it != delayedMap.end(); ++it) {
+                    HashDelayedMap::accessor acc;
+                    if (delayedMap.find(acc, it->first)) {
+                        for (auto tag : acc->second) {
+                            oneapi::tbb::task::resume(tag);
+                            delCount--;
+                        }
+                    }
                 }
         } 
         std::vector<HashDelayedMap> newMaps(jobSize);
@@ -112,7 +123,7 @@ public:
 
 
     void addDelayed(std::vector<int> gist, int job, oneapi::tbb::task::suspend_point tag) override {
-        assert(job < jobSize);
+        assert(job < jobSize && job >= 0);
 
         // std::cout << "add delay " << delCount << std::endl;
 
@@ -150,7 +161,7 @@ private:
     std::shared_mutex updateBound; // shared_mutex zum Schutz der Hashmaps während boundUpdate
 
     void updateBitmap(int job, const std::vector<int>& gist) {
-        assert(job < jobSize);
+        assert(job < jobSize && job >= 0);
         if (useBitmaps) {
             size_t hashValue = VectorHasher().hash(gist) % BITMAP_SIZE;
             bitmaps[job].set(hashValue);
@@ -169,6 +180,7 @@ private:
     }
     //TODO look for deadlocks etc
     void evictEntries(int job) {
+        assert(job < jobSize && job >= 0);
         std::unique_lock<std::shared_mutex> lock(mapsLock); // todo combine try lock with tthe if condition
         auto& map = maps[job];
         HashMap newMap;

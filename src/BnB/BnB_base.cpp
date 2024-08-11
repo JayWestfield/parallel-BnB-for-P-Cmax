@@ -52,7 +52,7 @@ public:
 
         // one JobSize left
         int i = lastRelevantJobIndex;
-        while (jobDurations[--i] == jobDurations[lastRelevantJobIndex] && i > 0)
+        while (i > 0 && jobDurations[--i] == jobDurations[lastRelevantJobIndex] )
         {
         }
         lastSizeJobIndex = i + 1;
@@ -74,7 +74,7 @@ public:
     void cancelExecution()
     {
         cancel = true;
-        STInstance->resumeAllDelayedTasks();
+        if (STInstance != nullptr) STInstance->resumeAllDelayedTasks();
     }
 
 private:
@@ -193,7 +193,13 @@ private:
                     return;
             }
             else if (exists == 0 && addPreviously)
+            try {
                 STInstance->addPreviously(state, job);
+            }
+                            catch (const std::runtime_error &e)
+                            {
+                                return;
+                            }
         }
 
         // FUR
@@ -232,6 +238,8 @@ private:
         std::vector<int> repeat;
         if (numMachines > lastRelevantJobIndex - job + 1)
             endState = lastRelevantJobIndex - job + 1; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
+
+        assert(endState <= state.size());
         for (int i = 0; i < endState; i++)
         {
             if ((i > 0 && state[i] == state[i - 1]) || state[i] + jobDurations[job] > upperBound)
@@ -298,11 +306,13 @@ private:
     {
         std::shared_lock lock(boundLock); // Depending on the bound update we can remove the lock
         const int off = offset;
+        assert(i + off < RET[job].size());
         return RET[job][i + off] == RET[job][j + off];
     }
     bool lookupRetFur(int i, int j, int job)
     { // this is awful codestyle needs to be refactored
         std::shared_lock lock(boundLock);
+        assert(i + offset < RET[job].size() && initialUpperBound - j < RET[job].size());
         return RET[job][i + offset] == RET[job][initialUpperBound - j]; // need to make sure that upperbound and offset are correct done with initialBound (suboptimal)
     }
 
@@ -314,6 +324,7 @@ private:
         for (long unsigned int i = job; i < jobDurations.size(); i++)
         {
             int minLoadMachine = std::min_element(state.begin(), state.end()) - state.begin();
+            assert(minLoadMachine >= 0 && minLoadMachine < state.size());
             state[minLoadMachine] += jobDurations[i];
         }
         int makespan = *std::max_element(state.begin(), state.end());
@@ -358,6 +369,7 @@ private:
         for (long unsigned int i = 0; i < jobDurations.size(); i++)
         {
             int minLoadMachine = std::min_element(upper.begin(), upper.end()) - upper.begin();
+            assert(minLoadMachine >= 0 && minLoadMachine < upper.size());
             upper[minLoadMachine] += jobDurations[i];
         }
         return *std::max_element(upper.begin(), upper.end());

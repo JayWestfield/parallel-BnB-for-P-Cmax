@@ -140,6 +140,7 @@ def plot_histogram_times(ax, data):
     ax.set_xlabel('Laufzeiten (s)')
     ax.set_ylabel('Häufigkeit')
     ax.set_title('Histogramm der Laufzeiten')
+    ax.set_yscale('log')  # Logarithmische Skala für die y-Achse
     ax.legend()
     ax.grid(True)
 
