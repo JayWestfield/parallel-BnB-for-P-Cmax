@@ -4,8 +4,10 @@ CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g
 LDFLAGS = -ltbb
 
 # Define the source and target files
-SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h
+SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
 TARGET = dst/parallel_solver
+SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/lawrinenko_test.cpp
+TARGETEXP = dst/experiment
 
 # Define the rule to build the target executable
 $(TARGET): $(SOURCES)
@@ -15,6 +17,14 @@ $(TARGET): $(SOURCES)
 run: $(TARGET)
 	./$(TARGET)
 
+$(TARGETEXP): $(SOURCESEXP)
+	$(CXX) $(CXXFLAGS) -o $(TARGETEXP) $(SOURCESEXP) $(LDFLAGS)
+
+exp: $(TARGETEXP)
+	./$(TARGETEXP) $(filter-out $@,$(MAKECMDGOALS)) > results/exp12
+
+plot:  
+	python3 src/plotting/plotter.py results/exp1
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)

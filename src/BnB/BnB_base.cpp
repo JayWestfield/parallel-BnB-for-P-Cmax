@@ -74,7 +74,7 @@ public:
     void cancelExecution()
     {
         cancel = true;
-        if (STInstance != nullptr) STInstance->resumeAllDelayedTasks();
+        if (addPreviously && STInstance != nullptr) STInstance->resumeAllDelayedTasks();
     }
 
 private:

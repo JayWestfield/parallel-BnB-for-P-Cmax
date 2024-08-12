@@ -62,15 +62,19 @@ void readOptimalSolutions(const std::string &filename, std::unordered_map<std::s
 int main(int argc, char *argv[])
 {
     int maxThreads = std::stoi(argv[1]);
-    int timeout = std::stoi(argv[2]);
-    std::string basePath = argv[3];
-    std::string path_to_selection_of_instances = "";
+    int timeout = 3000;
+    if (argc >= 3)
+        timeout = std::stoi(argv[2]);
+    std::string basePath = "benchmarks";
+    if (argc >= 4)
+        basePath = argv[3];
+    std::string path_to_selection_of_instances = "src/experiments/lawrinenko_broadSelection.txt";
     if (argc >= 5)
         path_to_selection_of_instances = argv[4];
     std::unordered_map<std::string, int> optimalSolutions;
     readOptimalSolutions(basePath + "/opt-known-instances-lawrinenko.txt" , optimalSolutions);
     std::vector<std::string> instances_to_solve = {};
-    if (path_to_selection_of_instances != "")
+    if (path_to_selection_of_instances != "all" || path_to_selection_of_instances != "")
     {
         std::ifstream infile(path_to_selection_of_instances);
         if (!infile)

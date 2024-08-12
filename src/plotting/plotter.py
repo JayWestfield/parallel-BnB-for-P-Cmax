@@ -115,6 +115,27 @@ def plot_speedup_boxplot(ax, data):
     ax.set_title('Verteilung der Speedups')
     ax.grid(True)
 
+def plot_speedup_boxplot_filtered(ax, data):
+    num_thread_configs = len(data[0][1])
+    speedups_per_thread = {f'{2**i} Threads': [] for i in range(1, num_thread_configs)}
+
+    for name, times in data:
+        if times[0] >= 0.01 and all(t >= 0.01 for t in times):  # Bedingung: Laufzeit mindestens 0.1 s für alle Konfigurationen
+            for i in range(1, num_thread_configs):
+                if times[i] != float('inf'):
+                    speedup = times[0] / times[i]
+                    speedups_per_thread[f'{2**i} Threads'].append(speedup)
+
+    # Sammle die Speedups in einer Liste für den Boxplot
+    speedups_data = [speedups_per_thread[threads] for threads in speedups_per_thread]
+
+    # Erstelle den Boxplot
+    ax.boxplot(speedups_data, labels=speedups_per_thread.keys())
+    ax.set_xlabel('Anzahl der Threads')
+    ax.set_ylabel('Speedup')
+    ax.set_title('Verteilung der Speedups (nur Instanzen > 0.01 s)')
+    ax.grid(True)
+
 
 def plot_boxplot_times(ax, data):
     num_thread_configs = len(data[0][1])
@@ -145,7 +166,7 @@ def plot_histogram_times(ax, data):
     ax.grid(True)
 
 def plot_all_in_one(data):
-    fig, axs = initialize_subplots(2, 3, "Analyse der Laufzeiten und Speedups")
+    fig, axs = initialize_subplots(3, 3, "Analyse der Laufzeiten und Speedups")
 
     plot_cumulative_times(axs[0, 0], data)
     plot_speedups(axs[0, 1], data)
@@ -153,7 +174,7 @@ def plot_all_in_one(data):
     plot_speedup_boxplot(axs[1, 0], data)
     plot_boxplot_times(axs[1, 1], data)
     plot_histogram_times(axs[1, 2], data)
-
+    plot_speedup_boxplot_filtered(axs[2,2], data)
     save_plots(fig)
     
 def main(filepath):

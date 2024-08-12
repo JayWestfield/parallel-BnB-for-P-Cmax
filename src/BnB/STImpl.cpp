@@ -106,14 +106,16 @@ public:
                 //     for (auto tag : it.second) {oneapi::tbb::task::resume(tag);
                 //     delCount--;}
                 // }
-                for (auto it = delayedMap.begin(); it != delayedMap.end(); ++it) {
-                    HashDelayedMap::accessor acc;
+                auto it = delayedMap.begin();
+                while (it != delayedMap.end()) {
+                     HashDelayedMap::accessor acc;
                     if (delayedMap.find(acc, it->first)) {
                         for (auto tag : acc->second) {
                             oneapi::tbb::task::resume(tag);
                             delCount--;
                         }
                     }
+                    ++it;
                 }
         } 
         std::vector<HashDelayedMap> newMaps(jobSize);

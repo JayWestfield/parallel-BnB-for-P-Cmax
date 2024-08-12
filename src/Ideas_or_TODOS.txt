@@ -21,3 +21,7 @@ this has a gist  2 192 281 295  => 6 2 1  Job: 9
 
 (no third child because 56 + 281 = 337 > 318 current upper Bound)
 but the taskgroup does not resume why
+
+last bound update in line 14443
+
+reason for a delayed task add Prev 42 15 2 
