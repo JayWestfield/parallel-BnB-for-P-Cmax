@@ -3,9 +3,12 @@ startup (sorting filling ret etc) do asnc / in parallel
 might recompute the irrelevance index on lowerBound update, but not sure 
 
 run more heuristics for a better upper bound and use one thread etc to compute a better lower bound because they are crucial
+for bigger instances the memory management of STIMPL needs imporvement 
+test curretn vs one gib hashmap
 
 TODO error handling for adding a gist that has makespan > upperbound (due to boundUpdate) => memory conflicts
 
+TODO rule for the same job size (not in the end)
 
 Debugging Question:
 
@@ -25,3 +28,10 @@ but the taskgroup does not resume why
 last bound update in line 14443
 
 reason for a delayed task add Prev 42 15 2 
+
+delayed task:
+suspend 97 191 282  => 42 15 2  Job: 6
+
+make the try/cathc actions better /less
+
+STImpl needs to adapt to the addPrev.../extended

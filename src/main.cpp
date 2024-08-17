@@ -4,109 +4,129 @@
 #include <fstream>
 #include <sstream>
 #include <chrono>
-#include <tbb/tbb.h> 
+#include <tbb/tbb.h>
 #include <future>
 #include "BnB/BnB.h"
-void readInstance(const std::string& filename, int& numJobs, int& numMachines, std::vector<int>& jobDurations) {
+void readInstance(const std::string &filename, int &numJobs, int &numMachines, std::vector<int> &jobDurations)
+{
     std::ifstream infile(filename);
-    if (!infile) {
+    if (!infile)
+    {
         throw std::runtime_error("Unable to open file");
     }
     std::string line;
 
     // Read the first line
-    if (std::getline(infile, line)) {
+    if (std::getline(infile, line))
+    {
         std::istringstream iss(line);
         std::string problemType;
-        iss >> problemType >> problemType >> numJobs >> numMachines; 
+        iss >> problemType >> problemType >> numJobs >> numMachines;
     }
-    
+
     // Read the second line
-    if (std::getline(infile, line)) {
+    if (std::getline(infile, line))
+    {
         std::istringstream iss(line);
         int duration;
-        while (iss >> duration) {
+        while (iss >> duration)
+        {
             jobDurations.push_back(duration);
         }
     }
 }
-void readOptimalSolutions(const std::string& filename, std::unordered_map<std::string, int>& optimalSolutions) {
+void readOptimalSolutions(const std::string &filename, std::unordered_map<std::string, int> &optimalSolutions)
+{
     std::ifstream infile(filename);
-    if (!infile) {
+    if (!infile)
+    {
         throw std::runtime_error("Unable to open file");
     }
-    
 
     std::string line;
-    while (std::getline(infile, line)) {
+    while (std::getline(infile, line))
+    {
         std::istringstream iss(line);
         std::string name;
         int optimalMakespan;
-        if (iss >> name >> optimalMakespan) {
+        if (iss >> name >> optimalMakespan)
+        {
             optimalSolutions[name] = optimalMakespan;
         }
-        
     }
 }
 
-double geometricMean(const std::vector<double>& values) {
+double geometricMean(const std::vector<double> &values)
+{
     double product = 1.0;
-    for (const auto& val : values) {
+    for (const auto &val : values)
+    {
         product *= val;
     }
     return std::pow(product, 1.0 / values.size());
 }
 
-double median(std::vector<double>& values) {
+double median(std::vector<double> &values)
+{
     size_t size = values.size();
     std::sort(values.begin(), values.end());
-    if (size % 2 == 0) {
+    if (size % 2 == 0)
+    {
         return (values[size / 2 - 1] + values[size / 2]) / 2.0;
-    } else {
+    }
+    else
+    {
         return values[size / 2];
     }
 }
-int main() {
-    
 
-    try {
+
+int main()
+{
+ 
+    try
+    {
         std::vector<int> jobDurations;
         std::unordered_map<std::string, int> optimalSolutions;
         std::vector<std::string> failed;
         std::vector<std::string> succesfull;
-        //BnBSolver solver(true, true, true);
+        // BnBSolver solver(true, true, true);
         uint64_t totalNodesVisited = 0;
-    tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 12);                
+        tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 12);
 
-    int wrong = 0;
-        std::vector<int> plantedKnownOptimal={97, 93, 82, 50, 95, 96, 56, 93,50,96,60,50,23};
+        int wrong = 0;
+        std::vector<int> plantedKnownOptimal = {97, 93, 82, 50, 95, 96, 56, 93};
 
-    BnB_base_Impl solver(true, true, true, false);
-    for (int i = 0 ; i < 0; i++) {
+        BnB_base_Impl solver(true, true, true, true, false);
+        for (int i = 0; i < 100; i++)
+        {
 
-        solver.solve(3,plantedKnownOptimal); 
-    }
-            
-    for (int i = 0 ; i < 0; i++) {
-        tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 12);                
-        BnB_base_Impl solver(true, true, true, false);
-
-        //BnBSolver solver(true, true, true);
-        std::vector<int> plantedKnownOptimal={97,93,82,50,95,96,56,93,91,81,64,89,63,58,96,76,80,54,56,50,100,79,86,63,76,68,60,83,91,67,89,86,84,90,61,69};
-        int result = solver.solve(3,plantedKnownOptimal); 
-        std::cout << result << std::endl;// really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
-        if (result != 176) {
-            std::cout << "Error This would be a false run "  <<  i <<  "with " << result << std::endl;
-            wrong++;
-            return 0;
+            BnB_base_Impl solver(true, true, true, true, false);
+            std::cout << solver.solve(3, plantedKnownOptimal) << std::endl; // really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
         }
-    }    
-    // std::cout << wrong << " equals " << (double) wrong * 100 / (double) 20 << "%" << std::endl; 
-    /*std::vector<int> plantedKnownOptimal2={188,202,162,137,116,214,189,112,192,126,135,98,111,174,130,174,200,162,131,132,154,161,122,144,124,134,180,101,211,59,117,136,114,107,77,112};
-    int result = solver.solve(12,plantedKnownOptimal2); 
-    std::cout << "The optimal solution is: " << 429 << std::endl; // really weird error if this is 
-    std::cout << "The best found solution is: " << result << std::endl;
-    std::cout << "nodes visited: " << solver.visitedNodes << std::endl;  */
+        for (int i = 0; i < 10; i++)
+        {
+            tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 12);
+            BnB_base_Impl solver(true, true, true, true, false);
+
+            // BnBSolver solver(true, true, true);
+            std::vector<int> plantedKnownOptimal = {97, 93, 82, 50, 95, 96, 56, 93, 91, 81, 64, 89, 63, 58, 96, 76, 80, 54, 56, 50, 100, 79, 86, 63, 76, 68, 60, 83, 91, 67, 89, 86, 84, 90, 61, 69};
+            int result = solver.solve(3, plantedKnownOptimal);
+            // std::cout << result << std::endl; // really weird error if this is not 231 then there will be error instances so it has to be an missing initializer or sth like that i have no idea
+            if (result != 924)
+            {
+                std::cout << "Error This would be a false run " << i << "with " << result << std::endl;
+                wrong++;
+                return 0;
+            }
+        }
+        return 0;
+        // std::cout << wrong << " equals " << (double) wrong * 100 / (double) 20 << "%" << std::endl;
+        /*std::vector<int> plantedKnownOptimal2={188,202,162,137,116,214,189,112,192,126,135,98,111,174,130,174,200,162,131,132,154,161,122,144,124,134,180,101,211,59,117,136,114,107,77,112};
+        int result = solver.solve(12,plantedKnownOptimal2);
+        std::cout << "The optimal solution is: " << 429 << std::endl; // really weird error if this is
+        std::cout << "The best found solution is: " << result << std::endl;
+        std::cout << "nodes visited: " << solver.visitedNodes << std::endl;  */
         // Read the known optimal solutions
         std::string optimalSolutionsFile = "benchmarks/opt-known-instances-lawrinenko.txt";
         std::vector<std::string> interestingFiles;
@@ -114,7 +134,8 @@ int main() {
         int testInstances = optimalSolutions.size();
         const int excludeLast = 0;
         auto it = optimalSolutions.begin();
-        for (int s = 0; s < excludeLast; s++) {
+        for (int s = 0; s < excludeLast; s++)
+        {
             it++;
         }
         std::vector<std::string> selectedInstances = {
@@ -310,12 +331,16 @@ int main() {
             "p_cmax-class2-n180-m90-minsize20-maxsize100-seed21043.txt",
         };
         std::vector<std::vector<double>> speedups;
-        for (int i = 0; i < testInstances; i++) {
+        for (int i = 0; i < testInstances; i++)
+        {
             const auto instanceFile = it->first;
             const auto knownOptimal = it++->second;
-            //if (instanceFile.find("n22-") == -1 ) {continue;} // only test specific instances n22 && instanceFile.find("n36-m16") == -1  && instanceFile.find("n20-") == -1
-            //if (instanceFile.find("class2-") == -1 && instanceFile.find("class1-") == -1) continue;
-            if (std::find(selectedInstances.begin(), selectedInstances.end(), instanceFile) == selectedInstances.end()) { continue;}
+            // if (instanceFile.find("n22-") == -1 ) {continue;} // only test specific instances n22 && instanceFile.find("n36-m16") == -1  && instanceFile.find("n20-") == -1
+            // if (instanceFile.find("class2-") == -1 && instanceFile.find("class1-") == -1) continue;
+            if (std::find(selectedInstances.begin(), selectedInstances.end(), instanceFile) == selectedInstances.end())
+            {
+                continue;
+            }
             int numJobs, numMachines;
             std::vector<int> jobDurations;
 
@@ -323,7 +348,7 @@ int main() {
             readInstance(instanceFilePath, numJobs, numMachines, jobDurations);
 
             std::vector<std::chrono::duration<double>> runtimes;
-            std::vector<int> results = {0,0,0,0,0};
+            std::vector<int> results = {0, 0, 0, 0, 0};
             std::vector<int> visitedNodes;
             std::cout << "Instance: " << instanceFile << std::endl;
             std::mutex mtx;
@@ -331,7 +356,7 @@ int main() {
             bool timerExpired = false;
 
             std::vector<std::future<void>> futures;
-            std::vector<int>threadsUsed = {1, 2, 4, 8, 12};
+            std::vector<int> threadsUsed = {1, 2, 4, 8, 12};
             /*tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, 1);
             futures.push_back(std::async(std::launch::async, [&solver, &results, &canceled,  &cv, &mtx, &timerExpired]() {
                     std::unique_lock<std::mutex> lock(mtx);
@@ -347,7 +372,7 @@ int main() {
             auto start = std::chrono::high_resolution_clock::now();
             results[0] = solver.solve(numMachines, jobDurations);
             auto end = std::chrono::high_resolution_clock::now();
-            
+
             runtimes.push_back(end - start);
             visitedNodes.push_back(solver.visitedNodes);
             totalNodesVisited += solver.visitedNodes;
@@ -361,18 +386,20 @@ int main() {
                 future.get();
             }
             if(canceled) continue;
-*/          
+*/
             bool canceled = false;
 
-            for (std::vector<double>::size_type l = 0; l < threadsUsed.size(); l++) { // i have locally "only" 12 threads
+            for (std::vector<double>::size_type l = 0; l < threadsUsed.size(); l++)
+            { // i have locally "only" 12 threads
                 int result = 0;
                 tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, threadsUsed[l]);
 
                 // Timer asynchron starten
                 // std::cout << "start run with: " << threadsUsed[l] << std::endl;
                 std::future<void> canceler;
-                BnB_base_Impl solver(true, true, true, false);
-                canceler = std::async(std::launch::async, [&solver, &results, &l, &canceled,  &cv, &mtx, &timerExpired]() {
+                BnB_base_Impl solver(true, true, true, true, false);
+                canceler = std::async(std::launch::async, [&solver, &results, &l, &canceled, &cv, &mtx, &timerExpired]()
+                                      {
                     std::unique_lock<std::mutex> lock(mtx);
                     if(cv.wait_for(lock, std::chrono::milliseconds(30000), [&timerExpired]{ return timerExpired; })) {
                         return;
@@ -380,8 +407,7 @@ int main() {
                     if (results[l] == 0) {
                         std::cout << " Aborted" << std::endl;
                         solver.cancelExecution();
-                        }
-                });
+                        } });
                 auto start = std::chrono::high_resolution_clock::now();
                 result = solver.solve(numMachines, jobDurations);
                 auto end = std::chrono::high_resolution_clock::now();
@@ -391,78 +417,109 @@ int main() {
                 }
                 cv.notify_all();
                 canceler.get();
-                if (result == 0) {canceled = true; break;}
+                if (result == 0)
+                {
+                    canceled = true;
+                    break;
+                }
                 results[l] = result;
-                
+
                 runtimes.push_back(end - start);
                 visitedNodes.push_back(solver.visitedNodes);
                 totalNodesVisited += solver.visitedNodes;
             }
-            if (canceled) continue;
-            if (runtimes[0] > std::chrono::milliseconds(100)) interestingFiles.push_back(instanceFile); //collect instances with a runtime of at least 0,1 seconds runtime
-            
+            if (canceled)
+                continue;
+            if (runtimes[0] > std::chrono::milliseconds(100))
+                interestingFiles.push_back(instanceFile); // collect instances with a runtime of at least 0,1 seconds runtime
+
             std::cout << "runtimes: ";
-            for (auto time : runtimes) {
-                std::cout << time.count() <<  " ";
+            for (auto time : runtimes)
+            {
+                std::cout << time.count() << " ";
             }
-            std::cout << std::endl << "speedup: "; // todo safe speedups and return the biggest and smalles in the end
+            std::cout << std::endl
+                      << "speedup: "; // todo safe speedups and return the biggest and smalles in the end
             std::vector<double> ewst;
             speedups.push_back(ewst);
-            for (auto time : runtimes) {
-                speedups[speedups.size() -1].push_back(runtimes[0].count() / time.count()); 
-                std::cout << runtimes[0].count() / time.count() <<  " ";
+            for (auto time : runtimes)
+            {
+                speedups[speedups.size() - 1].push_back(runtimes[0].count() / time.count());
+                std::cout << runtimes[0].count() / time.count() << " ";
             }
-            std::cout <<std::endl <<  "Visited Nodes : ";
-            for (auto visited : visitedNodes) {
-                std::cout << visited <<  " ";
+            std::cout << std::endl
+                      << "Visited Nodes : ";
+            for (auto visited : visitedNodes)
+            {
+                std::cout << visited << " ";
             }
-            std::cout <<std::endl <<  "increase Nodes: ";
-            for (auto visited : visitedNodes) {
-                std::cout << (double) visited / (double) visitedNodes[0]  <<  " ";
+            std::cout << std::endl
+                      << "increase Nodes: ";
+            for (auto visited : visitedNodes)
+            {
+                std::cout << (double)visited / (double)visitedNodes[0] << " ";
             }
-            std::cout <<std::endl;
+            std::cout << std::endl;
             std::vector<int> opt(results.size(), knownOptimal);
-            if ( results == opt) { // TODO curretnly onnly the last resolt with 12 threads is checked the others are ignored
+            if (results == opt)
+            { // TODO curretnly onnly the last resolt with 12 threads is checked the others are ignored
                 succesfull.push_back("" + instanceFilePath);
-                std::cout << "Success: Found the optimal makespan of "<<  visitedNodes[4] << std::endl;
-            } else {
+                std::cout << "Success: Found the optimal makespan of " << visitedNodes[4] << std::endl;
+            }
+            else
+            {
                 failed.push_back(instanceFilePath);
-                std::cout << "Error: The calculated makespan of " ;
-                for (auto vla:results) std::cout << vla;
-                std::cout <<  " does not match the known optimal value of " << knownOptimal << std::endl;
+                std::cout << "Error: The calculated makespan of ";
+                for (auto vla : results)
+                    std::cout << vla;
+                std::cout << " does not match the known optimal value of " << knownOptimal << std::endl;
             }
             std::cout << "--------------------------------------------------------------------------------------------------------" << std::endl;
         }
-        if (testInstances > 0) {
-            std::cout << "Failed instances: " <<  failed.size() << "/" << failed.size() + succesfull.size() << " = " << (double) failed.size() * 100 / (double) (failed.size() + succesfull.size()) << "%" << std::endl;
-            if (failed.size() > 0) std::cout << "Failed instances: " << std::endl;
-            for (auto inst : failed) {
+        if (testInstances > 0)
+        {
+            std::cout << "Failed instances: " << failed.size() << "/" << failed.size() + succesfull.size() << " = " << (double)failed.size() * 100 / (double)(failed.size() + succesfull.size()) << "%" << std::endl;
+            if (failed.size() > 0)
+                std::cout << "Failed instances: " << std::endl;
+            for (auto inst : failed)
+            {
                 std::cout << inst << std::endl;
             }
-            std::vector<double> best(5,0);
-            std::vector<double> worst(5,7);
-            std::vector<double> average(5,0);
+            std::vector<double> best(5, 0);
+            std::vector<double> worst(5, 7);
+            std::vector<double> average(5, 0);
             int speedupInstances = 0;
             int speedupInstancesWeak = 0;
-            for (auto speedup : speedups) {
-                if (speedup[speedup.size() - 1] > best[4] ) best = speedup;
-                if (speedup[speedup.size() - 1] < worst[4] ) worst = speedup;
-                for (std::vector<double>::size_type i = 0; i < average.size(); i++) average[i] += speedup[i];
+            for (auto speedup : speedups)
+            {
+                if (speedup[speedup.size() - 1] > best[4])
+                    best = speedup;
+                if (speedup[speedup.size() - 1] < worst[4])
+                    worst = speedup;
+                for (std::vector<double>::size_type i = 0; i < average.size(); i++)
+                    average[i] += speedup[i];
                 bool better = true;
-                for (std::vector<double>::size_type i = 1; i < speedup.size(); i++) better &= (speedup[i] > 1.0002);
-                if (better) speedupInstances++;
+                for (std::vector<double>::size_type i = 1; i < speedup.size(); i++)
+                    better &= (speedup[i] > 1.0002);
+                if (better)
+                    speedupInstances++;
                 better = false;
-                for (std::vector<double>::size_type i = 1; i < speedup.size(); i++) better |= (speedup[i] > 1);
-                if (better) speedupInstancesWeak++;
-             }  
-            for (std::vector<double>::size_type i = 0; i < average.size(); i++) average[i] = average[i] / speedups.size();
-            
+                for (std::vector<double>::size_type i = 1; i < speedup.size(); i++)
+                    better |= (speedup[i] > 1);
+                if (better)
+                    speedupInstancesWeak++;
+            }
+            for (std::vector<double>::size_type i = 0; i < average.size(); i++)
+                average[i] = average[i] / speedups.size();
+
             std::vector<double> geoMeans(5, 0);
             std::vector<double> medians(5, 0);
 
-            for (std::vector<double>::size_type i = 0; i < speedups[0].size(); i++) {
+            for (std::vector<double>::size_type i = 0; i < speedups[0].size(); i++)
+            {
                 std::vector<double> threadSpeedups;
-                for (const auto& speedup : speedups) {
+                for (const auto &speedup : speedups)
+                {
                     threadSpeedups.push_back(speedup[i]);
                 }
                 geoMeans[i] = geometricMean(threadSpeedups);
@@ -470,35 +527,49 @@ int main() {
             }
 
             std::cout << "worst found Speedups: ";
-            for (auto time : worst) std::cout << time << " ";
+            for (auto time : worst)
+                std::cout << time << " ";
 
-            std::cout << std::endl <<  "best found Speedups: ";
-            for (auto time : best) std::cout << time << " ";
+            std::cout << std::endl
+                      << "best found Speedups: ";
+            for (auto time : best)
+                std::cout << time << " ";
 
-            std::cout << std::endl << "average found Speedups: ";
-            for (auto time : average) std::cout << time << " ";
+            std::cout << std::endl
+                      << "average found Speedups: ";
+            for (auto time : average)
+                std::cout << time << " ";
 
-            std::cout << std::endl << "geometric means of Speedups: ";
-            for (auto mean : geoMeans) std::cout << mean << " ";
+            std::cout << std::endl
+                      << "geometric means of Speedups: ";
+            for (auto mean : geoMeans)
+                std::cout << mean << " ";
 
-            std::cout << std::endl << "medians of Speedups: ";
-            for (auto med : medians) std::cout << med << " ";
+            std::cout << std::endl
+                      << "medians of Speedups: ";
+            for (auto med : medians)
+                std::cout << med << " ";
 
-            std::cout << std::endl << "Instances with a speedup for all threads: ";
-            std::cout << ((double) speedupInstances / speedups.size()) * 100 << "%";
+            std::cout << std::endl
+                      << "Instances with a speedup for all threads: ";
+            std::cout << ((double)speedupInstances / speedups.size()) * 100 << "%";
 
-            std::cout << std::endl << "Instances with a speedup for at least one threads: ";
-            std::cout << ((double) speedupInstancesWeak / speedups.size()) * 100 << "%";
+            std::cout << std::endl
+                      << "Instances with a speedup for at least one threads: ";
+            std::cout << ((double)speedupInstancesWeak / speedups.size()) * 100 << "%";
             std::cout << std::endl;
 
             std::cout << "Total number Of Nodes Visited: " << totalNodesVisited << std::endl;
 
-             std::cout << "Interesting instances (single threaded between 10 and 120000 millisecond):" << std::endl;
-            for (auto interest : interestingFiles) {
-                std::cout <<interest << std::endl;
+            std::cout << "Interesting instances (single threaded between 10 and 120000 millisecond):" << std::endl;
+            for (auto interest : interestingFiles)
+            {
+                std::cout << interest << std::endl;
             }
         }
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }

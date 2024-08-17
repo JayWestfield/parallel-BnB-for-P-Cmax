@@ -19,8 +19,9 @@ public:
      * @param fur use the fur Rule
      * @param gist take advantage of gists
      * @param addPreviously add the gist (with a flag) when starting to compute it
+     * @param addPreviouslyExtended extended resumable tasks
      */
-    BnB_base_Impl(bool irrelevance, bool fur, bool gist, bool addPreviously) : BnBSolverBase(irrelevance, fur, gist, addPreviously) {}
+    BnB_base_Impl(bool irrelevance, bool fur, bool gist, bool addPreviously, bool addPreviouslyExtended) : BnBSolverBase(irrelevance, fur, gist, addPreviously, addPreviouslyExtended) {}
     int solve(int numMachine, const std::vector<int> &jobDuration) override
     {
         reset();
@@ -37,7 +38,10 @@ public:
         upperBound = initialUpperBound - 1;
         offset = 1;
         lowerBound = std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines);
-
+        if (initialUpperBound == lowerBound) {
+            hardness = Difficulty::trivial;
+            return initialUpperBound;
+        }
         // irrelevance
         lastRelevantJobIndex = jobDurations.size() - 1;
         if (irrelevance)
@@ -52,7 +56,7 @@ public:
 
         // one JobSize left
         int i = lastRelevantJobIndex;
-        while (i > 0 && jobDurations[--i] == jobDurations[lastRelevantJobIndex] )
+        while (i > 0 && jobDurations[--i] == jobDurations[lastRelevantJobIndex])
         {
         }
         lastSizeJobIndex = i + 1;
@@ -61,20 +65,33 @@ public:
 
         // start Computing
         std::vector<int> initialState(numMachines, 0);
-        solvePartial(initialState, 0);
+        tbb::task_group tg;
+        tg.run([=, &tg]
+               { solvePartial(initialState, 0);});
+        // tg.run([=, &tg]
+        //                 { std::this_thread::sleep_for(std::chrono::seconds(10)); });
+        tg.wait();
         delete STInstance;
 
+        
         if (cancel)
             return 0;
         // upper Bound is the next best bound so + 1 is the best found bound
-        else
-            return upperBound + 1;
+        if (initialUpperBound == upperBound) {
+            hardness = Difficulty::lptOpt;
+        } else if (upperBound + 1 == lowerBound) {
+            hardness = Difficulty::lowerBoundOptimal;
+        } else {
+            hardness = Difficulty::full;
+        }
+        return upperBound + 1;
     }
 
     void cancelExecution()
     {
         cancel = true;
-        if (addPreviously && STInstance != nullptr) STInstance->resumeAllDelayedTasks();
+        if (addPreviouslyExtended && STInstance != nullptr)
+            STInstance->resumeAllDelayedTasks();
     }
 
 private:
@@ -173,33 +190,74 @@ private:
             logging(state, job, exists);
             int bound = upperBound;
             if (exists == 2)
+            {
+                logging(state, job, "gist found");
+
                 return;
+            }
             else if (exists == 1)
             {
-                while (STInstance->exists(state, job) == 1)
-                { // TODO try catch for the whole block
-                    logging(state, job, "suspend");
-                    oneapi::tbb::task::suspend([=](oneapi::tbb::task::suspend_point tag)
+                try
+                {
+                    int repeated = 0;
+                    while (STInstance->exists(state, job) == 1 && repeated++ < 10)
+                    { // TODO try catch for the whole block
+                        logging(state, job, "suspend");
+                        tbb::task::suspend([=](tbb::task::suspend_point tag)
+                                           {
+                                               if (addPreviouslyExtended)
                                                {
-                                                   STInstance->addDelayed(state, job, tag);
-                                                   // oneapi::tbb::task::resume(tag);
-                                               });
-                    logging(state, job, "restarted");
-                    // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound ||
-                    if (makespan > upperBound || foundOptimal || cancel)
-                        return;
+                                                   try
+                                                   {
+                                                        STInstance->addDelayed(state, job, tag);
+                                                   }
+                                                   catch (const std::runtime_error &e)
+                                                   {
+                                                       tbb::task::resume(tag);
+                                                       return;
+                                                   }
+                                               }
+                                               else
+                                               {
+                                                   tbb::task::resume(tag);
+                                               } });
+                        logging(state, job, "restarted");
+                        // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
+                        if (makespan > upperBound || foundOptimal || cancel)
+                        {
+                            logging(state, job, "after not worth continuing");
+                            return;
+                        }
+                    }
                 }
-                if (STInstance->exists(state, job) == 2)
+                catch (const std::runtime_error &e)
+                {
                     return;
+                }
+                try
+                {
+                    if (STInstance->exists(state, job) == 2)
+                    {
+                        logging(state, job, "after restard found");
+
+                        return;
+                    }
+                }
+                catch (const std::runtime_error &e)
+                {
+                    return;
+                }
             }
             else if (exists == 0 && addPreviously)
-            try {
-                STInstance->addPreviously(state, job);
-            }
-                            catch (const std::runtime_error &e)
-                            {
-                                return;
-                            }
+                try
+                {
+                    logging(state, job, "gist not found");
+                    STInstance->addPreviously(state, job);
+                }
+                catch (const std::runtime_error &e)
+                {
+                    return;
+                }
         }
 
         // FUR
@@ -251,12 +309,15 @@ private:
             }
             std::vector<int> next = state;
             next[i] += jobDurations[job];
+            std::sort(next.begin(), next.end());
+
             logging(next, job + 1, "child from recursion");
-            tg.run([=, &tg]
+            tg.run([=]
                    { solvePartial(next, job + 1); });
         }
+
         logging(state, job, "wait for tasks to finish");
-        tg.wait();
+
         logging(state, job, "after recursion");
         for (int i : repeat)
         {
@@ -289,17 +350,24 @@ private:
 
     void logging(std::vector<int> state, int job, auto message = "")
     {
-        if (!detailedLogging)
+        try
+        {
+            if (!detailedLogging)
+                return;
+            std::stringstream gis;
+            gis << message << " ";
+            for (auto vla : state)
+                gis << vla << ", ";
+            gis << " => ";
+            for (auto vla : STInstance->computeGist(state, job))
+                gis << vla << " ";
+            gis << " Job: " << job;
+            std::cout << gis.str() << std::endl;
+        }
+        catch (const std::runtime_error &e)
+        {
             return;
-        std::stringstream gis;
-        gis << message << " ";
-        for (auto vla : state)
-            gis << vla << " ";
-        gis << " => ";
-        for (auto vla : STInstance->computeGist(state, job))
-            gis << vla << " ";
-        gis << " Job: " << job << "\n";
-        std::cout << gis.str() << std::endl;
+        }
     }
 
     bool lookupRet(int i, int j, int job)
@@ -343,6 +411,7 @@ private:
         {
             foundOptimal = true;
         }
+
         if (logBound)
             std::cout << "try Bound " << newBound << std::endl;
 
@@ -445,16 +514,15 @@ private:
                 }
             }
         }
-        /*std::cout << "Logging RET:\n";
-        for (size_t i = 0; i < RET.size(); ++i) {
-            for (size_t j = 0; j < RET[i].size(); ++j) {
-                std::cout << RET[i][j] << " ";
-            }
-            std::cout << "\n";
-        }
-        std::cout << "End of RET log\n\n"; */
     }
-
+    void remove(std::vector<std::vector<int>> vec, std::vector<int> target)
+    {
+        auto it = std::find(vec.begin(), vec.end(), target);
+        if (it != vec.end())
+        {
+            vec.erase(it);
+        }
+    }
     void resetLocals()
     {
         numMachines = 0;

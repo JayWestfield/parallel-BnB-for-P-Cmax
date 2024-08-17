@@ -15,7 +15,7 @@ const size_t BITMAP_SIZE = MAX_SIZE;
 class STImpl : public ST {
 public:
     using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
-    using HashDelayedMap = tbb::concurrent_hash_map<std::vector<int>, std::vector<oneapi::tbb::task::suspend_point>, VectorHasher>; // might have more than one suspension point for a gist
+    using HashDelayedMap = tbb::concurrent_hash_map<std::vector<int>, std::vector<tbb::task::suspend_point>, VectorHasher>; // might have more than one suspension point for a gist
 
     STImpl(int jobSize, int offset, std::vector<std::vector<int>>* RET) :  ST(jobSize, offset, RET),maps(jobSize),delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {}
     // assume the state is sorted
@@ -44,14 +44,14 @@ public:
         maps[job].insert(acc, computeGist(state, job));
         acc->second = true;
         assert(acc->second == true);
-        logging(state, job, "inserted Gist");
 
         acc.release();        
         HashDelayedMap::accessor accDel;
         if (delayedTasks[job].find(accDel, computeGist(state, job))) {
-            for (auto tag : accDel->second) {oneapi::tbb::task::resume(tag); delCount--;}
+            for (auto tag : accDel->second) {tbb::task::resume(tag); delCount--;}
             delayedTasks[job].erase(accDel);
         }    
+        logging(state, job, "inserted Gist " + delCount);
     } 
 
     int exists(std::vector<int> state, int job) override {
@@ -84,8 +84,7 @@ public:
         std::unique_lock<std::shared_mutex> lock(updateBound);
         this->offset = offset;
         clear();
-        lock.unlock();
-        resumeAllDelayedTasks(); // TODO does thos need the other lock?
+        resumeAllDelayedTasksInternally(); // TODO does thos need the other lock?
     }
     void clear() override {
         std::vector<HashMap> newMaps(jobSize);
@@ -96,27 +95,28 @@ public:
             }
         }
     }
+    
     void resumeAllDelayedTasks() override {
         // std::cout << "resume " << delCount << std::endl;
         // needs an own lock because it is also called on cancel
         std::unique_lock<std::shared_mutex> lock(updateBound);
 
         for (auto& delayedMap : delayedTasks) {
-                // for (auto it :delayedMap) {
-                //     for (auto tag : it.second) {oneapi::tbb::task::resume(tag);
-                //     delCount--;}
-                // }
-                auto it = delayedMap.begin();
-                while (it != delayedMap.end()) {
-                     HashDelayedMap::accessor acc;
-                    if (delayedMap.find(acc, it->first)) {
-                        for (auto tag : acc->second) {
-                            oneapi::tbb::task::resume(tag);
-                            delCount--;
-                        }
-                    }
-                    ++it;
+                for (auto it :delayedMap) {
+                    for (auto tag : it.second) {tbb::task::resume(tag);
+                    delCount--;}
                 }
+                // auto it = delayedMap.begin();
+                // while (it != delayedMap.end()) {
+                //      HashDelayedMap::accessor acc;
+                //     if (delayedMap.find(acc, it->first)) {
+                //         for (auto tag : acc->second) {
+                //             tbb::task::resume(tag);
+                //             delCount--;
+                //         }
+                //     }
+                //     ++it;
+                // }
         } 
         std::vector<HashDelayedMap> newMaps(jobSize);
         // std::cout << "resumed " << delCount << std::endl;
@@ -124,7 +124,7 @@ public:
     }
 
 
-    void addDelayed(std::vector<int> gist, int job, oneapi::tbb::task::suspend_point tag) override {
+    void addDelayed(std::vector<int> gist, int job, tbb::task::suspend_point tag) override {
         assert(job < jobSize && job >= 0);
 
         // std::cout << "add delay " << delCount << std::endl;
@@ -145,8 +145,8 @@ public:
                 delCount++;
                 acc->second.push_back(tag);
             }
-        } /* else {tbb::task::resume(tag);// std::cout << "intre" << std::endl; 
-        return;} */ //TODO that should only happen on bound update or evict and should not be an issue
+        }  else {tbb::task::resume(tag);std::cout << "intre" << std::endl; 
+        return;}  //TODO that should only happen on bound update or evict
         logging(gist, job, "endDelay");
     }
 
@@ -159,7 +159,7 @@ private:
     std::shared_mutex mapsLock; // shared_mutex zum Schutz der Hashmaps während boundUpdate
     bool useBitmaps = false;
     std::shared_mutex delayed; // shared_mutex zum Schutz der Hashmaps während boundUpdate
-    std::vector<oneapi::tbb::task::suspend_point> delayedTa;
+    std::vector<tbb::task::suspend_point> delayedTa;
     std::shared_mutex updateBound; // shared_mutex zum Schutz der Hashmaps während boundUpdate
 
     void updateBitmap(int job, const std::vector<int>& gist) {
@@ -169,12 +169,33 @@ private:
             bitmaps[job].set(hashValue);
         }
     }
-
+    void resumeAllDelayedTasksInternally() {
+        for (auto& delayedMap : delayedTasks) {
+                for (auto it :delayedMap) {
+                    for (auto tag : it.second) {tbb::task::resume(tag);
+                    delCount--;}
+                }
+                // auto it = delayedMap.begin();
+                // while (it != delayedMap.end()) {
+                //      HashDelayedMap::accessor acc;
+                //     if (delayedMap.find(acc, it->first)) {
+                //         for (auto tag : acc->second) {
+                //             tbb::task::resume(tag);
+                //             delCount--;
+                //         }
+                //     }
+                //     ++it;
+                // }
+        } 
+        std::vector<HashDelayedMap> newMaps(jobSize);
+        // std::cout << "resumed " << delCount << std::endl;
+        delayedTasks.swap(newMaps);
+    }
     void logging(std::vector<int> state, int job, auto message = "") {
         if (!detailedLogging) return;
         std::stringstream gis;
         gis << message << " ";
-        for (auto vla : state) gis << vla << " ";
+        for (auto vla : state) gis << vla << ", ";
         gis << " => ";
         for (auto vla : computeGist(state, job)) gis << vla << " ";
         gis << " Job: " << job << "\n";

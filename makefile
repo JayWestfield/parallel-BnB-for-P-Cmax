@@ -1,6 +1,6 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -O0
 LDFLAGS = -ltbb
 
 # Define the source and target files
@@ -23,8 +23,11 @@ $(TARGETEXP): $(SOURCESEXP)
 exp: $(TARGETEXP)
 	./$(TARGETEXP) $(filter-out $@,$(MAKECMDGOALS)) > results/exp12
 
+debugger: 
+	bash ./src/debugging/debugger.sh $(TARGET)
 plot:  
-	python3 src/plotting/plotter.py results/exp1
+	python3 src/plotting/plotter.py results/exp12
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)
+	rm -f $(TARGETEXP)

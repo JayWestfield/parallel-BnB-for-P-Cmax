@@ -72,9 +72,9 @@ int main(int argc, char *argv[])
     if (argc >= 5)
         path_to_selection_of_instances = argv[4];
     std::unordered_map<std::string, int> optimalSolutions;
-    readOptimalSolutions(basePath + "/opt-known-instances-lawrinenko.txt" , optimalSolutions);
+    readOptimalSolutions(basePath + "/opt-known-instances-lawrinenko.txt", optimalSolutions);
     std::vector<std::string> instances_to_solve = {};
-    if (path_to_selection_of_instances != "all" || path_to_selection_of_instances != "")
+    if (path_to_selection_of_instances != "all")
     {
         std::ifstream infile(path_to_selection_of_instances);
         if (!infile)
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
         {
             tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, numThreads);
             std::future<void> canceler;
-            BnB_base_Impl solver(true, true, true, false);
+            BnB_base_Impl solver(true, true, true, true, false);
             int result = 0;
 
             bool timerExpired = false;
@@ -136,11 +136,11 @@ int main(int argc, char *argv[])
             cv.notify_all();
             canceler.get();
             if (result == 0)
-                std::cout << " canceled";
+                std::cout << " (canceled)";
             else if (result != optimalSolutions.find(instanceName)->second)
                 std::cout << " error_wrong_makespan_of_" << result;
             else
-                std::cout << " " << ((std::chrono::duration<double>) (end - start)).count();
+                std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << (int)solver.hardness << ")";
             numThreads *= 2;
         }
         std::cout << std::endl;
