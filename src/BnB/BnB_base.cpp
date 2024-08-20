@@ -71,13 +71,14 @@ public:
         // tg.run([=, &tg]
         //                 { std::this_thread::sleep_for(std::chrono::seconds(10)); });
         tg.wait();
+        STInstance->clear();
         delete STInstance;
 
         
         if (cancel)
             return 0;
         // upper Bound is the next best bound so + 1 is the best found bound
-        if (initialUpperBound == upperBound) {
+        if (initialUpperBound == upperBound + 1) {
             hardness = Difficulty::lptOpt;
         } else if (upperBound + 1 == lowerBound) {
             hardness = Difficulty::lowerBoundOptimal;
@@ -200,10 +201,15 @@ private:
                 try
                 {
                     int repeated = 0;
-                    while (STInstance->exists(state, job) == 1 && repeated++ < 10)
+                    while (STInstance->exists(state, job) == 1 && repeated++ < 1)
                     { // TODO try catch for the whole block
                         logging(state, job, "suspend");
-                        tbb::task::suspend([=](tbb::task::suspend_point tag)
+                        if (makespan > upperBound || foundOptimal || cancel)
+                        {
+                            logging(state, job, "after not worth continuing");
+                            return;
+                        }
+                        tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
                                            {
                                                if (addPreviouslyExtended)
                                                {
@@ -214,13 +220,14 @@ private:
                                                    catch (const std::runtime_error &e)
                                                    {
                                                        tbb::task::resume(tag);
-                                                       return;
                                                    }
                                                }
                                                else
                                                {
                                                    tbb::task::resume(tag);
-                                               } });
+                                               } 
+                                               return;
+                                               });
                         logging(state, job, "restarted");
                         // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
                         if (makespan > upperBound || foundOptimal || cancel)

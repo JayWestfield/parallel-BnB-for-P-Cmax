@@ -159,7 +159,6 @@ private:
     std::shared_mutex mapsLock; // shared_mutex zum Schutz der Hashmaps während boundUpdate
     bool useBitmaps = false;
     std::shared_mutex delayed; // shared_mutex zum Schutz der Hashmaps während boundUpdate
-    std::vector<tbb::task::suspend_point> delayedTa;
     std::shared_mutex updateBound; // shared_mutex zum Schutz der Hashmaps während boundUpdate
 
     void updateBitmap(int job, const std::vector<int>& gist) {

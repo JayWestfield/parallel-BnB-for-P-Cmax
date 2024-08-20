@@ -22,8 +22,8 @@ public:
     virtual int solve(int numMachines, const std::vector<int>& jobDurations) = 0;
 
     std::atomic<uint64_t> visitedNodes = 0;
-    bool foundOptimal = false;
-    bool cancel = false;
+    std::atomic<bool> foundOptimal = false;
+    std::atomic<bool> cancel = false;
 
     /**
      * @brief describes the relativ difficulty of solving that instance

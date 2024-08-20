@@ -8,7 +8,8 @@ SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp s
 TARGET = dst/parallel_solver
 SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/lawrinenko_test.cpp
 TARGETEXP = dst/experiment
-
+FILTERALL = dst/runAllFast
+SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/test_to_filter_benchmark.cpp
 # Define the rule to build the target executable
 $(TARGET): $(SOURCES)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES) $(LDFLAGS)
@@ -21,13 +22,20 @@ $(TARGETEXP): $(SOURCESEXP)
 	$(CXX) $(CXXFLAGS) -o $(TARGETEXP) $(SOURCESEXP) $(LDFLAGS)
 
 exp: $(TARGETEXP)
-	./$(TARGETEXP) $(filter-out $@,$(MAKECMDGOALS)) > results/exp12
+
+
+$(FILTERALL): $(SOURCESALL)
+	$(CXX) $(CXXFLAGS) -o $(FILTERALL) $(SOURCESALL) $(LDFLAGS)
+
+all: $(FILTERALL)
 
 debugger: 
 	bash ./src/debugging/debugger.sh $(TARGET)
+
 plot:  
 	python3 src/plotting/plotter.py results/exp12
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)
 	rm -f $(TARGETEXP)
+	rm -f $(FILTERALL)
