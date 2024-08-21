@@ -73,8 +73,7 @@ int main(int argc, char *argv[])
     std::unordered_map<std::string, int> optimalSolutions;
     readOptimalSolutions("benchmarks/opt-known-instances-" + benchmark + ".txt", optimalSolutions);
     std::vector<std::string> instances_to_solve = {};
-    BnB_base_Impl solver(true, true, true, false, false);
-
+    std::cout << "found " << optimalSolutions.size() << " elements" << std::endl;
     for (auto &instance : optimalSolutions)
     {
         // std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -92,6 +91,7 @@ int main(int argc, char *argv[])
         // if(instanceName != "p_cmax-class7-n80-m32-mu320-sigma80-seed24362.txt") continue;
 
         std::cout << instanceName;
+        BnB_base_Impl solver(true, true, true, false, false);
 
         tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, maxThreads);
         std::future<void> canceler;
