@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
         for (const auto &optimal : optimalSolutions)
             instances_to_solve.push_back(optimal.first);
     }
-    BnB_base_Impl solver(true, true, true, true, false);
+    BnB_base_Impl solver(true, true, true, false, false);
     for (auto instanceName : instances_to_solve)
     {
         int numJobs, numMachines;

@@ -69,13 +69,13 @@ int main(int argc, char *argv[])
     std::string benchmark = "lawrinenko";
     if (argc >= 4)
         benchmark = argv[3];
-
+    int instances  = 0;
     std::unordered_map<std::string, int> optimalSolutions;
     readOptimalSolutions("benchmarks/opt-known-instances-" + benchmark + ".txt", optimalSolutions);
     std::vector<std::string> instances_to_solve = {};
     std::cout << "found " << optimalSolutions.size() << " elements" << std::endl;
     for (auto &instance : optimalSolutions)
-    {
+    {   
         // std::this_thread::sleep_for(std::chrono::seconds(2));
 
         auto instanceName = instance.first;
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
         std::mutex mtx;
         // if (instanceName.find("n88-") != std::string::npos || instanceName.find("n80-") != std::string::npos || instanceName.find("n90-") != std::string::npos) continue;
         // if (instanceName.find("class7") == std::string::npos) continue;
-        // if(instanceName != "p_cmax-class7-n80-m32-mu320-sigma80-seed24362.txt") continue;
+        // if(instanceName != "p_cmax-class7-n220-m80-mu880-sigma220-seed30445.txt") continue;
 
         std::cout << instanceName;
         BnB_base_Impl solver(true, true, true, false, false);
@@ -123,8 +123,9 @@ int main(int argc, char *argv[])
         else
             std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << (int)solver.hardness << ")";
         std::cout << std::endl;
-        // ensure that the solver really has finished otherwise there were some occurences with a segmentation fault, when the instance was deleted, but a task was going to be suspoended 
+        instances++;
     }
+    std::cout << "Computed a Total of  " << instances << " instances" << std::endl;
 
     return 0;
 }

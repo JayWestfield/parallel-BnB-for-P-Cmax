@@ -209,12 +209,12 @@ def plot_canceled_jobs(ax, data):
                 canceled_jobs[f'{2**i} Threads'] += 1
 
     # Textdarstellung der gecancelten Jobs und deren Anteil
-    textstr = "Gecancelte Jobs:\n"
+    textstr = "Completed Jobs:\n"
     for threads in canceled_jobs:
         total = total_jobs[threads]
         canceled = canceled_jobs[threads]
         ratio = canceled / total if total > 0 else 0
-        textstr += f"{threads}: {canceled} von {total} Jobs gecancelt ({ratio:.2%})\n"
+        textstr += f"{threads}: {canceled} of {total} Jobs completed within the timeout ({(1 - ratio):.2%})\n"
     
     # Positioniere den Text im Subplot
     ax.text(0.1, 0.5, textstr, fontsize=12, verticalalignment='center', transform=ax.transAxes)
@@ -271,9 +271,54 @@ def plot_speedup_statistics_filtered(ax, data,  min_time=0.01):
 
     ax.axis('off')  # Deaktiviert die Achsen für dieses Subplot
 
-def plot_all_in_one(data):
-    fig, axs = initialize_subplots(3, 3, "Analyse der Laufzeiten und Speedups")
-    min_time = 0.1
+def plot_nodes_ratio_boxplot(ax, data):
+    num_thread_configs = len(data[0][1])
+    node_ratios_per_thread = {f'{2**i} Threads': [] for i in range(1, num_thread_configs)}
+    
+    for name, infos in data:
+        base_nodes = infos[0][1]
+        if base_nodes is None or base_nodes == 0:
+            continue
+        
+        for i in range(1, num_thread_configs):
+            if infos[i][1] is not None:
+                node_ratio = infos[i][1] / base_nodes
+                node_ratios_per_thread[f'{2**i} Threads'].append(node_ratio)
+    
+    ax.boxplot(node_ratios_per_thread.values(), labels=node_ratios_per_thread.keys())
+    ax.set_xlabel('Anzahl der Threads')
+    ax.set_ylabel('Verhältnis der besuchten Knoten (relativ zu 1 Thread)')
+    ax.set_title('Verhältnis der besuchten Knoten je Thread-Konfiguration')
+    ax.grid(True)
+
+def plot_speedup_vs_nodes_ratio(ax, data):
+    num_thread_configs = len(data[0][1])
+    
+    for i in range(1, num_thread_configs):
+        speedup_vs_nodes = []
+        
+        for name, infos in data:
+            base_time = infos[0][0]
+            base_nodes = infos[0][1]
+            if base_time != float('inf') and infos[i][0] != float('inf') and base_nodes is not None and base_nodes != 0:
+                speedup = base_time / infos[i][0]
+                nodes_ratio = infos[i][1] / base_nodes if infos[i][1] is not None else 1
+                speedup_vs_nodes.append((speedup, nodes_ratio))
+        
+        if speedup_vs_nodes:
+            speedups, nodes_ratios = zip(*speedup_vs_nodes)
+            ax.scatter(nodes_ratios, speedups, alpha=0.5, label=f'{2**i} Threads')
+    
+    ax.set_xlabel('Verhältnis der besuchten Knoten')
+    ax.set_ylabel('Speedup')
+    ax.set_title('Speedup vs. Verhältnis der besuchten Knoten')
+    ax.legend()
+    ax.grid(True)
+
+
+def plot_all_in_one(data, ComplexData, plotpath):
+    fig, axs = initialize_subplots(4, 3, "Analyse der Laufzeiten und Speedups")
+    min_time = 0.01
     plot_cumulative_times(axs[0, 0], data)
     plot_speedups(axs[1, 0], data)
     plot_speedup_statistics(axs[0, 2], data)
@@ -283,16 +328,21 @@ def plot_all_in_one(data):
     plot_cumulative_times_filtered(axs[2,0], data, min_time)
     plot_speedup_boxplot_filtered(axs[2,1], data, min_time)
     plot_speedup_statistics_filtered(axs[2,2],data, min_time)
-    save_plots(fig)
+    plot_nodes_ratio_boxplot(axs[3,0], ComplexData)
+    plot_speedup_vs_nodes_ratio(axs[3,1], ComplexData)
+    save_plots(fig, plotpath)
     
-def main(filepath):
+def main(filepath, plotpath):
     data = read_data_times(filepath)
-    plot_all_in_one(data)
+    ComplexData = read_data(filepath)
+    plot_all_in_one(data, ComplexData, plotpath)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <path_to_file>")
         sys.exit(1)
     
     filepath = sys.argv[1]
-    main(filepath)
+    if len(sys.argv) == 3:
+        plotpath = sys.argv[2]
+    main(filepath, plotpath)
