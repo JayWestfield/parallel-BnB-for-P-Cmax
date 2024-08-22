@@ -69,6 +69,10 @@ int main(int argc, char *argv[])
     std::string benchmark = "lawrinenko";
     if (argc >= 4)
         benchmark = argv[3];
+
+    std::string contains = "";
+    if (argc >= 5)
+        contains = argv[4];
     int instances  = 0;
     std::unordered_map<std::string, int> optimalSolutions;
     readOptimalSolutions("benchmarks/opt-known-instances-" + benchmark + ".txt", optimalSolutions);
@@ -87,7 +91,7 @@ int main(int argc, char *argv[])
         std::condition_variable cv;
         std::mutex mtx;
         // if (instanceName.find("n88-") != std::string::npos || instanceName.find("n80-") != std::string::npos || instanceName.find("n90-") != std::string::npos) continue;
-        // if (instanceName.find("class7") == std::string::npos) continue;
+        if (instanceName.find(contains) == std::string::npos) continue;
         // if(instanceName != "p_cmax-class7-n220-m80-mu880-sigma220-seed30445.txt") continue;
 
         std::cout << instanceName;
