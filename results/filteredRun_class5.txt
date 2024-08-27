@@ -1,0 +1,11 @@
+nohup: ignoring input
+found 3488 elements
+p_cmax-class5-n90-m40-mu100-sigma50-seed7906.txt (canceled)
+p_cmax-class5-n90-m40-mu100-sigma50-seed31865.txt (canceled)
+p_cmax-class5-n90-m40-mu100-sigma50-seed23658.txt (canceled)
+p_cmax-class5-n90-m40-mu100-sigma50-seed22702.txt (canceled)
+p_cmax-class5-n90-m40-mu100-sigma50-seed20885.txt (canceled)
+p_cmax-class5-n90-m40-mu100-sigma50-seed12566.txt (canceled)
+p_cmax-class5-n90-m40-mu100-sigma50-seed11004.txt (canceled)
+p_cmax-class5-n90-m30-mu100-sigma50-seed2487.txt (canceled)
+p_cmax-class5-n90-m30-mu100-sigma50-seed24648.txt (canceled)
