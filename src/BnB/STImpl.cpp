@@ -8,6 +8,9 @@
 #include <sstream>
 #include <cassert>
 #include <stdexcept>
+#include <unistd.h>
+
+
 
 const size_t MAX_SIZE = 5000000;
 const size_t BITMAP_SIZE = MAX_SIZE;
@@ -33,8 +36,13 @@ public:
 
     void addGist(std::vector<int> state, int job) override {
         assert(job < jobSize && job >= 0);
-
+        if (getMemoryUsagePercentage() > 80){ 
+            std::cout << "skipped " << std::endl;
+            evictEntries(job);
+            return;
+            }
         if (maps[job].size() >= MAX_SIZE) {
+            std::cout << "evict " << std::endl;
             evictEntries(job);
         }
 
@@ -157,10 +165,22 @@ private:
     std::vector<HashDelayedMap> delayedTasks;
     std::vector<std::bitset<BITMAP_SIZE>> bitmaps;
     std::shared_mutex mapsLock; // shared_mutex zum Schutz der Hashmaps während boundUpdate
-    bool useBitmaps = false;
+    bool useBitmaps = true;
     std::shared_mutex delayed; // shared_mutex zum Schutz der Hashmaps während boundUpdate
     std::shared_mutex updateBound; // shared_mutex zum Schutz der Hashmaps während boundUpdate
+    double getMemoryUsagePercentage() {
+        long totalPages = sysconf(_SC_PHYS_PAGES);
+        long availablePages = sysconf(_SC_AVPHYS_PAGES);
+        long pageSize = sysconf(_SC_PAGE_SIZE);
 
+        if (totalPages > 0) {
+            long usedPages = totalPages - availablePages;
+            double usedMemory = static_cast<double>(usedPages * pageSize);
+            double totalMemory = static_cast<double>(totalPages * pageSize);
+            return (usedMemory / totalMemory) * 100.0;
+        }
+        return -1.0; // Fehlerfall
+    }
     void updateBitmap(int job, const std::vector<int>& gist) {
         assert(job < jobSize && job >= 0);
         if (useBitmaps) {
