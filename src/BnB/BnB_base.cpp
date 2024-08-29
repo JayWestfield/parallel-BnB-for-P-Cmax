@@ -310,7 +310,7 @@ private:
             endState = lastRelevantJobIndex - job + 1; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
 
         assert(endState <= state.size());
-        bool first = true;
+        int count = 0;
         for (int i = 0; i < endState; i++)
         {
             if ((i > 0 && state[i] == state[i - 1]) || state[i] + jobDurations[job] > upperBound)
@@ -332,12 +332,12 @@ private:
                 switch (ex)
                 {
                 case 0:
-                    if (job > lastSizeJobIndex / 3)
+                    if (job > lastSizeJobIndex / 3 && job > 10)
                     {
-                        if (first)
+                        if (count++ < 2 )
                         {
-                            first = false;
-                            solvePartial(next, job + 1);
+                            tg.run([=]
+                                   { solvePartial(next, job + 1); });
                         }
                         else
                         {
@@ -347,7 +347,7 @@ private:
                     else
                     {
                         tg.run([=]
-                        { solvePartial(next, job + 1); });
+                               { solvePartial(next, job + 1); });
                     }
 
                     break;
@@ -394,7 +394,7 @@ private:
                 next[i] += jobDurations[job];
                 logging(next, job + 1, "Rule 6 from recursion");
                 tg.run([=]
-                        { solvePartial(next, job + 1); });
+                       { solvePartial(next, job + 1); });
             }
         }
         tg.wait();
