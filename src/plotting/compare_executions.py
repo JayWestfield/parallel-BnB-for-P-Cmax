@@ -112,8 +112,7 @@ def plot_cumulative_times_comparison(ax, data1, data2):
     # Plot der kumulierten Verteilung für beide Ausführungen
     ax.plot(times1, np.arange(1, len(times1) + 1), label=f'Run 1 - {2**i} Threads', linestyle='-', marker='o')
     ax.plot(times2, np.arange(1, len(times2) + 1), label=f'Run 2 - {2**i} Threads', linestyle='--', marker='x')
-    ax.set_xlim(left=0.05)
-    ax.set_ylim(bottom=110)
+    # ax.set_ylim(bottom=130)
 
     ax.set_xlabel('Zeit (s)')
     ax.set_ylabel('Anzahl der Instanzen')

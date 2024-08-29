@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
         if (instanceName.find(contains) == std::string::npos) continue;
         // if(instanceName != "p_cmax-class7-n220-m80-mu880-sigma220-seed30445.txt") continue;
 
-        std::cout << instanceName;
+        std::cout << instanceName << std::endl;
         BnB_base_Impl solver(true, true, true, false, false);
 
         tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, maxThreads);

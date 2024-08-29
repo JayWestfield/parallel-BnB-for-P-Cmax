@@ -35,3 +35,9 @@ suspend 97 191 282  => 42 15 2  Job: 6
 make the try/cathc actions better /less
 
 STImpl needs to adapt to the addPrev.../extended
+
+tbb tasks schienen recht heavy zu sein (muss den ganzen context speichern etc) 
+evtl eigenens work stealing mit light weight tasks (loads, job, corresponding taskgroup counter, priority [even if there are only 2 priorities]) that should be enough context
+
+
+TODO plots überarbeiten farben etc

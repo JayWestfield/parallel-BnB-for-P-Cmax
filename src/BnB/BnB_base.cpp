@@ -38,7 +38,8 @@ public:
         upperBound = initialUpperBound - 1;
         offset = 1;
         lowerBound = std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines);
-        if (initialUpperBound == lowerBound) {
+        if (initialUpperBound == lowerBound)
+        {
             hardness = Difficulty::trivial;
             return initialUpperBound;
         }
@@ -66,23 +67,27 @@ public:
         // start Computing
         std::vector<int> initialState(numMachines, 0);
         tbb::task_group tg;
-        tg.run([=, &tg]
-               { solvePartial(initialState, 0);});
+        tg.run([=]
+               { solvePartial(initialState, 0); });
         // tg.run([=, &tg]
         //                 { std::this_thread::sleep_for(std::chrono::seconds(10)); });
         tg.wait();
         STInstance->clear();
         delete STInstance;
 
-        
         if (cancel)
             return 0;
         // upper Bound is the next best bound so + 1 is the best found bound
-        if (initialUpperBound == upperBound + 1) {
+        if (initialUpperBound == upperBound + 1)
+        {
             hardness = Difficulty::lptOpt;
-        } else if (upperBound + 1 == lowerBound) {
+        }
+        else if (upperBound + 1 == lowerBound)
+        {
             hardness = Difficulty::lowerBoundOptimal;
-        } else {
+        }
+        else
+        {
             hardness = Difficulty::full;
         }
         return upperBound + 1;
@@ -226,8 +231,7 @@ private:
                                                {
                                                    tbb::task::resume(tag);
                                                } 
-                                               return;
-                                               });
+                                               return; });
                         logging(state, job, "restarted");
                         // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
                         if (makespan > upperBound || foundOptimal || cancel)
@@ -301,10 +305,12 @@ private:
         tbb::task_group tg;
         int endState = state.size();
         std::vector<int> repeat;
+        std::vector<int> delayed;
         if (numMachines > lastRelevantJobIndex - job + 1)
             endState = lastRelevantJobIndex - job + 1; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
 
         assert(endState <= state.size());
+        bool first = true;
         for (int i = 0; i < endState; i++)
         {
             if ((i > 0 && state[i] == state[i - 1]) || state[i] + jobDurations[job] > upperBound)
@@ -319,11 +325,65 @@ private:
             std::sort(next.begin(), next.end());
 
             logging(next, job + 1, "child from recursion");
-            tg.run([=]
-                   { solvePartial(next, job + 1); });
+            try
+            {
+                // filter delayed / solved assignments directly before spawning the tasks
+                auto ex = STInstance->exists(next, job + 1);
+                switch (ex)
+                {
+                case 0:
+                    if (job > lastSizeJobIndex / 3)
+                    {
+                        if (first)
+                        {
+                            first = false;
+                            solvePartial(next, job + 1);
+                        }
+                        else
+                        {
+                            delayed.push_back(i);
+                        }
+                    }
+                    else
+                    {
+                        tg.run([=]
+                        { solvePartial(next, job + 1); });
+                    }
+
+                    break;
+                case 1:
+                    delayed.push_back(i);
+                    break;
+                default:
+                    continue;
+                    break;
+                }
+            }
+            catch (const std::runtime_error &e)
+            {
+                continue;
+            }
         }
 
         logging(state, job, "wait for tasks to finish");
+        tg.wait();
+        for (int i : delayed)
+        {
+            std::vector<int> next = state;
+            next[i] += jobDurations[job];
+            try
+            {
+                auto ex = STInstance->exists(next, job + 1);
+                if (ex != 2)
+                {
+                    solvePartial(next, job + 1);
+                }
+            }
+            catch (const std::runtime_error &e)
+            {
+                continue;
+            }
+        }
 
         logging(state, job, "after recursion");
         for (int i : repeat)
@@ -333,8 +393,8 @@ private:
                 std::vector<int> next = state;
                 next[i] += jobDurations[job];
                 logging(next, job + 1, "Rule 6 from recursion");
-                tg.run([=, &tg]
-                       { solvePartial(next, job + 1); });
+                tg.run([=]
+                        { solvePartial(next, job + 1); });
             }
         }
         tg.wait();

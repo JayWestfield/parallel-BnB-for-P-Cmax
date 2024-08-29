@@ -120,7 +120,7 @@ int main()
                 return 0;
             }
         }
-        return 0;
+        // return 0;
         // std::cout << wrong << " equals " << (double) wrong * 100 / (double) 20 << "%" << std::endl;
         /*std::vector<int> plantedKnownOptimal2={188,202,162,137,116,214,189,112,192,126,135,98,111,174,130,174,200,162,131,132,154,161,122,144,124,134,180,101,211,59,117,136,114,107,77,112};
         int result = solver.solve(12,plantedKnownOptimal2);
