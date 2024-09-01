@@ -68,11 +68,15 @@ int main(int argc, char *argv[])
     std::string basePath = "benchmarks";
     if (argc >= 4)
         basePath = argv[3];
-    std::string path_to_selection_of_instances = "src/experiments/lawrinenko_broadSelection.txt";
+
+    std::string benchmark = "lawrinenko";
     if (argc >= 5)
-        path_to_selection_of_instances = argv[4];
+        benchmark = argv[4];
+    std::string path_to_selection_of_instances = "src/experiments/filtered_instances.txt";
+    if (argc >= 6)
+        path_to_selection_of_instances = argv[5];
     std::unordered_map<std::string, int> optimalSolutions;
-    readOptimalSolutions(basePath + "/opt-known-instances-lawrinenko.txt", optimalSolutions);
+    readOptimalSolutions(basePath + "/opt-known-instances-" + benchmark + ".txt", optimalSolutions);
     std::vector<std::string> instances_to_solve = {};
     if (path_to_selection_of_instances != "all")
     {
@@ -97,13 +101,13 @@ int main(int argc, char *argv[])
         for (const auto &optimal : optimalSolutions)
             instances_to_solve.push_back(optimal.first);
     }
-    BnB_base_Impl solver(true, true, true, true, false);
+    BnB_base_Impl solver(true, true, true, false, false);
     for (auto instanceName : instances_to_solve)
     {
         int numJobs, numMachines;
         std::vector<int> jobDurations;
 
-        std::string instanceFilePath = basePath + "/lawrinenko/" + instanceName;
+        std::string instanceFilePath = basePath + "/" + benchmark + "/" + instanceName;
         readInstance(instanceFilePath, numJobs, numMachines, jobDurations);
         int numThreads = 1;
         std::condition_variable cv;

@@ -41,3 +41,5 @@ evtl eigenens work stealing mit light weight tasks (loads, job, corresponding ta
 
 
 TODO plots überarbeiten farben etc
+
+the storage checks should not happen on every add gist only once in a while and only check the total pages once 

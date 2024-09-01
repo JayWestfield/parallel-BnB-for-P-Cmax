@@ -16,6 +16,8 @@ def read_data(filepath):
     data = []
     with open(filepath, 'r') as file:
         for line in file:
+            if line.startswith("nohup"):
+                continue
             parts = line.split()
             name = parts[0]
             times_info = []
