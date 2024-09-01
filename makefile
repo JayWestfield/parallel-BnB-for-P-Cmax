@@ -1,6 +1,6 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -O0
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -O3
 LDFLAGS = -ltbb
 
 # Define the source and target files
