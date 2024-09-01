@@ -12,6 +12,8 @@
 class BnB_base_Impl : public BnBSolverBase
 {
 public:
+    std::vector<std::chrono::duration<double>> timeFrames;
+    std::chrono::_V2::system_clock::time_point lastUpdate;
     /**
      * @brief Constructor of a solver.
      *
@@ -72,6 +74,7 @@ public:
         // tg.run([=, &tg]
         //                 { std::this_thread::sleep_for(std::chrono::seconds(10)); });
         tg.wait();
+        timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate ));
         STInstance->clear();
         delete STInstance;
 
@@ -487,6 +490,9 @@ private:
             return;
         if (logBound)
             std::cout << "new Bound " << newBound << std::endl;
+        auto newTime = std::chrono::high_resolution_clock::now();
+        timeFrames.push_back((std::chrono::duration<double>) (newTime - lastUpdate));
+        lastUpdate = newTime;
         upperBound = newBound - 1;
         offset = initialUpperBound - upperBound;
         if (gist)
