@@ -142,8 +142,15 @@ int main(int argc, char *argv[])
                 std::cout << " (canceled)";
             else if (result != optimalSolutions.find(instanceName)->second)
                 std::cout << " error_wrong_makespan_of_" << result;
-            else
-                std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << (int)solver.hardness << ")";
+            else {
+                std::string times = "{";
+                for (auto time : solver.timeFrames) {
+                    times += std::to_string(time.count()) + ";";
+                }
+                times.pop_back();
+                times.append("}");
+                std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << times << "," << (int)solver.hardness << ")";
+            }
             numThreads *= 2;
         }
         std::cout << std::endl;

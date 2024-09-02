@@ -27,12 +27,14 @@ def read_data(filepath):
                     time = float('inf')
                     nodes = None
                     difficulty = None
+                    bound_times = None
                 else:
-                    time_str, nodes_str, difficulty_str = entry.split(',')
+                    time_str, nodes_str, bound_times_str, difficulty_str = entry.split(',')
                     time = float(time_str)
                     nodes = int(nodes_str)
+                    bound_times = list(map(float, bound_times_str.strip('{}').split(';')))
                     difficulty = parse_difficulty(difficulty_str)
-                times_info.append((time, nodes, difficulty))
+                times_info.append((time, nodes, bound_times, difficulty))
             data.append((name, times_info))
     return data
 
@@ -216,7 +218,7 @@ def plot_canceled_jobs(ax, data):
         total = total_jobs[threads]
         canceled = canceled_jobs[threads]
         ratio = canceled / total if total > 0 else 0
-        textstr += f"{threads}: {canceled} of {total} Jobs completed within the timeout ({(1 - ratio):.2%})\n"
+        textstr += f"{threads}: {total} of {canceled}Jobs completed within the timeout ({(1 - ratio):.2%})\n"
     
     # Positioniere den Text im Subplot
     ax.text(0.1, 0.5, textstr, fontsize=12, verticalalignment='center', transform=ax.transAxes)
@@ -227,9 +229,11 @@ def plot_cumulative_times_filtered(ax, data, min_time=0.01):
     num_thread_configs = len(data[0][1])
     for i in range(num_thread_configs):
         # Filtern der Laufzeiten größer als min_time
-        times = np.sort([times[i] for name, times in data if times[i] != float('inf') and times[i] > min_time])
+        times = np.sort([times[i] for name, times in data])
         ax.plot(times, np.arange(1, len(times) + 1), label=f'{2**i} Threads')
     
+    ax.set_xlim(xmin=min_time)
+    ax.set_ylim(ymin=80)
     ax.set_xlabel('Zeit (s)')
     ax.set_ylabel('Anzahl der Instanzen')
     ax.set_title(f'Laufzeit-Verteilung (Laufzeiten > {min_time} s)')
@@ -317,6 +321,26 @@ def plot_speedup_vs_nodes_ratio(ax, data):
     ax.legend()
     ax.grid(True)
 
+def plot_relative_array_values_per_instance(ax, data):
+    num_thread_configs = len(data[0][1])
+    
+    for name, times_info in data:
+        for i in range(num_thread_configs):
+            if i != 1:
+                continue
+            time, nodes, array_values, difficulty = times_info[i]
+            if time != float('inf') and len(array_values) > 1:
+                total_sum = sum(array_values)
+                relative_values = [val / total_sum for val in array_values]
+                x_vals = [j / (len(array_values) - 1) for j in range(len(array_values))]
+                ax.plot(x_vals, relative_values)
+
+    ax.set_xlabel('Normierte Position im Array')
+    ax.set_ylabel('Relativer Anteil')
+    ax.set_title('Verlauf der laufzeiten pro bound pro Instanz')
+    ax.legend()
+    ax.grid(True)
+
 
 def plot_all_in_one(data, ComplexData, plotpath):
     fig, axs = initialize_subplots(4, 3, "Analyse der Laufzeiten und Speedups")
@@ -332,6 +356,7 @@ def plot_all_in_one(data, ComplexData, plotpath):
     plot_speedup_statistics_filtered(axs[2,2],data, min_time)
     plot_nodes_ratio_boxplot(axs[3,0], ComplexData)
     plot_speedup_vs_nodes_ratio(axs[3,1], ComplexData)
+    plot_relative_array_values_per_instance(axs[3,2], ComplexData)
     save_plots(fig, plotpath)
     
 def main(filepath, plotpath):

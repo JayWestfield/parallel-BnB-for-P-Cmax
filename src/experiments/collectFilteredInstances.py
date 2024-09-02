@@ -16,7 +16,7 @@ def main(base_path):
                     instance_name = line.split()[0]
                     output_lines.append(instance_name)
     
-    with open(os.path.join(base_path, "filtered_instances.txt"), 'w') as output_file:
+    with open(os.path.join(base_path, "filtered_instances_without1.txt"), 'w') as output_file:
         for line in output_lines:
             output_file.write(line + '\n')
 

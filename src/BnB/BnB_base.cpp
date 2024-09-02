@@ -66,6 +66,8 @@ public:
         if (logInitialBounds)
             std::cout << "Initial Upper Bound: " << upperBound << " Initial lower Bound: " << lowerBound << std::endl;
 
+        lastUpdate = std::chrono::high_resolution_clock::now();
+        timeFrames.clear();
         // start Computing
         std::vector<int> initialState(numMachines, 0);
         tbb::task_group tg;
