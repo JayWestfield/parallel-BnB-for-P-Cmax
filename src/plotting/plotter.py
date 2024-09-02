@@ -220,7 +220,7 @@ def plot_canceled_jobs(ax, data):
         total = total_jobs[threads]
         canceled = canceled_jobs[threads]
         ratio = canceled / total if total > 0 else 0
-        textstr += f"{threads}: {total} of {canceled}Jobs completed within the timeout ({(1 - ratio):.2%})\n"
+        textstr += f"{threads}: {total - canceled} of  {total}Jobs completed within the timeout ({(1 - ratio):.2%})\n"
     
     # Positioniere den Text im Subplot
     ax.text(0.1, 0.5, textstr, fontsize=12, verticalalignment='center', transform=ax.transAxes)

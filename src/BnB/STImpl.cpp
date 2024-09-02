@@ -40,23 +40,23 @@ public:
     void addGist(std::vector<int> state, int job) override
     {
         assert(job < jobSize && job >= 0);
-        if (getMemoryUsagePercentage() > 80)
-        {
-            std::random_device rd;                                   // obtain a random number from hardware
-            std::mt19937 gen(rd());                                  // seed the generator
-            std::uniform_int_distribution<> distr(0, this->jobSize); // define the range
-            const int other = distr(gen);
-            std::cout << "skipped " << maps[job].size() << " " << maps[other].size() << std::endl;
-                    double memoryUsage = getMemoryUsagePercentage();
-            std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll." << std::endl;
-            evictAll();
+        // if (getMemoryUsagePercentage() > 80)
+        // {
+        //     std::random_device rd;                                   // obtain a random number from hardware
+        //     std::mt19937 gen(rd());                                  // seed the generator
+        //     std::uniform_int_distribution<> distr(0, this->jobSize); // define the range
+        //     const int other = distr(gen);
+        //     std::cout << "skipped " << maps[job].size() << " " << maps[other].size() << std::endl;
+        //             double memoryUsage = getMemoryUsagePercentage();
+        //     std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll." << std::endl;
+        //     evictAll();
             
-            // Überprüfe die Speicherauslastung nach evictAll
-            memoryUsage = getMemoryUsagePercentage();
-            std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
+        //     // Überprüfe die Speicherauslastung nach evictAll
+        //     memoryUsage = getMemoryUsagePercentage();
+        //     std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
        
-            return;
-        }
+        //     return;
+        // }
         if (maps[job].size() >= MAX_SIZE)
         {
             std::cout << "evict " << std::endl;
