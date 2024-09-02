@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     std::string benchmark = "lawrinenko";
     if (argc >= 5)
         benchmark = argv[4];
-    std::string path_to_selection_of_instances = "src/experiments/filtered_instances.txt";
+    std::string path_to_selection_of_instances = "src/experiments/filtered_instances_without1.txt";
     if (argc >= 6)
         path_to_selection_of_instances = argv[5];
     std::unordered_map<std::string, int> optimalSolutions;

@@ -401,7 +401,7 @@ int main()
                 canceler = std::async(std::launch::async, [&solver, &results, &l, &canceled, &cv, &mtx, &timerExpired]()
                                       {
                     std::unique_lock<std::mutex> lock(mtx);
-                    if(cv.wait_for(lock, std::chrono::milliseconds(30000), [&timerExpired]{ return timerExpired; })) {
+                    if(cv.wait_for(lock, std::chrono::seconds(10), [&timerExpired]{ return timerExpired; })) {
                         return;
                     }
                     if (results[l] == 0) {

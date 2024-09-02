@@ -18,8 +18,9 @@ def read_data(filepath):
                 elif entry.startswith("error_wrong_makespan_of"):
                     times.append(float('inf'))  # Unendlich für Fehler
                 else:
-                    time, visited_nodes, difficulty = map(float, entry.split(","))
-                    runs.append((time, int(visited_nodes), int(difficulty)))
+                    time_str, nodes_str, bound_times_str, difficulty_str = entry.split(',')
+                    bound_times = list(map(float, bound_times_str.strip('{}').split(';')))
+                    runs.append((float (time_str), int(nodes_str), int(difficulty_str)))
             data.append((name, runs))
     return data
 
@@ -203,7 +204,7 @@ def plot_all_in_one(data1, data2, output_filepath):
     fig, axs = initialize_subplots(2, 3, "Vergleich der Ausführungen")
     speedups = calculate_speedups(data1, data2)
     # Beispiel für Subplots
-    plot_runtime_comparison(axs[0, 0], data1, data2)
+    # plot_runtime_comparison(axs[0, 0], data1, data2)
     plot_speedup_comparison_boxplot(axs[0, 1], data1, data2)
     plot_runtime_diff_distribution(axs[0, 2], data1, data2)
     plot_cumulative_times_comparison(axs[1, 0], data1, data2)
