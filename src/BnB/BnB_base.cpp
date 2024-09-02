@@ -206,7 +206,7 @@ private:
 
                 return;
             }
-            else if (exists == 1)
+            else if (exists == 1 && false)
             {
                 try
                 {
@@ -264,7 +264,7 @@ private:
                     return;
                 }
             }
-            else if (exists == 0 && addPreviously)
+            else if (exists == 0)
                 try
                 {
                     logging(state, job, "gist not found");
