@@ -11,7 +11,7 @@ def main(base_path):
                     line = line.strip()
                     if line.startswith(("Computed", "nohup", "found")):
                         continue
-                    if line.endswith("(canceled)") or line.endswith("0)"):
+                    if line.endswith("(canceled)") or line.endswith("0)") or line.endswith("1)"):
                         continue
                     instance_name = line.split()[0]
                     output_lines.append(instance_name)
