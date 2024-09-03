@@ -25,12 +25,12 @@ public:
 
     virtual ~ST() = default;
 
-    virtual void addGist(std::vector<int> gist, int job) = 0;
-    virtual int exists(std::vector<int> gist, int job) = 0;
-    virtual void addPreviously(std::vector<int> gist, int job) = 0;
+    virtual void addGist(const std::vector<int>& gist, int job) = 0;
+    virtual int exists(const std::vector<int>&, int job) = 0;
+    virtual void addPreviously(const std::vector<int>& gist, int job) = 0;
     virtual void boundUpdate(int offset) = 0;
-    virtual std::vector<int> computeGist(std::vector<int> state, int job) = 0;
-    virtual void addDelayed(std::vector<int> gist, int job, oneapi::tbb::task::suspend_point tag) = 0;
+    virtual std::vector<int> computeGist(const std::vector<int>& state, int job) = 0;
+    virtual void addDelayed(const std::vector<int>& gist, int job, oneapi::tbb::task::suspend_point tag) = 0;
     virtual void resumeAllDelayedTasks() = 0;
     virtual void clear() = 0;
 protected:

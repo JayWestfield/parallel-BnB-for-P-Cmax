@@ -11,25 +11,31 @@
 #include <unistd.h>
 #include <random>
 
-struct Key {
+struct Key
+{
     std::vector<int> vec;
     int number;
-    Key(const std::vector<int>& v, int num) : vec(v), number(num) {}
-    bool operator==(const Key& other) const {
+    Key(const std::vector<int> &v, int num) : vec(v), number(num) {}
+    bool operator==(const Key &other) const
+    {
         return vec == other.vec && number == other.number;
     }
 };
-struct VectorHasherSimpl {
-    std::size_t operator()(const Key& k) const {
+struct VectorHasherSimpl
+{
+    std::size_t operator()(const Key &k) const
+    {
         std::size_t seed = k.vec.size();
-        for (auto& i : k.vec) {
+        for (auto &i : k.vec)
+        {
             seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
         }
         seed ^= k.number + 0x9e3779b9 + (seed << 6) + (seed >> 2);
         return seed;
     }
 
-    bool equal(const Key& k1, const Key& k2) const {
+    bool equal(const Key &k1, const Key &k2) const
+    {
         return k1 == k2;
     }
 };
@@ -40,7 +46,7 @@ public:
 
     STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET) : ST(jobSize, offset, RET), maps(jobSize) {}
     // assume the state is sorted
-    std::vector<int> computeGist(std::vector<int> state, int job) override
+    std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
         std::sort(state.begin(), state.end());
@@ -55,7 +61,7 @@ public:
         return gist;
     }
 
-    void addGist(std::vector<int> state, int job) override
+    void addGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
         if (getMemoryUsagePercentage() > 80)
@@ -65,14 +71,14 @@ public:
             std::uniform_int_distribution<> distr(0, this->jobSize); // define the range
             const int other = distr(gen);
             std::cout << "skipped " << maps.size() << " " << maps.size() << std::endl;
-                    double memoryUsage = getMemoryUsagePercentage();
+            double memoryUsage = getMemoryUsagePercentage();
             std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll." << std::endl;
             evictAll();
-            
+
             // Überprüfe die Speicherauslastung nach evictAll
             memoryUsage = getMemoryUsagePercentage();
             std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
-       
+
             return;
         }
 
@@ -84,7 +90,7 @@ public:
         assert(acc->second == true);
     }
 
-    int exists(std::vector<int> state, int job) override
+    int exists(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize);
 
@@ -100,7 +106,7 @@ public:
         return 0;
     }
 
-    void addPreviously(std::vector<int> state, int job) override
+    void addPreviously(const std::vector<int> &state, int job) override
     {
         std::shared_lock<std::shared_mutex> lock(updateBound);
         if (job >= 0 && job < jobSize)
@@ -131,9 +137,8 @@ public:
     {
     }
 
-    void addDelayed(std::vector<int> gist, int job, tbb::task::suspend_point tag) override
+    void addDelayed(const std::vector<int> &gist, int job, tbb::task::suspend_point tag) override
     {
-        
     }
 
 private:
@@ -158,7 +163,7 @@ private:
         return -1.0; // Fehlerfall
     }
 
-    void logging(std::vector<int> state, int job, auto message = "")
+    void logging(const std::vector<int> &state, int job, auto message = "")
     {
         if (!detailedLogging)
             return;
@@ -179,7 +184,6 @@ private:
         HashMap newMap;
         maps.swap(newMap);
     }
-
 };
 
-#endif 
+#endif

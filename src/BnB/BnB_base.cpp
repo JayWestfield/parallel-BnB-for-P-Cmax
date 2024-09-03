@@ -138,7 +138,7 @@ private:
         return std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines);
     }
 
-    void solvePartial(std::vector<int> state, int job)
+    void solvePartial(const std::vector<int>& state, int job)
     {
 
         if (foundOptimal || cancel)
@@ -181,7 +181,8 @@ private:
         { // Rule 5
             // TODO it should be able to do this faster (at least for many jobs with the same size) by keeping the state in a priority queu or sth like that
             // TODO there is a contition whioch says, wether that instance can be solved
-            lpt(state, job);
+            std::vector<int> one = state;
+            lpt(one, job);
             return;
         }
         logging(state, job, "before lookup");
@@ -424,7 +425,7 @@ private:
         return;
     }
 
-    void logging(std::vector<int> state, int job, auto message = "")
+    void logging(const std::vector<int>& state, int job, auto message = "")
     {
         try
         {
@@ -463,7 +464,7 @@ private:
     /**
      * @brief runs Lpt on the given partialassignment
      */
-    void lpt(std::vector<int> state, int job)
+    void lpt(std::vector<int>& state, int job)
     {
         for (long unsigned int i = job; i < jobDurations.size(); i++)
         {

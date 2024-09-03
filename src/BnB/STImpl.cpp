@@ -22,7 +22,7 @@ public:
 
     STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET) : ST(jobSize, offset, RET), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {}
     // assume the state is sorted
-    std::vector<int> computeGist(std::vector<int> state, int job) override
+    std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
         std::sort(state.begin(), state.end());
@@ -37,7 +37,7 @@ public:
         return gist;
     }
 
-    void addGist(std::vector<int> state, int job) override
+    void addGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
         if (getMemoryUsagePercentage() > 80)
@@ -50,11 +50,11 @@ public:
             double memoryUsage = getMemoryUsagePercentage();
             std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll." << std::endl;
             evictAll();
-            
+
             // Überprüfe die Speicherauslastung nach evictAll
             memoryUsage = getMemoryUsagePercentage();
             std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
-       
+
             return;
         }
         if (maps[job].size() >= MAX_SIZE)
@@ -84,7 +84,7 @@ public:
         logging(state, job, "inserted Gist " + delCount);
     }
 
-    int exists(std::vector<int> state, int job) override
+    int exists(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize);
 
@@ -101,7 +101,7 @@ public:
         return 0;
     }
 
-    void addPreviously(std::vector<int> state, int job) override
+    void addPreviously(const std::vector<int> &state, int job) override
     {
         std::shared_lock<std::shared_mutex> lock(updateBound);
         if (job >= 0 && job < jobSize)
@@ -169,7 +169,7 @@ public:
         delayedTasks.swap(newMaps);
     }
 
-    void addDelayed(std::vector<int> gist, int job, tbb::task::suspend_point tag) override
+    void addDelayed(const std::vector<int> &gist, int job, tbb::task::suspend_point tag) override
     {
         assert(job < jobSize && job >= 0);
 
@@ -267,7 +267,7 @@ private:
         // std::cout << "resumed " << delCount << std::endl;
         delayedTasks.swap(newMaps);
     }
-    void logging(std::vector<int> state, int job, auto message = "")
+    void logging(const std::vector<int> &state, int job, auto message = "")
     {
         if (!detailedLogging)
             return;
