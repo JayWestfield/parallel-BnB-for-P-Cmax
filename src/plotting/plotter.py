@@ -229,13 +229,18 @@ def plot_canceled_jobs(ax, data):
 
 def plot_cumulative_times_filtered(ax, data, min_time=0.01):
     num_thread_configs = len(data[0][1])
+    ymin = 0
     for i in range(num_thread_configs):
         # Filtern der Laufzeiten größer als min_time
         times = np.sort([times[i] for name, times in data])
         ax.plot(times, np.arange(1, len(times) + 1), label=f'{2**i} Threads')
+        for t in times:
+            if i == 1 and  t < min_time:
+                ymin = ymin + 1
     
+
     ax.set_xlim(xmin=min_time)
-    ax.set_ylim(ymin=80)
+    ax.set_ylim(ymin=ymin)
     ax.set_xlabel('Zeit (s)')
     ax.set_ylabel('Anzahl der Instanzen')
     ax.set_title(f'Laufzeit-Verteilung (Laufzeiten > {min_time} s)')
@@ -315,10 +320,13 @@ def plot_speedup_vs_nodes_ratio(ax, data):
         
         if speedup_vs_nodes:
             speedups, nodes_ratios = zip(*speedup_vs_nodes)
-            ax.scatter(nodes_ratios, speedups, alpha=0.5, label=f'{2**i} Threads')
+            ax.scatter(nodes_ratios, speedups, alpha=0.5, label=f'{2**i} Threads', s=5)
     
     ax.set_xlabel('Verhältnis der besuchten Knoten')
     ax.set_ylabel('Speedup')
+    ax.set_xlim(0,10)
+    ax.set_ylim(0,8)
+
     ax.set_title('Speedup vs. Verhältnis der besuchten Knoten')
     ax.legend()
     ax.grid(True)
@@ -359,7 +367,7 @@ def plot_relative_array_values_per_instance(ax, data, interp_length=100):
 
 def plot_all_in_one(data, ComplexData, plotpath):
     fig, axs = initialize_subplots(4, 3, "Analyse der Laufzeiten und Speedups")
-    min_time = 0.01
+    min_time = 0.03
     plot_cumulative_times(axs[0, 0], data)
     plot_speedups(axs[1, 0], data)
     plot_speedup_statistics(axs[0, 2], data)

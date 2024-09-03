@@ -346,7 +346,8 @@ private:
                         }
                         else
                         {
-                            delayed.push_back(i);
+                            tg.wait();
+                            count = 0;
                         }
                     }
                     else

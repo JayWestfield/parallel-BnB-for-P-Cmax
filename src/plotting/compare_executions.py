@@ -204,7 +204,7 @@ def plot_all_in_one(data1, data2, output_filepath):
     fig, axs = initialize_subplots(2, 3, "Vergleich der Ausführungen")
     speedups = calculate_speedups(data1, data2)
     # Beispiel für Subplots
-    # plot_runtime_comparison(axs[0, 0], data1, data2)
+    plot_runtime_comparison(axs[0, 0], data1, data2)
     plot_speedup_comparison_boxplot(axs[0, 1], data1, data2)
     plot_runtime_diff_distribution(axs[0, 2], data1, data2)
     plot_cumulative_times_comparison(axs[1, 0], data1, data2)
