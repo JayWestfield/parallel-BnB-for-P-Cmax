@@ -343,11 +343,14 @@ private:
                         {
                             tg.run([=]
                                    { solvePartial(next, job + 1); });
+                                   if (count >= 2) {
+                                    tg.wait();
+                                    count = 0;
+                                   }
                         }
                         else
                         {
-                            tg.wait();
-                            count = 0;
+                            throw std::runtime_error("count is illegal");
                         }
                     }
                     else

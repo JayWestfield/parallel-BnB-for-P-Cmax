@@ -16,7 +16,7 @@ def read_data(filepath):
                 if entry == "canceled":
                     runs.append((float('inf'), 0, 0))
                 elif entry.startswith("error_wrong_makespan_of"):
-                    times.append(float('inf'))  # Unendlich für Fehler
+                    runs.append((float('inf'), 0, 0))
                 else:
                     time_str, nodes_str, bound_times_str, difficulty_str = entry.split(',')
                     bound_times = list(map(float, bound_times_str.strip('{}').split(';')))

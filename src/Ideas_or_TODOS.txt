@@ -6,8 +6,6 @@ run more heuristics for a better upper bound and use one thread etc to compute a
 for bigger instances the memory management of STIMPL needs imporvement 
 test curretn vs one gib hashmap
 
-TODO error handling for adding a gist that has makespan > upperbound (due to boundUpdate) => memory conflicts
-
 TODO rule for the same job size (not in the end)
 
 Debugging Question:
@@ -43,3 +41,11 @@ evtl eigenens work stealing mit light weight tasks (loads, job, corresponding ta
 TODO plots überarbeiten farben etc
 
 the storage checks should not happen on every add gist only once in a while and only check the total pages once 
+
+easy improvements:
+clean/structure code also with midifiability (addprev etc)
+storage checks
+remove timing on bounds?
+cleanup not in the timed run
+parallel start (lpt etc is sequential)
+TODO rule for the same job size (not in the end)
