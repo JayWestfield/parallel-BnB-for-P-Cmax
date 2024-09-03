@@ -33,10 +33,10 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py results/lawrinenko_2.txt plots/all_plots_in_one2.png
+	python3 src/plotting/plotter.py results/experiment_lawrinenko_base_lowOptPrev.txt plots/lowOptprev.png
 
 plot2:
-	python3 src/plotting/compare_executions.py results/lawrinenko.txt  results/lawrinenko_2.txt plots/compare.png
+	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base3.txt  results/experiment_lawrinenko_base4.txt plots/compare.png
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)

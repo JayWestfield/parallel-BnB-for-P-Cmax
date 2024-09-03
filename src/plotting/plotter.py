@@ -322,10 +322,12 @@ def plot_speedup_vs_nodes_ratio(ax, data):
     ax.set_title('Speedup vs. Verhältnis der besuchten Knoten')
     ax.legend()
     ax.grid(True)
+from scipy.interpolate import interp1d
 
-def plot_relative_array_values_per_instance(ax, data):
+def plot_relative_array_values_per_instance(ax, data, interp_length=100):
     num_thread_configs = len(data[0][1])
-    
+    all_relative_values = []
+
     for name, times_info in data:
         for i in range(num_thread_configs):
             if i != 1:
@@ -334,12 +336,23 @@ def plot_relative_array_values_per_instance(ax, data):
             if time != float('inf') and len(array_values) > 1:
                 total_sum = sum(array_values)
                 relative_values = [val / total_sum for val in array_values]
-                x_vals = [j / (len(array_values) - 1) for j in range(len(array_values))]
-                ax.plot(x_vals, relative_values)
+                x_vals = np.linspace(0, 1, len(array_values))
+                interpolator = interp1d(x_vals, relative_values, kind='linear', fill_value='extrapolate')
+                interp_x_vals = np.linspace(0, 1, interp_length)
+                interp_relative_values = interpolator(interp_x_vals)
+                all_relative_values.append(interp_relative_values)
+    
+    if all_relative_values:
+        all_relative_values = np.array(all_relative_values)
+        avg_values = np.mean(all_relative_values, axis=0)
+        std_values = np.std(all_relative_values, axis=0)
+        
+        ax.plot(interp_x_vals, avg_values, label='Durchschnitt', color='blue', linewidth=2)
+        ax.fill_between(interp_x_vals, avg_values - std_values, avg_values + std_values, color='blue', alpha=0.2)
 
     ax.set_xlabel('Normierte Position im Array')
     ax.set_ylabel('Relativer Anteil')
-    ax.set_title('Verlauf der laufzeiten pro bound pro Instanz')
+    ax.set_title('Verlauf der Laufzeiten pro Bound pro Instanz')
     ax.legend()
     ax.grid(True)
 
