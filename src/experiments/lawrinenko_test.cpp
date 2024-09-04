@@ -9,8 +9,8 @@
 #include <future>
 #include "./../BnB/BnB.h"
 #include <string>
-#include <gperftools/profiler.h>
-
+// #include <gperftools/profiler.h>
+#define NDEBUG
 void readInstance(const std::string &filename, int &numJobs, int &numMachines, std::vector<int> &jobDurations)
 {
     std::ifstream infile(filename);
@@ -102,10 +102,11 @@ int main(int argc, char *argv[])
         for (const auto &optimal : optimalSolutions)
             instances_to_solve.push_back(optimal.first);
     }
-    ProfilerStart("profile.prof");
+    // ProfilerStart("profile.prof");
     BnB_base_Impl solver(true, true, true, false, false);
     for (auto instanceName : instances_to_solve)
-    {
+    {   
+        // if(instanceName!= "p_cmax-class1-n36-m12-minsize1-maxsize100-seed3397.txt") continue;
         int numJobs, numMachines;
         std::vector<int> jobDurations;
 
@@ -157,6 +158,6 @@ int main(int argc, char *argv[])
         }
         std::cout << std::endl;
     }
-    ProfilerStop();
+    // ProfilerStop();
     return 0;
 }

@@ -3,32 +3,82 @@
 #include <atomic>
 #include <vector>
 #include <tbb/tbb.h>
+#include <cassert>
+static std::size_t VECTOR_SIZE = 0; // Definition des Zeigers
 
 struct VectorHasher
 {
-    std::size_t hash(const std::vector<int> &vec) const
+    // hashing copied from Algorithm engineering course  https://gitlab.kit.edu/kit/iti/ae/teaching/algorithm-engineering/uebung/framework/-/blob/main/utils.h
+    const inline std::uint64_t murmur_hash64(const std::vector<int> &vec)
     {
-        std::size_t seed = vec.size();
-        for (auto &i : vec)
+        assert(vec.size() == VECTOR_SIZE);
+        const std::uint64_t m = 0xc6a4a7935bd1e995;
+        const std::size_t seed = 1203989050u;
+        const int r = 47;
+        std::size_t len = VECTOR_SIZE * sizeof(int);
+        std::uint64_t h = seed ^ (len * m);
+
+        const std::uint64_t *data = (const std::uint64_t *)vec.data();
+        const std::uint64_t *end = data + (len / 8);
+
+        while (data != end)
         {
-            seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+            std::uint64_t k = *data++;
+
+            k *= m;
+            k ^= k >> r;
+            k *= m;
+
+            h ^= k;
+            h *= m;
         }
-        return seed;
+
+        const unsigned char *data2 = reinterpret_cast<const unsigned char *>(data);
+
+        switch (len & 7)
+        {
+        case 7:
+            h ^= static_cast<std::int64_t>(data2[6]) << 48; // fallthrough
+        case 6:
+            h ^= static_cast<std::uint64_t>(data2[5]) << 40; // fallthrough
+        case 5:
+            h ^= static_cast<std::uint64_t>(data2[4]) << 32; // fallthrough
+        case 4:
+            h ^= static_cast<std::uint64_t>(data2[3]) << 24; // fallthrough
+        case 3:
+            h ^= static_cast<std::uint64_t>(data2[2]) << 16; // fallthrough
+        case 2:
+            h ^= static_cast<std::uint64_t>(data2[1]) << 8; // fallthrough
+        case 1:
+            h ^= static_cast<std::uint64_t>(data2[0]);
+            h *= m;
+        };
+
+        h ^= h >> r;
+        h *= m;
+        h ^= h >> r;
+
+        return h;
+    }
+
+    std::uint64_t hash(const std::vector<tbb::detail::d1::numa_node_id> &vec) 
+    {
+        // since this is called very often and the vector size depends on the instance it should be possible to optimize that in a way vec.size() does not need to be called
+        return murmur_hash64(vec);
     }
     bool equal(const std::vector<int> &a, const std::vector<int> &b) const
     {
-        for (long unsigned int i = 0; i < a.size(); i++)
-            if (a[i] != b[i])
-                return false;
-
-        return true;
+        return std::equal(a.begin(), a.end(), b.begin());
     }
 };
 class ST
 {
 public:
     // Konstruktor mit Parameter int jobSize
-    ST(int jobSize, int offset, std::vector<std::vector<int>> *RET) : jobSize(jobSize), offset(offset), RET(RET) {}
+    ST(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : jobSize(jobSize), offset(offset), RET(RET), vec_size(vec_size)
+    {
+        VECTOR_SIZE = vec_size;
+    }
 
     virtual ~ST() = default;
 
@@ -42,6 +92,7 @@ public:
     virtual void clear() = 0;
 
 protected:
+    std::size_t vec_size;
     int jobSize; // Member-Variable zum Speichern der jobSize
     int offset;
     std::vector<std::vector<int>> *RET;

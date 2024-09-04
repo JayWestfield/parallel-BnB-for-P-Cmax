@@ -1,7 +1,7 @@
 # Define compiler and flags
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -O3
-LDFLAGS = -ltbb
+LDFLAGS = -ltbb  -ltcmalloc_and_profiler
 
 # Define the source and target files
 SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
@@ -33,10 +33,10 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py results/experiment_lawrinenko_base_lowOptPrev.txt plots/lowOptprev.png
+	python3 src/plotting/plotter.py results/experiment_lawrinenko_base_v1.txt plots/v1.png
 
 plot2:
-	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base3.txt  results/experiment_lawrinenko_base4.txt plots/compare.png
+	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base_prevO3.txt  results/experiment_lawrinenko_base_v1.txt plots/compare.png
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)

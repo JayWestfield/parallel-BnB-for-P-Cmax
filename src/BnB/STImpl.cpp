@@ -13,23 +13,22 @@
 
 const size_t MAX_SIZE = 50000000;
 const size_t BITMAP_SIZE = 50;
-
 class STImpl : public ST
 {
 public:
     using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
     using HashDelayedMap = tbb::concurrent_hash_map<std::vector<int>, std::vector<tbb::task::suspend_point>, VectorHasher>; // might have more than one suspension point for a gist
 
-    STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET) : ST(jobSize, offset, RET), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {}
+    STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {}
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         // assume the state is sorted
-        assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
+        assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()) && vec_size == state.size());
         if ((long unsigned int)(state.back() + offset) >= (*RET)[job].size())
             throw std::runtime_error("infeasible");
-        std::vector<int> gist(state.size(), 0);
+        std::vector<int> gist(vec_size, 0);
         assert((long unsigned int)(state.back() + offset) < (*RET)[job].size()); // TODO maybe need error Handling to check that
-        for (std::vector<int>::size_type i = 0; i < state.size(); i++)
+        for (std::vector<int>::size_type i = 0; i < vec_size; i++)
         {
             gist[i] = (*RET)[job][state[i] + offset];
         }

@@ -1,7 +1,6 @@
 #ifndef BnB_base_Impl_H
 #define BnB_base_Impl_H
 
-#include "ST.h"
 #include "STImpl.cpp"
 #include <sstream>
 #include <stdexcept>
@@ -55,7 +54,7 @@ public:
         fillRET();
 
         // ST for gists
-        STInstance = new STImpl(lastRelevantJobIndex + 1, offset, &RET);
+        STInstance = new STImpl(lastRelevantJobIndex + 1, offset, &RET, numMachine);
 
         // one JobSize left
         int i = lastRelevantJobIndex;
@@ -144,7 +143,7 @@ private:
         if (foundOptimal || cancel)
             return;
 
-        int makespan = state[state.size() - 1];
+        int makespan = state[numMachines - 1];
 
         visitedNodes++;
         if (logNodes && visitedNodes % 1000000 == 0)
@@ -279,7 +278,7 @@ private:
         // FUR
         if (fur)
         {
-            for (int i = (state.size() - 1); i >= 0; i--)
+            for (int i = (numMachines - 1); i >= 0; i--)
             {
                 if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
                 {
@@ -309,13 +308,13 @@ private:
         logging(state, job, "after Fur");
 
         tbb::task_group tg;
-        int endState = state.size();
+        int endState = numMachines;
         std::vector<int> repeat;
         std::vector<int> delayed;
         if (numMachines > lastRelevantJobIndex - job + 1)
             endState = lastRelevantJobIndex - job + 1; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
 
-        assert(endState <= state.size());
+        assert(endState <= numMachines);
         int count = 0;
         for (int i = 0; i < endState; i++)
         {
@@ -470,7 +469,7 @@ private:
         for (long unsigned int i = job; i < jobDurations.size(); i++)
         {
             int minLoadMachine = std::min_element(state.begin(), state.end()) - state.begin();
-            assert(minLoadMachine >= 0 && minLoadMachine < state.size());
+            assert(minLoadMachine >= 0 && minLoadMachine < numMachines);
             state[minLoadMachine] += jobDurations[i];
         }
         int makespan = *std::max_element(state.begin(), state.end());
