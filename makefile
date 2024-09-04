@@ -1,7 +1,7 @@
 # Define compiler and flags
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -O3
-LDFLAGS = -ltbb  -ltcmalloc_and_profiler
+LDFLAGS = -ltbb  # -ltcmalloc_and_profiler
 
 # Define the source and target files
 SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
