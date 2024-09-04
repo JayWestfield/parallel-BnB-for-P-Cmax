@@ -9,6 +9,7 @@
 #include <future>
 #include "./../BnB/BnB.h"
 #include <string>
+#include <gperftools/profiler.h>
 
 void readInstance(const std::string &filename, int &numJobs, int &numMachines, std::vector<int> &jobDurations)
 {
@@ -58,9 +59,9 @@ void readOptimalSolutions(const std::string &filename, std::unordered_map<std::s
         }
     }
 }
-
 int main(int argc, char *argv[])
 {
+
     int maxThreads = std::stoi(argv[1]);
     int timeout = 1;
     if (argc >= 3)
@@ -101,6 +102,7 @@ int main(int argc, char *argv[])
         for (const auto &optimal : optimalSolutions)
             instances_to_solve.push_back(optimal.first);
     }
+    ProfilerStart("profile.prof");
     BnB_base_Impl solver(true, true, true, false, false);
     for (auto instanceName : instances_to_solve)
     {
@@ -155,6 +157,6 @@ int main(int argc, char *argv[])
         }
         std::cout << std::endl;
     }
-
+    ProfilerStop();
     return 0;
 }

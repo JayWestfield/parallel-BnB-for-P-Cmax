@@ -76,7 +76,7 @@ public:
         // tg.run([=, &tg]
         //                 { std::this_thread::sleep_for(std::chrono::seconds(10)); });
         tg.wait();
-        timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate ));
+        timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
         STInstance->clear();
         delete STInstance;
 
@@ -140,11 +140,10 @@ private:
 
     void solvePartial(const std::vector<int>& state, int job)
     {
-
+        assert(std::is_sorted(state.begin(), state.end()));
         if (foundOptimal || cancel)
             return;
 
-        std::sort(state.begin(), state.end()); // currently for simplification
         int makespan = state[state.size() - 1];
 
         visitedNodes++;
@@ -286,6 +285,7 @@ private:
                 {
                     std::vector<int> next = state; // when implemented carefully there is no copy needed (but we are not that far yet)
                     next[i] += jobDurations[job];
+                    std::sort(next.begin(), next.end());
                     solvePartial(next, job + 1);
                     if (state[i] + jobDurations[job] <= upperBound)
                     {
@@ -328,8 +328,7 @@ private:
             }
             std::vector<int> next = state;
             next[i] += jobDurations[job];
-            std::sort(next.begin(), next.end());
-
+            std::sort(next.begin(), next.end()); 
             logging(next, job + 1, "child from recursion");
             try
             {
@@ -340,14 +339,15 @@ private:
                 case 0:
                     if (job > lastSizeJobIndex / 3 && job > 10)
                     {
-                        if (count++ < 2 )
+                        if (count++ < 2)
                         {
                             tg.run([=]
                                    { solvePartial(next, job + 1); });
-                                   if (count >= 2) {
-                                    tg.wait();
-                                    count = 0;
-                                   }
+                            if (count >= 2)
+                            {
+                                tg.wait();
+                                count = 0;
+                            }
                         }
                         else
                         {
@@ -381,6 +381,7 @@ private:
         {
             std::vector<int> next = state;
             next[i] += jobDurations[job];
+            std::sort(next.begin(), next.end());
             try
             {
                 auto ex = STInstance->exists(next, job + 1);
@@ -402,6 +403,7 @@ private:
             { // Rule 6
                 std::vector<int> next = state;
                 next[i] += jobDurations[job];
+                std::sort(next.begin(), next.end());
                 logging(next, job + 1, "Rule 6 from recursion");
                 tg.run([=]
                        { solvePartial(next, job + 1); });
@@ -409,7 +411,6 @@ private:
         }
         tg.wait();
 
-        std::sort(state.begin(), state.end());
         if (gist)
         {
             try
@@ -425,7 +426,7 @@ private:
         return;
     }
 
-    void logging(const std::vector<int>& state, int job, auto message = "")
+    void logging(const std::vector<int> &state, int job, auto message = "")
     {
         try
         {
@@ -464,7 +465,7 @@ private:
     /**
      * @brief runs Lpt on the given partialassignment
      */
-    void lpt(std::vector<int>& state, int job)
+    void lpt(std::vector<int> &state, int job)
     {
         for (long unsigned int i = job; i < jobDurations.size(); i++)
         {
@@ -498,7 +499,7 @@ private:
         if (logBound)
             std::cout << "new Bound " << newBound << std::endl;
         auto newTime = std::chrono::high_resolution_clock::now();
-        timeFrames.push_back((std::chrono::duration<double>) (newTime - lastUpdate));
+        timeFrames.push_back((std::chrono::duration<double>)(newTime - lastUpdate));
         lastUpdate = newTime;
         upperBound = newBound - 1;
         offset = initialUpperBound - upperBound;

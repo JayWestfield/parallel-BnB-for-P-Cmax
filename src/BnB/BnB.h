@@ -27,8 +27,8 @@ private:
     std::atomic<int> upperBound = std::numeric_limits<int>::max();
     int initialUpperBound = std::numeric_limits<int>::max();
     std::atomic<int> offset = 0;
-    bool lookUpGist(std::vector<int> gist, int job);
-    void addGist(std::vector<int> gist, int job);
+    bool lookUpGist(std::vector<int>& gist, int job);
+    void addGist(std::vector<int>& gist, int job);
     int lowerBound;
     std::vector<std::vector<int>> RET;
     void fillRET();
@@ -37,11 +37,11 @@ private:
     int lastRelevantJobIndex;
     int trivialLowerBound();
     int lPTUpperBound();
-    bool volatile solveInstance(const std::vector<int> state, int job);
+    bool volatile solveInstance(std::vector<int>& state, int job);
     int left(int i, int u);
     int right(int i, int u);
     void updateBound(int newBound);
-    bool lpt(std::vector<int> state, int job);
+    bool lpt(std::vector<int>& state, int job);
     bool lookupRet(int i, int j, int job);
     bool lookupRetFur(int i, int j, int job);
     std::shared_mutex mutex;

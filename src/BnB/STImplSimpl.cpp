@@ -45,11 +45,10 @@ public:
     using HashMap = tbb::concurrent_hash_map<Key, bool, VectorHasherSimpl>;
 
     STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET) : ST(jobSize, offset, RET), maps(jobSize) {}
-    // assume the state is sorted
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
-        assert(job < jobSize && job >= 0);
-        std::sort(state.begin(), state.end());
+        // assume the state is sorted
+        assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
         if ((long unsigned int)(state.back() + offset) >= (*RET)[job].size())
             throw std::runtime_error("infeasible");
         std::vector<int> gist(state.size(), 0);
