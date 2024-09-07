@@ -350,6 +350,7 @@ private:
             next[i] += jobDurations[job];
             std::sort(next.begin(), next.end());
             logging(next, job + 1, "child from recursion");
+
             try
             {
                 // filter delayed / solved assignments directly before spawning the tasks

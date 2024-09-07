@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include "./../BnB/BnB_base.cpp"
 
@@ -8,7 +9,6 @@
 #include <string>
 #include <gperftools/profiler.h>
 #include "./readData/readData.h"
-#define NDEBUG
 
 int main(int argc, char *argv[])
 {

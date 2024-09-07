@@ -1,6 +1,6 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb 
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -DNDEBUG
 LDFLAGS = -ltbb  -ltcmalloc_and_profiler
 
 # Define the source and target files
@@ -47,6 +47,10 @@ $(PROFILE_DST):
 	$(CXX) $(CXXFLAGS) -o $(PROFILE_DST) $(PROFILE_SRC) $(LDFLAGS)
 
 profile: $(PROFILE_DST)
+
+viewProfile: 
+	google-pprof --pdf  ./dst/profiler profile.prof > output.pdf
+	code output.pdf
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)
