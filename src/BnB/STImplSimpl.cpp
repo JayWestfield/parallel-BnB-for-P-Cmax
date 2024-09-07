@@ -11,38 +11,10 @@
 #include <unistd.h>
 #include <random>
 
-struct Key
-{
-    std::vector<int> vec;
-    int number;
-    Key(const std::vector<int> &v, int num) : vec(v), number(num) {}
-    bool operator==(const Key &other) const
-    {
-        return vec == other.vec && number == other.number;
-    }
-};
-struct VectorHasherSimpl
-{
-    std::size_t hash(const Key &k) const
-    {
-        std::size_t seed = k.vec.size();
-        for (auto &i : k.vec)
-        {
-            seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-        }
-        seed ^= k.number + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-        return seed;
-    }
-
-    bool equal(const Key &k1, const Key &k2) const
-    {
-        return k1 == k2;
-    }
-};
 class STImplSimpl : public ST
 {
 public:
-    using HashMap = tbb::concurrent_hash_map<Key, bool, VectorHasherSimpl>;
+    using HashMap = tbb::concurrent_hash_map<std::vector<int>,bool , VectorHasher>;
 
     STImplSimpl(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize) {}
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
@@ -51,12 +23,13 @@ public:
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
         if ((long unsigned int)(state.back() + offset) >= (*RET)[job].size())
             throw std::runtime_error("infeasible");
-        std::vector<int> gist(state.size(), 0);
+        std::vector<int> gist(state.size() + 1, 0);
         assert((long unsigned int)(state.back() + offset) < (*RET)[job].size()); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < state.size(); i++)
         {
             gist[i] = (*RET)[job][state[i] + offset];
         }
+        gist[state.size()] = job;
         return gist;
     }
 
@@ -66,7 +39,7 @@ public:
         std::shared_lock<std::shared_mutex> lock(updateBound);
 
         HashMap::accessor acc;
-        maps.insert(acc, Key(computeGist(state, job), job));
+        maps.insert(acc, computeGist(state, job));
         acc->second = true;
         assert(acc->second == true);
     }
@@ -79,7 +52,7 @@ public:
         if (job >= 0 && job < jobSize)
         {
             HashMap::const_accessor acc;
-            if (maps.find(acc, Key(computeGist(state, job), job)))
+            if (maps.find(acc, computeGist(state, job)))
             {
                 return acc->second ? 2 : 1;
             }
@@ -93,9 +66,9 @@ public:
         if (job >= 0 && job < jobSize)
         {
             HashMap::accessor acc;
-            if (maps.find(acc, Key(computeGist(state, job), job)))
+            if (maps.find(acc, computeGist(state, job))) 
                 return;
-            if (maps.insert(acc, Key(computeGist(state, job), job)))
+            if (maps.insert(acc, computeGist(state, job)))
                 acc->second = false;
         }
         logging(state, job, "add Prev");

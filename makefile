@@ -1,7 +1,7 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -O3
-LDFLAGS = -ltbb  # -ltcmalloc_and_profiler
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb 
+LDFLAGS = -ltbb  -ltcmalloc_and_profiler
 
 # Define the source and target files
 SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
@@ -10,6 +10,11 @@ SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/expe
 TARGETEXP = dst/experiment
 FILTERALL = dst/runAllFast
 SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/test_to_filter_benchmark.cpp
+
+PROFILE_SRC = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp src/experiments/readData/readData.cpp
+PROFILE_DST = dst/profiler
+
+
 # Define the rule to build the target executable
 $(TARGET): $(SOURCES)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES) $(LDFLAGS)
@@ -33,12 +38,18 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py results/experiment_lawrinenko_base_v1.txt plots/v1.png
+	python3 src/plotting/plotter.py results/experiment_lawrinenko_base_v2.txt plots/v2.png
 
 plot2:
-	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base_prevO3.txt  results/experiment_lawrinenko_base_v1.txt plots/compare.png
+	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base_v2.txt  results/experiment_lawrinenko_base_v1.txt plots/compare2.png
+
+$(PROFILE_DST):
+	$(CXX) $(CXXFLAGS) -o $(PROFILE_DST) $(PROFILE_SRC) $(LDFLAGS)
+
+profile: $(PROFILE_DST)
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)
 	rm -f $(TARGETEXP)
 	rm -f $(FILTERALL)
+	rm -f $(PROFILE_DST)

@@ -1,5 +1,4 @@
 #include <iostream>
-#include <iostream>
 #include "./../BnB/BnB_base.cpp"
 
 #include <fstream>
@@ -9,59 +8,12 @@
 #include <future>
 #include "./../BnB/BnB.h"
 #include <string>
-// #include <gperftools/profiler.h>
+#include "readData.h"
 #define NDEBUG
-void readInstance(const std::string &filename, int &numJobs, int &numMachines, std::vector<int> &jobDurations)
-{
-    std::ifstream infile(filename);
-    if (!infile)
-    {
-        throw std::runtime_error("Unable to open file");
-    }
-    std::string line;
 
-    // Read the first line
-    if (std::getline(infile, line))
-    {
-        std::istringstream iss(line);
-        std::string problemType;
-        iss >> problemType >> problemType >> numJobs >> numMachines;
-    }
-
-    // Read the second line
-    if (std::getline(infile, line))
-    {
-        std::istringstream iss(line);
-        int duration;
-        while (iss >> duration)
-        {
-            jobDurations.push_back(duration);
-        }
-    }
-}
-void readOptimalSolutions(const std::string &filename, std::unordered_map<std::string, int> &optimalSolutions)
-{
-    std::ifstream infile(filename);
-    if (!infile)
-    {
-        throw std::runtime_error("Unable to open file");
-    }
-
-    std::string line;
-    while (std::getline(infile, line))
-    {
-        std::istringstream iss(line);
-        std::string name;
-        int optimalMakespan;
-        if (iss >> name >> optimalMakespan)
-        {
-            optimalSolutions[name] = optimalMakespan;
-        }
-    }
-}
 int main(int argc, char *argv[])
 {
-
+    Parser readData;
     int maxThreads = std::stoi(argv[1]);
     int timeout = 1;
     if (argc >= 3)
@@ -77,7 +29,7 @@ int main(int argc, char *argv[])
     if (argc >= 6)
         path_to_selection_of_instances = argv[5];
     std::unordered_map<std::string, int> optimalSolutions;
-    readOptimalSolutions(basePath + "/opt-known-instances-" + benchmark + ".txt", optimalSolutions);
+    readData.readOptimalSolutions(basePath + "/opt-known-instances-" + benchmark + ".txt", optimalSolutions);
     std::vector<std::string> instances_to_solve = {};
     if (path_to_selection_of_instances != "all")
     {
@@ -102,16 +54,14 @@ int main(int argc, char *argv[])
         for (const auto &optimal : optimalSolutions)
             instances_to_solve.push_back(optimal.first);
     }
-    // ProfilerStart("profile.prof");
-    BnB_base_Impl solver(true, true, true, false, false);
+    BnB_base_Impl solver(true, true, true, false, 1);
     for (auto instanceName : instances_to_solve)
     {   
-        // if(instanceName!= "p_cmax-class1-n36-m12-minsize1-maxsize100-seed3397.txt") continue;
         int numJobs, numMachines;
         std::vector<int> jobDurations;
 
         std::string instanceFilePath = basePath + "/" + benchmark + "/" + instanceName;
-        readInstance(instanceFilePath, numJobs, numMachines, jobDurations);
+        readData.readInstance(instanceFilePath, numJobs, numMachines, jobDurations);
         int numThreads = 1;
         std::condition_variable cv;
         std::mutex mtx;
@@ -158,6 +108,5 @@ int main(int argc, char *argv[])
         }
         std::cout << std::endl;
     }
-    // ProfilerStop();
     return 0;
 }
