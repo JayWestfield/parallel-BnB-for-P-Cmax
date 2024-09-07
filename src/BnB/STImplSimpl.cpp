@@ -1,5 +1,5 @@
-#ifndef ST_IMPL_H
-#define ST_IMPL_H
+#ifndef ST_IMPL_Simpl_H
+#define ST_IMPL_Simpl_H
 
 #include "ST.h"
 #include <tbb/tbb.h>
@@ -23,7 +23,7 @@ struct Key
 };
 struct VectorHasherSimpl
 {
-    std::size_t operator()(const Key &k) const
+    std::size_t hash(const Key &k) const
     {
         std::size_t seed = k.vec.size();
         for (auto &i : k.vec)
@@ -39,12 +39,12 @@ struct VectorHasherSimpl
         return k1 == k2;
     }
 };
-class STImpl : public ST
+class STImplSimpl : public ST
 {
 public:
     using HashMap = tbb::concurrent_hash_map<Key, bool, VectorHasherSimpl>;
 
-    STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET) : ST(jobSize, offset, RET), maps(jobSize) {}
+    STImplSimpl(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize) {}
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         // assume the state is sorted
@@ -63,24 +63,6 @@ public:
     void addGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
-        if (getMemoryUsagePercentage() > 80)
-        {
-            std::random_device rd;                                   // obtain a random number from hardware
-            std::mt19937 gen(rd());                                  // seed the generator
-            std::uniform_int_distribution<> distr(0, this->jobSize); // define the range
-            const int other = distr(gen);
-            std::cout << "skipped " << maps.size() << " " << maps.size() << std::endl;
-            double memoryUsage = getMemoryUsagePercentage();
-            std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll." << std::endl;
-            evictAll();
-
-            // Überprüfe die Speicherauslastung nach evictAll
-            memoryUsage = getMemoryUsagePercentage();
-            std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
-
-            return;
-        }
-
         std::shared_lock<std::shared_mutex> lock(updateBound);
 
         HashMap::accessor acc;
@@ -171,7 +153,7 @@ private:
         for (auto vla : state)
             gis << vla << ", ";
         gis << " => ";
-        for (auto vla : Key(computeGist(state, job), job))
+        for (auto vla : computeGist(state, job))
             gis << vla << " ";
         gis << " Job: " << job << "\n";
         std::cout << gis.str() << std::endl;

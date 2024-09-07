@@ -9,7 +9,6 @@
 #include <cassert>
 #include <stdexcept>
 #include <unistd.h>
-#include <random>
 
 const size_t MAX_SIZE = 50000000;
 const size_t BITMAP_SIZE = 50;
@@ -38,23 +37,7 @@ public:
     void addGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
-        if (getMemoryUsagePercentage() > 80)
-        {
-            std::random_device rd;                                   // obtain a random number from hardware
-            std::mt19937 gen(rd());                                  // seed the generator
-            std::uniform_int_distribution<> distr(0, this->jobSize); // define the range
-            const int other = distr(gen);
-            std::cout << "skipped " << maps[job].size() << " " << maps[other].size() << std::endl;
-            double memoryUsage = getMemoryUsagePercentage();
-            std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll." << std::endl;
-            evictAll();
 
-            // Überprüfe die Speicherauslastung nach evictAll
-            memoryUsage = getMemoryUsagePercentage();
-            std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
-
-            return;
-        }
         if (maps[job].size() >= MAX_SIZE)
         {
             std::cout << "evict " << std::endl;
@@ -166,7 +149,30 @@ public:
         // std::cout << "resumed " << delCount << std::endl;
         delayedTasks.swap(newMaps);
     }
-
+    void evictAll()
+    {
+        std::unique_lock<std::shared_mutex> lock(mapsLock); // todo combine try lock with tthe if condition
+        for (auto job = 0; job < jobSize; job++)
+        {
+            auto &map = maps[job];
+            HashMap newMap;
+            if (useBitmaps)
+            {
+                auto &bitmap = bitmaps[job];
+                std::bitset<BITMAP_SIZE> newBitmap;
+                for (auto it = map.begin(); it != map.end(); ++it)
+                {
+                    size_t hashValue = VectorHasher().hash(it->first) % BITMAP_SIZE;
+                    if (bitmap.test(hashValue))
+                    {
+                        newMap.insert(*it);
+                    }
+                }
+                bitmap = newBitmap;
+            }
+            map.swap(newMap);
+        }
+    }
     void addDelayed(const std::vector<int> &gist, int job, tbb::task::suspend_point tag) override
     {
         assert(job < jobSize && job >= 0);
@@ -213,21 +219,7 @@ private:
     bool useBitmaps = false;
     std::shared_mutex delayed;     // shared_mutex zum Schutz der Hashmaps während boundUpdate
     std::shared_mutex updateBound; // shared_mutex zum Schutz der Hashmaps während boundUpdate
-    double getMemoryUsagePercentage()
-    {
-        long totalPages = sysconf(_SC_PHYS_PAGES);
-        long availablePages = sysconf(_SC_AVPHYS_PAGES);
-        long pageSize = sysconf(_SC_PAGE_SIZE);
 
-        if (totalPages > 0)
-        {
-            long usedPages = totalPages - availablePages;
-            double usedMemory = static_cast<double>(usedPages * pageSize);
-            double totalMemory = static_cast<double>(totalPages * pageSize);
-            return (usedMemory / totalMemory) * 100.0;
-        }
-        return -1.0; // Fehlerfall
-    }
     void updateBitmap(int job, const std::vector<int> &gist)
     {
         assert(job < jobSize && job >= 0);
@@ -302,30 +294,7 @@ private:
         }
         map.swap(newMap);
     }
-    void evictAll()
-    {
-        std::unique_lock<std::shared_mutex> lock(mapsLock); // todo combine try lock with tthe if condition
-        for (auto job = 0; job < jobSize; job++)
-        {
-            auto &map = maps[job];
-            HashMap newMap;
-            if (useBitmaps)
-            {
-                auto &bitmap = bitmaps[job];
-                std::bitset<BITMAP_SIZE> newBitmap;
-                for (auto it = map.begin(); it != map.end(); ++it)
-                {
-                    size_t hashValue = VectorHasher().hash(it->first) % BITMAP_SIZE;
-                    if (bitmap.test(hashValue))
-                    {
-                        newMap.insert(*it);
-                    }
-                }
-                bitmap = newBitmap;
-            }
-            map.swap(newMap);
-        }
-    }
+
     // void printHashDelayedMap() {
     //     std::ostringstream oss;
     //     std::cout << "start print" << std::endl;

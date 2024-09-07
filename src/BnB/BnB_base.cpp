@@ -1,13 +1,15 @@
 #ifndef BnB_base_Impl_H
 #define BnB_base_Impl_H
 
+#include "STImplSimpl.cpp"
 #include "STImpl.cpp"
+
 #include <sstream>
 #include <stdexcept>
 #include "BnB_base.h"
 #include <numeric>
 #include <tbb/tbb.h>
-
+#include <condition_variable>
 class BnB_base_Impl : public BnBSolverBase
 {
 public:
@@ -22,7 +24,7 @@ public:
      * @param addPreviously add the gist (with a flag) when starting to compute it
      * @param addPreviouslyExtended extended resumable tasks
      */
-    BnB_base_Impl(bool irrelevance, bool fur, bool gist, bool addPreviously, bool addPreviouslyExtended) : BnBSolverBase(irrelevance, fur, gist, addPreviously, addPreviouslyExtended) {}
+    BnB_base_Impl(bool irrelevance, bool fur, bool gist, bool addPreviously, int STtype) : BnBSolverBase(irrelevance, fur, gist, addPreviously, STtype) {}
     int solve(int numMachine, const std::vector<int> &jobDuration) override
     {
         reset();
@@ -54,8 +56,7 @@ public:
         fillRET();
 
         // ST for gists
-        STInstance = new STImpl(lastRelevantJobIndex + 1, offset, &RET, numMachine);
-
+        initializeST();
         // one JobSize left
         int i = lastRelevantJobIndex;
         while (i > 0 && jobDurations[--i] == jobDurations[lastRelevantJobIndex])
@@ -74,7 +75,40 @@ public:
                { solvePartial(initialState, 0); });
         // tg.run([=, &tg]
         //                 { std::this_thread::sleep_for(std::chrono::seconds(10)); });
+        // TODO find another way to check that because if the solution is found and the thread is is still sleeping it will not stop
+        std::condition_variable mycond;
+        auto start = std::chrono::high_resolution_clock::now();
+        std::mutex mtx;
+        std::thread monitoringThread([=, &mycond, &mtx]()
+                                     {
+                    while ( !foundOptimal && !cancel)
+                        {
+                        if (getMemoryUsagePercentage() > 85)
+                            {
+                                double memoryUsage = getMemoryUsagePercentage();
+                                std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll. "  << ( (std::chrono::duration<double>)(std::chrono::high_resolution_clock::now() - start)).count()<< std::endl;
+                                // STInstance->evictAll();
+
+                                // Überprüfe die Speicherauslastung nach evictAll
+                                std::unique_lock lock(boundLock); // Todo this can be done with CAS ( i think)
+                                delete STInstance;
+                                initializeST();
+                                memoryUsage = getMemoryUsagePercentage();
+
+                                std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
+                            } 
+                            std::unique_lock<std::mutex> lock(mtx);
+                            if (mycond.wait_for( lock,  std::chrono::milliseconds(500),  []() {  return false;} )) {}
+                        } 
+                        return; });
         tg.wait();
+        // to ensure the monitoringThread exits
+        foundOptimal = true;
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            mycond.notify_one();
+        }
+        monitoringThread.join();
         timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
         STInstance->clear();
         delete STInstance;
@@ -100,7 +134,7 @@ public:
     void cancelExecution()
     {
         cancel = true;
-        if (addPreviouslyExtended && STInstance != nullptr)
+        if (STInstance != nullptr)
             STInstance->resumeAllDelayedTasks();
     }
 
@@ -120,7 +154,7 @@ private:
     std::atomic<int> offset;
 
     // gist
-    STImpl *STInstance = nullptr;
+    ST *STInstance = nullptr;
 
     // Logging
     bool logNodes = false;
@@ -137,7 +171,7 @@ private:
         return std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines);
     }
 
-    void solvePartial(const std::vector<int>& state, int job)
+    void solvePartial(const std::vector<int> &state, int job)
     {
         assert(std::is_sorted(state.begin(), state.end()));
         if (foundOptimal || cancel)
@@ -220,21 +254,8 @@ private:
                         }
                         tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
                                            {
-                                               if (addPreviouslyExtended)
-                                               {
-                                                   try
-                                                   {
-                                                        STInstance->addDelayed(state, job, tag);
-                                                   }
-                                                   catch (const std::runtime_error &e)
-                                                   {
-                                                       tbb::task::resume(tag);
-                                                   }
-                                               }
-                                               else
-                                               {
+  
                                                    tbb::task::resume(tag);
-                                               } 
                                                return; });
                         logging(state, job, "restarted");
                         // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
@@ -327,7 +348,7 @@ private:
             }
             std::vector<int> next = state;
             next[i] += jobDurations[job];
-            std::sort(next.begin(), next.end()); 
+            std::sort(next.begin(), next.end());
             logging(next, job + 1, "child from recursion");
             try
             {
@@ -336,7 +357,7 @@ private:
                 switch (ex)
                 {
                 case 0:
-                    if (job > lastSizeJobIndex / 3 && job > 10)
+                    if (job > lastSizeJobIndex / 3 && job > 6)
                     {
                         if (count++ < 2)
                         {
@@ -548,7 +569,21 @@ private:
 
         return i;
     }
+    double getMemoryUsagePercentage()
+    {
+        long totalPages = sysconf(_SC_PHYS_PAGES);
+        long availablePages = sysconf(_SC_AVPHYS_PAGES);
+        long pageSize = sysconf(_SC_PAGE_SIZE);
 
+        if (totalPages > 0)
+        {
+            long usedPages = totalPages - availablePages;
+            double usedMemory = static_cast<double>(usedPages * pageSize);
+            double totalMemory = static_cast<double>(totalPages * pageSize);
+            return (usedMemory / totalMemory) * 100.0;
+        }
+        return -1.0; // Fehlerfall
+    }
     /**
      * @brief initializes and fills the RET
      */
@@ -617,6 +652,21 @@ private:
         foundOptimal = false;
         visitedNodes = 0;
         RET.clear();
+    }
+
+    void initializeST()
+    {
+        switch (STtype)
+        {
+        case 0:
+            STInstance = new STImpl(lastRelevantJobIndex + 1, offset, &RET, numMachines);
+            break;
+        case 1:
+            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, &RET, numMachines);
+            break;
+        default:
+            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, &RET, numMachines);
+        }
     }
 };
 

@@ -4,18 +4,17 @@
 #include <vector>
 #include <tbb/tbb.h>
 #include <cassert>
-static std::size_t VECTOR_SIZE = 0; // Definition des Zeigers
 
 struct VectorHasher
 {
     // hashing copied from Algorithm engineering course  https://gitlab.kit.edu/kit/iti/ae/teaching/algorithm-engineering/uebung/framework/-/blob/main/utils.h
     const inline std::uint64_t murmur_hash64(const std::vector<int> &vec)
     {
-        assert(vec.size() == VECTOR_SIZE);
+        assert(vec.size() == vec.size());
         const std::uint64_t m = 0xc6a4a7935bd1e995;
         const std::size_t seed = 1203989050u;
         const int r = 47;
-        std::size_t len = VECTOR_SIZE * sizeof(int);
+        std::size_t len = vec.size() * sizeof(int);
         std::uint64_t h = seed ^ (len * m);
 
         const std::uint64_t *data = (const std::uint64_t *)vec.data();
@@ -77,7 +76,6 @@ public:
     // Konstruktor mit Parameter int jobSize
     ST(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : jobSize(jobSize), offset(offset), RET(RET), vec_size(vec_size)
     {
-        VECTOR_SIZE = vec_size;
     }
 
     virtual ~ST() = default;

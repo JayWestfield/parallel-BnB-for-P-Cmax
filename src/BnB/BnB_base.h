@@ -12,9 +12,9 @@ public:
      * @param fur use the fur Rule
      * @param gist take advantage of gists
      * @param addPreviously add the gist (with a flag) when starting to compute it
-     * @param addPreviouslyExtended extended resumable tasks
+     * @param STtype extended resumable tasks
     */
-    BnBSolverBase(bool irrelevance, bool fur, bool gist, bool  addPreviously, bool addPreviouslyExtended) : irrelevance(irrelevance), gist(gist), fur(fur), addPreviously(addPreviously), addPreviouslyExtended(addPreviouslyExtended) {}
+    BnBSolverBase(bool irrelevance, bool fur, bool gist, bool  addPreviously, int STtype) : irrelevance(irrelevance), gist(gist), fur(fur), addPreviously(addPreviously), STtype(STtype) {}
 
     /**
      * @brief Solve P||C_max for the given Instance
@@ -64,7 +64,7 @@ protected:
     bool gist;
     bool fur;
     bool addPreviously;
-    bool addPreviouslyExtended;
+    int STtype;
 
 };
 
