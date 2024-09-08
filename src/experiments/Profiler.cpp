@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
     if (argc >= 3)
         STVersion = std::stoi(argv[2]);
     std::string basePath = "benchmarks";
-    std::string instanceName = "p_cmax-class1-n36-m12-minsize1-maxsize100-seed3397.txt";
+    std::string instanceName = "p_cmax-class1-n90-m40-minsize1-maxsize100-seed21578.txt";
     if (argc >= 4)
         instanceName = argv[3];
 

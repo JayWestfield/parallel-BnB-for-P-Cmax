@@ -116,8 +116,8 @@ private:
         }
         return -1.0; // Fehlerfall
     }
-
-    void logging(const std::vector<int> &state, int job, auto message = "")
+    template <typename T>
+    void logging(const std::vector<int> &state, int job, T message = "")
     {
         if (!detailedLogging)
             return;

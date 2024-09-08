@@ -90,8 +90,10 @@ public:
             HashMap::accessor acc;
             if (maps[job].find(acc, computeGist(state, job)))
                 return;
-            if (maps[job].insert(acc, computeGist(state, job)))
+            else {
+                maps[job].insert(acc, computeGist(state, job));
                 acc->second = false;
+                }
         }
         logging(state, job, "add Prev");
     }
@@ -257,7 +259,8 @@ private:
         // std::cout << "resumed " << delCount << std::endl;
         delayedTasks.swap(newMaps);
     }
-    void logging(const std::vector<int> &state, int job, auto message = "")
+    template <typename T>
+    void logging(const std::vector<int> &state, int job, T message = "")
     {
         if (!detailedLogging)
             return;

@@ -91,8 +91,9 @@ public:
 
                                 // Überprüfe die Speicherauslastung nach evictAll
                                 std::unique_lock lock(boundLock); // Todo this can be done with CAS ( i think)
-                                delete STInstance;
-                                initializeST();
+                                STInstance->clear();
+                                // delete STInstance;
+                                // initializeST();
                                 memoryUsage = getMemoryUsagePercentage();
 
                                 std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
@@ -232,7 +233,6 @@ private:
                 return;
             }
             logging(state, job, exists);
-            int bound = upperBound;
             if (exists == 2)
             {
                 logging(state, job, "gist found");
@@ -305,7 +305,8 @@ private:
                 {
                     std::vector<int> next = state; // when implemented carefully there is no copy needed (but we are not that far yet)
                     next[i] += jobDurations[job];
-                    std::sort(next.begin(), next.end());
+                    // std::sort(next.begin(), next.end());
+                    resortAfterIncrement(next, i);
                     solvePartial(next, job + 1);
                     if (state[i] + jobDurations[job] <= upperBound)
                     {
@@ -348,7 +349,8 @@ private:
             }
             std::vector<int> next = state;
             next[i] += jobDurations[job];
-            std::sort(next.begin(), next.end());
+            // std::sort(next.begin(), next.end());
+            resortAfterIncrement(next, i);
             logging(next, job + 1, "child from recursion");
 
             try
@@ -402,7 +404,8 @@ private:
         {
             std::vector<int> next = state;
             next[i] += jobDurations[job];
-            std::sort(next.begin(), next.end());
+            // std::sort(next.begin(), next.end());
+            resortAfterIncrement(next, i);
             try
             {
                 auto ex = STInstance->exists(next, job + 1);
@@ -424,7 +427,8 @@ private:
             { // Rule 6
                 std::vector<int> next = state;
                 next[i] += jobDurations[job];
-                std::sort(next.begin(), next.end());
+                // std::sort(next.begin(), next.end());
+                resortAfterIncrement(next, i);
                 logging(next, job + 1, "Rule 6 from recursion");
                 tg.run([=]
                        { solvePartial(next, job + 1); });
@@ -446,8 +450,8 @@ private:
         logging(state, job, "after add");
         return;
     }
-
-    void logging(const std::vector<int> &state, int job, auto message = "")
+    template <typename T>
+    void logging(const std::vector<int> &state, int job, T message = "")
     {
         try
         {
@@ -473,13 +477,13 @@ private:
     {
         std::shared_lock lock(boundLock); // Depending on the bound update we can remove the lock
         const int off = offset;
-        assert(i + off < RET[job].size());
+        assert(i + off < (int)RET[job].size());
         return RET[job][i + off] == RET[job][j + off];
     }
     bool lookupRetFur(int i, int j, int job)
     { // this is awful codestyle needs to be refactored
         std::shared_lock lock(boundLock);
-        assert(i + offset < RET[job].size() && initialUpperBound - j < RET[job].size());
+        assert(i + offset < (int)RET[job].size() && initialUpperBound - j < (int)RET[job].size());
         return RET[job][i + offset] == RET[job][initialUpperBound - j]; // need to make sure that upperbound and offset are correct done with initialBound (suboptimal)
     }
 
@@ -540,7 +544,7 @@ private:
         for (long unsigned int i = 0; i < jobDurations.size(); i++)
         {
             int minLoadMachine = std::min_element(upper.begin(), upper.end()) - upper.begin();
-            assert(minLoadMachine >= 0 && minLoadMachine < upper.size());
+            assert(minLoadMachine >= 0 && (std::size_t)minLoadMachine < upper.size());
             upper[minLoadMachine] += jobDurations[i];
         }
         return *std::max_element(upper.begin(), upper.end());
@@ -653,6 +657,21 @@ private:
         foundOptimal = false;
         visitedNodes = 0;
         RET.clear();
+    }
+    // basically insertion sort
+    void resortAfterIncrement(std::vector<int> &vec, size_t index)
+    {
+        assert(index < vec.size());
+        int incrementedValue = vec[index];
+        // since it was an increment the newPosIt can only be at the same index or after
+        auto newPosIt = std::upper_bound(vec.begin() + index, vec.end(), incrementedValue);
+        size_t newPosIndex = std::distance(vec.begin(), newPosIt);
+        if (newPosIndex == index)
+        {
+            return;
+        }
+        std::rotate(vec.begin() + index, vec.begin() + index + 1, vec.begin() + newPosIndex);
+
     }
 
     void initializeST()

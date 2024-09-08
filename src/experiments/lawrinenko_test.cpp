@@ -8,8 +8,7 @@
 #include <future>
 #include "./../BnB/BnB.h"
 #include <string>
-#include "readData.h"
-#define NDEBUG
+#include "./readData/readData.h"
 
 int main(int argc, char *argv[])
 {

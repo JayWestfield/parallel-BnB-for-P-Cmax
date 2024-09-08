@@ -90,10 +90,11 @@ public:
     virtual void clear() = 0;
 
 protected:
-    std::size_t vec_size;
     int jobSize; // Member-Variable zum Speichern der jobSize
     int offset;
     std::vector<std::vector<int>> *RET;
+    std::size_t vec_size;
+
 };
 
 #endif // ST_H
