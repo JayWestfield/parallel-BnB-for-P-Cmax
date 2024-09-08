@@ -75,10 +75,12 @@ public:
                { solvePartial(initialState, 0); });
         // tg.run([=, &tg]
         //                 { std::this_thread::sleep_for(std::chrono::seconds(10)); });
+
         // TODO find another way to check that because if the solution is found and the thread is is still sleeping it will not stop
         std::condition_variable mycond;
         auto start = std::chrono::high_resolution_clock::now();
         std::mutex mtx;
+        std::unique_lock<std::mutex> lock(mtx);
         std::thread monitoringThread([=, &mycond, &mtx]()
                                      {
                     while ( !foundOptimal && !cancel)
@@ -98,18 +100,18 @@ public:
 
                                 std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
                             } 
-                            std::unique_lock<std::mutex> lock(mtx);
-                            if (mycond.wait_for( lock,  std::chrono::milliseconds(500),  []() {  return false;} )) {}
+                            std::unique_lock<std::mutex> condLock(mtx);
+                            if (mycond.wait_for( condLock,  std::chrono::milliseconds(500),  [&]() {  return condLock.owns_lock();} )) {
+                                return;
+                            }
                         } 
                         return; });
         tg.wait();
         // to ensure the monitoringThread exits
-        foundOptimal = true;
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            mycond.notify_one();
-        }
-        monitoringThread.join();
+
+        lock.unlock();
+        mycond.notify_one();
+        // monitoringThread.join();
         timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
         STInstance->clear();
         delete STInstance;
