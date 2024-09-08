@@ -1,7 +1,7 @@
 # Define compiler and flags
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -DNDEBUG -O3
-LDFLAGS = -ltbb  -ltcmalloc_and_profiler
+LDFLAGS = -ltbb 
 
 # Define the source and target files
 BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp src/BnB/STImplSimpl.cpp
@@ -12,7 +12,7 @@ TARGETEXP = dst/experiment
 FILTERALL = dst/runAllFast
 SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/test_to_filter_benchmark.cpp
 
-PROFILE_SRC = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp 
+PROFILE_SRC = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp   -ltcmalloc_and_profiler
 PROFILE_DST = dst/profiler
 
 
@@ -39,10 +39,12 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py results/experiment_lawrinenko_base_v2.txt plots/v2.png
+	python3 src/plotting/plotter.py results/experiment_lawrinenko_improved_2.txt plots/improved_2.png
+	code plots/improved_2.png
 
 plot2:
-	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base_v2.txt  results/experiment_lawrinenko_base_v1.txt plots/compare2.png
+	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base_prevO3.txt  results/experiment_lawrinenko_improved_2.txt plots/compare2.png
+	code plots/compare2.png
 
 $(PROFILE_DST): $(PROFILE_SRC)
 	$(CXX) $(CXXFLAGS) -o $(PROFILE_DST) $(PROFILE_SRC) $(BASEFILES) $(LDFLAGS)

@@ -111,7 +111,7 @@ public:
 
         lock.unlock();
         mycond.notify_one();
-        // monitoringThread.join();
+        monitoringThread.join();
         timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
         STInstance->clear();
         delete STInstance;
