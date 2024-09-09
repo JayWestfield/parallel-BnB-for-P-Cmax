@@ -22,7 +22,7 @@ public:
      * @param fur use the fur Rule
      * @param gist take advantage of gists
      * @param addPreviously add the gist (with a flag) when starting to compute it
-     * @param addPreviouslyExtended extended resumable tasks
+     * @param STtype specifies the STType
      */
     BnB_base_Impl(bool irrelevance, bool fur, bool gist, bool addPreviously, int STtype) : BnBSolverBase(irrelevance, fur, gist, addPreviously, STtype) {}
     int solve(int numMachine, const std::vector<int> &jobDuration) override
@@ -33,19 +33,29 @@ public:
         numMachines = numMachine;
         jobDurations = jobDuration;
 
-        // sort since berndt is not Sorted
+        // sort since berndt and lawrinenko are not Sorted
         std::sort(jobDurations.begin(), jobDurations.end(), std::greater<int>());
 
-        // initialize bounds (trivial nothing fancy here)
-        initialUpperBound = lPTUpperBound();
-        upperBound = initialUpperBound - 1;
         offset = 1;
-        lowerBound = std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines);
+        tbb::task_group firstLBound;
+        firstLBound.run([&]
+                        { lowerBound = std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines); 
+                        });
+
+        tbb::task_group firstUBound;
+        firstUBound.run([&]
+                        {
+            // initialize bounds (trivial nothing fancy here)
+            initialUpperBound = lPTUpperBound();
+            upperBound = initialUpperBound - 1; });
+        firstUBound.wait();
+        firstLBound.wait();
         if (initialUpperBound == lowerBound)
         {
             hardness = Difficulty::trivial;
             return initialUpperBound;
         }
+
         // irrelevance
         lastRelevantJobIndex = jobDurations.size() - 1;
         if (irrelevance)
@@ -71,17 +81,15 @@ public:
         // start Computing
         std::vector<int> initialState(numMachines, 0);
         tbb::task_group tg;
-        tg.run([=]
+        tg.run([this, initialState]
                { solvePartial(initialState, 0); });
-        // tg.run([=, &tg]
-        //                 { std::this_thread::sleep_for(std::chrono::seconds(10)); });
 
-        // TODO find another way to check that because if the solution is found and the thread is is still sleeping it will not stop
+        // TODO find another way to check that because
         std::condition_variable mycond;
         auto start = std::chrono::high_resolution_clock::now();
         std::mutex mtx;
         std::unique_lock<std::mutex> lock(mtx);
-        std::thread monitoringThread([=, &mycond, &mtx]()
+        std::thread monitoringThread([&]()
                                      {
                     while ( !foundOptimal && !cancel)
                         {
@@ -107,7 +115,6 @@ public:
                         } 
                         return; });
         tg.wait();
-        // to ensure the monitoringThread exits
 
         lock.unlock();
         mycond.notify_one();
@@ -176,6 +183,7 @@ private:
 
     void solvePartial(const std::vector<int> &state, int job)
     {
+
         assert(std::is_sorted(state.begin(), state.end()));
         if (foundOptimal || cancel)
             return;
@@ -305,11 +313,13 @@ private:
             {
                 if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
                 {
-                    std::vector<int> next = state; // when implemented carefully there is no copy needed (but we are not that far yet)
-                    next[i] += jobDurations[job];
+                    auto next = std::make_shared<std::vector<int>>(state); // when implemented carefully there is no copy needed (but we are not that far yet)
+                    (*next)[i] += jobDurations[job];
                     // std::sort(next.begin(), next.end());
-                    resortAfterIncrement(next, i);
-                    solvePartial(next, job + 1);
+                    resortAfterIncrement(*next, i);
+
+                    solvePartial(*next, job + 1);
+
                     if (state[i] + jobDurations[job] <= upperBound)
                     {
                         if (gist)
@@ -349,16 +359,17 @@ private:
                 repeat.push_back(i);
                 continue;
             }
-            std::vector<int> next = state;
-            next[i] += jobDurations[job];
+            auto next = std::make_shared<std::vector<int>>(state);
+            (*next)[i] += jobDurations[job];
+
             // std::sort(next.begin(), next.end());
-            resortAfterIncrement(next, i);
-            logging(next, job + 1, "child from recursion");
+            resortAfterIncrement(*next, i);
+            logging(*next, job + 1, "child from recursion");
 
             try
             {
                 // filter delayed / solved assignments directly before spawning the tasks
-                auto ex = STInstance->exists(next, job + 1);
+                auto ex = STInstance->exists(*next, job + 1);
                 switch (ex)
                 {
                 case 0:
@@ -366,8 +377,8 @@ private:
                     {
                         if (count++ < 2)
                         {
-                            tg.run([=]
-                                   { solvePartial(next, job + 1); });
+                            tg.run([this, next, job]
+                                   { solvePartial(*next, job + 1); });
                             if (count >= 2)
                             {
                                 tg.wait();
@@ -381,8 +392,11 @@ private:
                     }
                     else
                     {
-                        tg.run([=]
-                               { solvePartial(next, job + 1); });
+                        logging(*next, job + 1, "inter1");
+                        tg.run([this, next, job]
+                               { 
+                                logging(*next, job + 1, "inter2");
+                                solvePartial(*next, job + 1); });
                     }
 
                     break;
@@ -404,16 +418,16 @@ private:
         tg.wait();
         for (int i : delayed)
         {
-            std::vector<int> next = state;
-            next[i] += jobDurations[job];
+            auto next = std::make_shared<std::vector<int>>(state);
+            (*next)[i] += jobDurations[job];
             // std::sort(next.begin(), next.end());
-            resortAfterIncrement(next, i);
+            resortAfterIncrement(*next, i);
             try
             {
-                auto ex = STInstance->exists(next, job + 1);
+                auto ex = STInstance->exists(*next, job + 1);
                 if (ex != 2)
                 {
-                    solvePartial(next, job + 1);
+                    solvePartial(*next, job + 1);
                 }
             }
             catch (const std::runtime_error &e)
@@ -427,13 +441,14 @@ private:
         {
             if (!lookupRet(state[i], state[i - 1], job))
             { // Rule 6
-                std::vector<int> next = state;
-                next[i] += jobDurations[job];
+                auto next = std::make_shared<std::vector<int>>(state);
+                (*next)[i] += jobDurations[job];
                 // std::sort(next.begin(), next.end());
-                resortAfterIncrement(next, i);
-                logging(next, job + 1, "Rule 6 from recursion");
-                tg.run([=]
-                       { solvePartial(next, job + 1); });
+                resortAfterIncrement(*next, i);
+                logging(*next, job + 1, "Rule 6 from recursion");
+                tg.run([this, next, job]
+
+                       { solvePartial(*next, job + 1); });
             }
         }
         tg.wait();
@@ -464,8 +479,8 @@ private:
             for (auto vla : state)
                 gis << vla << ", ";
             gis << " => ";
-            for (auto vla : STInstance->computeGist(state, job))
-                gis << vla << " ";
+            // for (auto vla : STInstance->computeGist(state, job))
+            //     gis << vla << " ";
             gis << " Job: " << job;
             std::cout << gis.str() << std::endl;
         }
@@ -663,6 +678,8 @@ private:
     // basically insertion sort
     void resortAfterIncrement(std::vector<int> &vec, size_t index)
     {
+        logging(vec, 66, "before sort");
+
         assert(index < vec.size());
         int incrementedValue = vec[index];
         // since it was an increment the newPosIt can only be at the same index or after
@@ -673,7 +690,8 @@ private:
             return;
         }
         std::rotate(vec.begin() + index, vec.begin() + index + 1, vec.begin() + newPosIndex);
-
+        logging(vec, 66, "after sort");
+        assert(std::is_sorted(vec.begin(), vec.end()));
     }
 
     void initializeST()
