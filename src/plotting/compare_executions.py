@@ -106,7 +106,7 @@ def plot_runtime_diff_distribution(ax, data1, data2):
 
 def plot_cumulative_times_comparison(ax, data1, data2):
     num_thread_configs = len(data1[0][1])
-    i = num_thread_configs - 1
+    i = 0# num_thread_configs - 1
     # Bereite die Laufzeiten für die erste Ausführung vor
     times1 = np.sort([times[i][0] for name, times in data1 if times[i][0] != float('inf')])
     # Bereite die Laufzeiten für die zweite Ausführung vor
@@ -133,7 +133,10 @@ def calculate_speedups(data1, data2):
             for i in range(0, num_thread_configs):
                 if times1[i][0] != float('inf') and times2[i][0] != float('inf'):
                     speedup = times1[i][0] / times2[i][0]
-                    speedups[f'{2**i} Threads'].append(speedup)
+                    if (speedup > 1.5 *(2 ** (i))): # filter speedups
+                        continue
+                    else:
+                        speedups[f'{2**i} Threads'].append(speedup)
     
     return speedups
 
@@ -206,7 +209,7 @@ def plot_all_in_one(data1, data2, output_filepath):
     # Beispiel für Subplots
     plot_runtime_comparison(axs[0, 0], data1, data2)
     plot_speedup_comparison_boxplot(axs[0, 1], data1, data2)
-    plot_runtime_diff_distribution(axs[0, 2], data1, data2)
+    # plot_runtime_diff_distribution(axs[0, 2], data1, data2)
     plot_cumulative_times_comparison(axs[1, 0], data1, data2)
     plot_speedup_comparison_boxplot2(axs[1, 1], speedups)
     calculate_speedup_statistics(axs[1, 2], data1, data2)

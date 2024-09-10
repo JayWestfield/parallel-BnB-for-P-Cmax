@@ -87,7 +87,10 @@ def plot_speedups(ax, data):
         for i in range(1, num_thread_configs):
             if times[i] != float('inf') and times[0] != float('inf'):
                 speedup = times[0] / times[i]
-                speedups[f'{2**i} Threads'].append(speedup)
+                if (speedup > 2 ** (i + 1)): # filter speedups
+                    continue
+                else:
+                    speedups[f'{2**i} Threads'].append(speedup)
     
     for label, values in speedups.items():
         ax.plot(sorted(values), np.arange(1, len(values) + 1), label=label)
@@ -106,7 +109,10 @@ def plot_speedup_statistics(ax, data):
         for i in range(1, num_thread_configs):
             if times[i] != float('inf') and times[0] != float('inf'):
                 speedup = times[0] / times[i]
-                speedups_per_thread[f'{2**i} Threads'].append(speedup)
+                if (speedup > 2 ** (i + 1)): # filter speedups
+                    continue
+                else:
+                    speedups_per_thread[f'{2**i} Threads'].append(speedup)
 
     median_speedups = {}
     mean_speedups = {}
@@ -141,7 +147,10 @@ def plot_speedup_boxplot(ax, data):
         for i in range(1, num_thread_configs):
             if times[i] != float('inf') and times[0] != float('inf'):
                 speedup = times[0] / times[i]
-                speedups_per_thread[f'{2**i} Threads'].append(speedup)
+                if (speedup > 2 ** (i + 1)): # filter speedups
+                    continue
+                else:
+                    speedups_per_thread[f'{2**i} Threads'].append(speedup)
 
     # Sammle die Speedups in einer Liste für den Boxplot
     speedups_data = [speedups_per_thread[threads] for threads in speedups_per_thread]
@@ -162,7 +171,10 @@ def plot_speedup_boxplot_filtered(ax, data, min_time=0.01):
             for i in range(1, num_thread_configs):
                 if times[i] != float('inf'):
                     speedup = times[0] / times[i]
-                    speedups_per_thread[f'{2**i} Threads'].append(speedup)
+                    if (speedup > 2 ** (i + 1)): # filter speedups
+                        continue
+                    else:
+                        speedups_per_thread[f'{2**i} Threads'].append(speedup)
 
     # Sammle die Speedups in einer Liste für den Boxplot
     speedups_data = [speedups_per_thread[threads] for threads in speedups_per_thread]
@@ -367,12 +379,12 @@ def plot_relative_array_values_per_instance(ax, data, interp_length=100):
 
 def plot_all_in_one(data, ComplexData, plotpath):
     fig, axs = initialize_subplots(4, 3, "Analyse der Laufzeiten und Speedups")
-    min_time = 0.03
+    min_time = 0.1
     plot_cumulative_times(axs[0, 0], data)
     plot_speedups(axs[1, 0], data)
     plot_speedup_statistics(axs[0, 2], data)
     plot_speedup_boxplot(axs[0, 1], data)
-    plot_boxplot_times(axs[1, 1], data)
+    # plot_boxplot_times(axs[1, 1], data)
     plot_canceled_jobs(axs[1,2], data)
     plot_cumulative_times_filtered(axs[2,0], data, min_time)
     plot_speedup_boxplot_filtered(axs[2,1], data, min_time)

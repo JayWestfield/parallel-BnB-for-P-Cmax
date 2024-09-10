@@ -1,4 +1,23 @@
-p_cmax-class1-n120-m60-minsize1-maxsize100-seed9174.txt 0.0222468 0.0127812 0.0113144 0.0114798
-p_cmax-class1-n180-m72-minsize1-maxsize100-seed10580.txt 0.0646968 0.0573819 0.0609918 0.0972568
-p_cmax-class1-n90-m40-minsize1-maxsize100-seed13008.txt canceled canceled canceled canceled
-p_cmax-class1-n108-m48-minsize1-maxsize100-seed25594.txt 0.0104489 0.00986826 0.00927347 0.00952993
+p_cmax-class7-n90-m40-mu360-sigma90-seed7187.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m40-mu360-sigma90-seed3389.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m40-mu360-sigma90-seed3177.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m40-mu360-sigma90-seed23166.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m40-mu360-sigma90-seed15567.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m30-mu360-sigma90-seed8174.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m30-mu360-sigma90-seed7800.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m30-mu360-sigma90-seed4142.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m30-mu360-sigma90-seed29559.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m30-mu360-sigma90-seed20378.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m30-mu360-sigma90-seed20106.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n90-m30-mu360-sigma90-seed11661.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n88-m32-mu352-sigma88-seed4332.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n88-m32-mu352-sigma88-seed31078.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n88-m32-mu352-sigma88-seed28849.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n88-m32-mu352-sigma88-seed23949.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n88-m32-mu352-sigma88-seed17235.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n88-m32-mu352-sigma88-seed15809.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n80-m40-mu320-sigma80-seed21328.txt (0.011783,109,3) (0.0118022,114,3) (0.0111618,124,3)
+p_cmax-class7-n80-m40-mu320-sigma80-seed15490.txt (0.0152345,319,3) (0.013602,354,3) (0.0127511,326,3)
+p_cmax-class7-n80-m40-mu320-sigma80-seed14820.txt (0.260757,13278,3) (0.211789,14428,3) (0.233813,15663,3)
+p_cmax-class7-n80-m32-mu320-sigma80-seed4973.txt (canceled) (canceled) (canceled)
+p_cmax-class7-n80-m32-mu320-sigma80-seed32110.txt (canceled) (canceled) (canceled)

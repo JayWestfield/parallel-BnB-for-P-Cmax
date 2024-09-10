@@ -39,11 +39,11 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py results/experiment_lawrinenko_improved_2.txt plots/improved_2.png
-	code plots/improved_2.png
+	python3 src/plotting/plotter.py results/experiment_lawrinenko_improved_3.txt plots/improved_3.png
+	code plots/improved_3.png
 
 plot2:
-	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base_prevO3.txt  results/experiment_lawrinenko_improved_2.txt plots/compare2.png
+	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base_prevO3.txt  results/experiment_lawrinenko_improved_3.txt plots/compare2.png
 	code plots/compare2.png
 
 $(PROFILE_DST): $(PROFILE_SRC)
@@ -52,8 +52,8 @@ $(PROFILE_DST): $(PROFILE_SRC)
 profile: $(PROFILE_DST)
 
 viewProfile: 
-	google-pprof --pdf  ./dst/profiler profile.prof > output.pdf
-	code output.pdf
+	google-pprof --pdf  ./dst/profiler profile.prof > outputq.pdf
+	code outputq.pdf
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)
