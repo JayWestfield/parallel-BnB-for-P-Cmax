@@ -21,6 +21,7 @@ public:
      */
     virtual int solve(int numMachines, const std::vector<int>& jobDurations) = 0;
 
+    virtual void cleanUp() = 0;
     std::atomic<uint64_t> visitedNodes = 0;
     std::atomic<bool> foundOptimal = false;
     std::atomic<bool> cancel = false;

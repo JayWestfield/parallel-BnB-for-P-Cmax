@@ -40,6 +40,8 @@ public:
         initializeThreadLocalVector(vec_size);
         // assume the state is sorted
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
+
+        assert(gist.size() >= vec_size);
         assert(gist.size() >= state.size());
         if ((state.back() + offset) >= maximumRETIndex)
             throw std::runtime_error("infeasible");
@@ -138,6 +140,8 @@ public:
                 bitmap.reset();
             }
         }
+        threadLocalVector.resize(0);
+        threadLocalVector.clear();
     }
 
     void resumeAllDelayedTasks() override

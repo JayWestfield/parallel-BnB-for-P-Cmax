@@ -33,23 +33,19 @@ public:
         numMachines = numMachine;
         jobDurations = jobDuration;
 
-        // sort since berndt and lawrinenko are not Sorted
-        std::sort(jobDurations.begin(), jobDurations.end(), std::greater<int>());
-
+        // assume sorted
+        assert(std::is_sorted(jobDurations.begin(), jobDurations.end(), std::greater<int>()));
         offset = 1;
-        tbb::task_group firstLBound;
-        firstLBound.run([&]
-                        { lowerBound = std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines); 
-                        });
+        tbb::task_group firstbounds;
+        firstbounds.run([&]
+                        { lowerBound = std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines); });
 
-        tbb::task_group firstUBound;
-        firstUBound.run([&]
+        firstbounds.run([&]
                         {
             // initialize bounds (trivial nothing fancy here)
             initialUpperBound = lPTUpperBound();
             upperBound = initialUpperBound - 1; });
-        firstUBound.wait();
-        firstLBound.wait();
+        firstbounds.wait();
         if (initialUpperBound == lowerBound)
         {
             hardness = Difficulty::trivial;
@@ -69,6 +65,7 @@ public:
         initializeST();
         // one JobSize left
         int i = lastRelevantJobIndex;
+        // TODO last size can be done async
         while (i > 0 && jobDurations[--i] == jobDurations[lastRelevantJobIndex])
         {
         }
@@ -77,7 +74,6 @@ public:
             std::cout << "Initial Upper Bound: " << upperBound << " Initial lower Bound: " << lowerBound << std::endl;
 
         lastUpdate = std::chrono::high_resolution_clock::now();
-        timeFrames.clear();
         // start Computing
         std::vector<int> initialState(numMachines, 0);
         tbb::task_group tg;
@@ -88,12 +84,11 @@ public:
         std::condition_variable mycond;
         auto start = std::chrono::high_resolution_clock::now();
         std::mutex mtx;
-        std::unique_lock<std::mutex> lock(mtx);
         std::thread monitoringThread([&]()
                                      {
                     while ( !foundOptimal && !cancel)
                         {
-                        if (getMemoryUsagePercentage() > 85)
+                        if (getMemoryUsagePercentage() > 70)
                             {
                                 double memoryUsage = getMemoryUsagePercentage();
                                 std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll. "  << ( (std::chrono::duration<double>)(std::chrono::high_resolution_clock::now() - start)).count()<< std::endl;
@@ -115,13 +110,10 @@ public:
                         } 
                         return; });
         tg.wait();
-
-        lock.unlock();
+        // std::cout << "finito" << std::endl;
         mycond.notify_one();
         monitoringThread.join();
         timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
-        STInstance->clear();
-        delete STInstance;
 
         if (cancel)
             return 0;
@@ -141,6 +133,11 @@ public:
         return upperBound + 1;
     }
 
+    void cleanUp()
+    {
+        reset();
+        resetLocals();
+    }
     void cancelExecution()
     {
         cancel = true;
@@ -674,6 +671,12 @@ private:
         foundOptimal = false;
         visitedNodes = 0;
         RET.clear();
+        timeFrames.clear();
+        if ( STInstance != nullptr) {
+            STInstance->clear();
+            delete STInstance;
+        }
+        STInstance  = nullptr;
     }
     // basically insertion sort
     void resortAfterIncrement(std::vector<int> &vec, size_t index)

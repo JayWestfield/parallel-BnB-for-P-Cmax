@@ -37,14 +37,16 @@ int main(int argc, char *argv[])
     std::vector<int> jobDurations;
     std::string instanceFilePath = basePath + "/" + benchmark + "/" + instanceName;
     readData.readInstance(instanceFilePath, numJobs, numMachines, jobDurations);
+    std::sort(jobDurations.begin(), jobDurations.end(), std::greater<int>());
+    assert(std::is_sorted(jobDurations.begin(), jobDurations.end(), std::greater<int>()));
     std::cout << instanceName << std::endl;
+    solver.cleanUp();
 
     tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, ThreadsToUse);
     int result = 0;
     auto start = std::chrono::high_resolution_clock::now();
     result = solver.solve(numMachines, jobDurations);
     auto end = std::chrono::high_resolution_clock::now();
-
     if (result != optimalSolutions.find(instanceName)->second)
         std::cout << " error_wrong_makespan_of_" << result;
     else
@@ -58,6 +60,7 @@ int main(int argc, char *argv[])
         times.append("}");
         std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << times << "," << (int)solver.hardness << ")";
     }
+    solver.cleanUp();
 
 
     std::cout << std::endl;

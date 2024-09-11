@@ -40,7 +40,7 @@ public:
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
         if ((state.back() + offset) >= maximumRETIndex)
             throw std::runtime_error("infeasible");
-        assert((state.back() + offset) < (*RET)[job].size()); // TODO maybe need error Handling to check that
+        assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < vec_size; i++)
         {
             gist[i] = (*RET)[job][state[i] + offset];

@@ -53,7 +53,6 @@ int main(int argc, char *argv[])
         for (const auto &optimal : optimalSolutions)
             instances_to_solve.push_back(optimal.first);
     }
-    BnB_base_Impl solver(true, true, true, false, 0);
     for (auto instanceName : instances_to_solve)
     {   
         int numJobs, numMachines;
@@ -61,10 +60,12 @@ int main(int argc, char *argv[])
 
         std::string instanceFilePath = basePath + "/" + benchmark + "/" + instanceName;
         readData.readInstance(instanceFilePath, numJobs, numMachines, jobDurations);
+        std::sort(jobDurations.begin(), jobDurations.end(), std::greater<int>());
         int numThreads = 1;
         std::condition_variable cv;
         std::mutex mtx;
         std::cout << instanceName;
+        BnB_base_Impl solver(true, true, true, false, 0);
         while (numThreads <= maxThreads)
         {
             tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, numThreads);
@@ -81,9 +82,11 @@ int main(int argc, char *argv[])
                     if (result == 0) {
                         solver.cancelExecution();
                         } });
+            solver.cleanUp();
             auto start = std::chrono::high_resolution_clock::now();
             result = solver.solve(numMachines, jobDurations);
             auto end = std::chrono::high_resolution_clock::now();
+
             {
                 std::lock_guard<std::mutex> lock(mtx);
                 timerExpired = true;
@@ -103,6 +106,7 @@ int main(int argc, char *argv[])
                 times.append("}");
                 std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << times << "," << (int)solver.hardness << ")";
             }
+            solver.cleanUp();
             numThreads *= 2;
         }
         std::cout << std::endl;

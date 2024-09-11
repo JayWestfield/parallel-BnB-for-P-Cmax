@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
 
         std::string instanceFilePath = "benchmarks/" + benchmark + "/" + instanceName;
         readInstance(instanceFilePath, numJobs, numMachines, jobDurations);
+        std::sort(jobDurations.begin(), jobDurations.end());
         std::condition_variable cv;
         std::mutex mtx;
         // if (instanceName.find("n88-") != std::string::npos || instanceName.find("n80-") != std::string::npos || instanceName.find("n90-") != std::string::npos) continue;
