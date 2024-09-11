@@ -18,7 +18,9 @@ public:
     using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
     using HashDelayedMap = tbb::concurrent_hash_map<std::vector<int>, std::vector<tbb::task::suspend_point>, VectorHasher>; // might have more than one suspension point for a gist
 
-    STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {}
+    STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {
+        initializeThreadLocalVector(vec_size);
+    }
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         // assume the state is sorted
@@ -33,6 +35,20 @@ public:
         }
         return gist;
     }
+       void computeGist2(const std::vector<int> &state, int job, std::vector<int> &gist) override
+    {
+        initializeThreadLocalVector(vec_size);
+        // assume the state is sorted
+        assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
+        assert(gist.size() >= state.size());
+        if ((state.back() + offset) >= maximumRETIndex)
+            throw std::runtime_error("infeasible");
+        assert((long unsigned int)(state.back() + offset) < (*RET)[job].size()); // TODO maybe need error Handling to check that
+        for (std::vector<int>::size_type i = 0; i < vec_size; i++)
+        {
+            gist[i] = (*RET)[job][state[i] + offset];
+        }
+    }
 
     void addGist(const std::vector<int> &state, int job) override
     {
@@ -45,15 +61,16 @@ public:
         }
 
         std::shared_lock<std::shared_mutex> lock(updateBound);
+        computeGist2(state, job, threadLocalVector);
 
         HashMap::accessor acc;
-        maps[job].insert(acc, computeGist(state, job));
+        maps[job].insert(acc, threadLocalVector);
         acc->second = true;
         assert(acc->second == true);
 
         acc.release();
         HashDelayedMap::accessor accDel;
-        if (delayedTasks[job].find(accDel, computeGist(state, job)))
+        if (delayedTasks[job].find(accDel, threadLocalVector))
         {
             for (auto tag : accDel->second)
             {
@@ -72,10 +89,12 @@ public:
         std::shared_lock<std::shared_mutex> lock(updateBound);
         if (job >= 0 && job < jobSize)
         {
+                    computeGist2(state, job, threadLocalVector);
+
             HashMap::const_accessor acc;
-            if (maps[job].find(acc, computeGist(state, job)))
+            if (maps[job].find(acc, threadLocalVector))
             {
-                updateBitmap(job, computeGist(state, job));
+                updateBitmap(job, threadLocalVector);
                 return acc->second ? 2 : 1;
             }
         }
@@ -85,13 +104,15 @@ public:
     void addPreviously(const std::vector<int> &state, int job) override
     {
         std::shared_lock<std::shared_mutex> lock(updateBound);
+        computeGist2(state, job, threadLocalVector);
+
         if (job >= 0 && job < jobSize)
         {
             HashMap::accessor acc;
-            if (maps[job].find(acc, computeGist(state, job)))
+            if (maps[job].find(acc, threadLocalVector))
                 return;
             else {
-                maps[job].insert(acc, computeGist(state, job));
+                maps[job].insert(acc, threadLocalVector);
                 acc->second = false;
                 }
         }
@@ -175,7 +196,7 @@ public:
             map.swap(newMap);
         }
     }
-    void addDelayed(const std::vector<int> &gist, int job, tbb::task::suspend_point tag) override
+    void addDelayed(const std::vector<int> &state, int job, tbb::task::suspend_point tag) override
     {
         assert(job < jobSize && job >= 0);
 
@@ -183,9 +204,10 @@ public:
 
         std::shared_lock<std::shared_mutex> mapLock(updateBound);
         // std::cout << "add delay: lock " << delCount << std::endl;
+        computeGist2(state, job, threadLocalVector);
 
         HashMap::const_accessor acc;
-        if (maps[job].find(acc, computeGist(gist, job)))
+        if (maps[job].find(acc, threadLocalVector))
         {
             // std::cout << "add delay: find " << delCount << std::endl;
             if (acc->second)
@@ -197,7 +219,7 @@ public:
             else
             {
                 HashDelayedMap::accessor acc;
-                delayedTasks[job].insert(acc, computeGist(gist, job));
+                delayedTasks[job].insert(acc, threadLocalVector);
                 delCount++;
                 acc->second.push_back(tag);
             }
@@ -208,7 +230,7 @@ public:
             std::cout << "intre" << std::endl;
             return;
         } // TODO that should only happen on bound update or evict
-        logging(gist, job, "endDelay");
+        logging(state, job, "endDelay");
     }
 
 private:

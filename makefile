@@ -4,7 +4,7 @@ CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -DNDEBUG -O3
 LDFLAGS = -ltbb 
 
 # Define the source and target files
-BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp src/BnB/STImplSimpl.cpp
+BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp src/BnB/STImplSimpl.cpp src/BnB/threadLocal/threadLocal.cpp
 SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
 TARGET = dst/parallel_solver
 SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/lawrinenko_test.cpp
@@ -12,7 +12,7 @@ TARGETEXP = dst/experiment
 FILTERALL = dst/runAllFast
 SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/test_to_filter_benchmark.cpp
 
-PROFILE_SRC = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp   -ltcmalloc_and_profiler
+PROFILE_SRC = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp 
 PROFILE_DST = dst/profiler
 
 

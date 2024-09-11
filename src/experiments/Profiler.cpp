@@ -41,11 +41,9 @@ int main(int argc, char *argv[])
 
     tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, ThreadsToUse);
     int result = 0;
-    ProfilerStart("profile.prof");
     auto start = std::chrono::high_resolution_clock::now();
     result = solver.solve(numMachines, jobDurations);
     auto end = std::chrono::high_resolution_clock::now();
-    ProfilerStop();
 
     if (result != optimalSolutions.find(instanceName)->second)
         std::cout << " error_wrong_makespan_of_" << result;
