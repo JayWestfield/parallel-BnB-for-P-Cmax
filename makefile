@@ -1,6 +1,6 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -DNDEBUG -O3
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -DNDEBUG -funroll-loops -O3
 LDFLAGS = -ltbb 
 
 # Define the source and target files
@@ -13,7 +13,7 @@ FILTERALL = dst/runAllFast
 SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/test_to_filter_benchmark.cpp
 
 PROFILE_SRC = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp 
-PROFILE_DST = dst/profiler
+PROFILE_DST = dst/profiler 
 
 
 # Define the rule to build the target executable

@@ -41,7 +41,7 @@ public:
         if ((state.back() + offset) >= maximumRETIndex)
             throw std::runtime_error("infeasible");
         assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
-        for (std::vector<int>::size_type i = 0; i < vec_size; i++)
+        for (auto i = 0; i < vec_size; i++)
         {
             gist[i] = (*RET)[job][state[i] + offset];
         }
