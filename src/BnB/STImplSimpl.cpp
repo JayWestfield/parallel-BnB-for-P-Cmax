@@ -14,9 +14,10 @@ class STImplSimpl : public ST
 {
 
 public:
-    using HashMap = tbb::concurrent_hash_map<std::vector<int>,bool , VectorHasher>;
+    using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
 
-    STImplSimpl(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize) {
+    STImplSimpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize)
+    {
         initializeThreadLocalVector(vec_size + 1);
     }
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
@@ -29,7 +30,7 @@ public:
         assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < vec_size; i++)
         {
-            gist[i] = (*RET)[job][state[i] + offset];
+            gist[i] = RET[job][state[i] + offset];
         }
         gist[vec_size] = job;
         return gist;
@@ -43,7 +44,7 @@ public:
         assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
         for (auto i = 0; i < vec_size; i++)
         {
-            gist[i] = (*RET)[job][state[i] + offset];
+            gist[i] = RET[job][state[i] + offset];
         }
         gist[vec_size] = job;
     }
@@ -78,17 +79,14 @@ public:
 
     void addPreviously(const std::vector<int> &state, int job) override
     {
+        assert(job >= 0 && job < jobSize);
         std::shared_lock<std::shared_mutex> lock(updateBound);
-        if (job >= 0 && job < jobSize)
-        {
-            computeGist2(state, job, threadLocalVector);
 
-            HashMap::accessor acc;
-            if (maps.find(acc, threadLocalVector)) 
-                return;
-            if (maps.insert(acc, threadLocalVector))
-                acc->second = false;
-        }
+        computeGist2(state, job, threadLocalVector);
+
+        HashMap::accessor acc;
+        if (maps.insert(acc, threadLocalVector))
+            acc->second = false;
         logging(state, job, "add Prev");
     }
 

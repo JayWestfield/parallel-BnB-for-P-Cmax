@@ -84,7 +84,7 @@ class ST
 {
 public:
     // Konstruktor mit Parameter int jobSize
-    ST(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : jobSize(jobSize), offset(offset), RET(RET), vec_size(vec_size), maximumRETIndex((*RET)[0].size())
+    ST(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : jobSize(jobSize), offset(offset), RET(RET), vec_size(vec_size), maximumRETIndex(RET[0].size())
     {
     }
 
@@ -105,7 +105,7 @@ public:
 protected:
     int jobSize; // Member-Variable zum Speichern der jobSize
     int offset;
-    std::vector<std::vector<int>> *RET;
+    const std::vector<std::vector<int>> &RET;
     std::size_t vec_size;
     int maximumRETIndex;
 };

@@ -467,10 +467,10 @@ private:
     template <typename T>
     void logging(const std::vector<int> &state, int job, T message = "")
     {
-        try
-        {
-            if (!detailedLogging)
+        if (!detailedLogging)
                 return;
+        try
+        {   
             std::stringstream gis;
             gis << message << " ";
             for (auto vla : state)
@@ -702,13 +702,13 @@ private:
         switch (STtype)
         {
         case 0:
-            STInstance = new STImpl(lastRelevantJobIndex + 1, offset, &RET, numMachines);
+            STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
         case 1:
-            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, &RET, numMachines);
+            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
         default:
-            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, &RET, numMachines);
+            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
         }
     }
 };

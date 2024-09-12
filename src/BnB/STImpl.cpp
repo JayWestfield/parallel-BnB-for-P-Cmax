@@ -18,20 +18,20 @@ public:
     using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
     using HashDelayedMap = tbb::concurrent_hash_map<std::vector<int>, std::vector<tbb::task::suspend_point>, VectorHasher>; // might have more than one suspension point for a gist
 
-    STImpl(int jobSize, int offset, std::vector<std::vector<int>> *RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {
+    STImpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {
         initializeThreadLocalVector(vec_size);
     }
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         // assume the state is sorted
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()) && vec_size == state.size());
-        if ((long unsigned int)(state.back() + offset) >= (*RET)[job].size())
+        if ((long unsigned int)(state.back() + offset) >= RET[job].size())
             throw std::runtime_error("infeasible");
         std::vector<int> gist(vec_size, 0);
-        assert((long unsigned int)(state.back() + offset) < (*RET)[job].size()); // TODO maybe need error Handling to check that
+        assert((long unsigned int)(state.back() + offset) < RET[job].size()); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < vec_size; i++)
         {
-            gist[i] = (*RET)[job][state[i] + offset];
+            gist[i] = RET[job][state[i] + offset];
         }
         return gist;
     }
@@ -45,10 +45,10 @@ public:
         assert(gist.size() >= state.size());
         if ((state.back() + offset) >= maximumRETIndex)
             throw std::runtime_error("infeasible");
-        assert((long unsigned int)(state.back() + offset) < (*RET)[job].size()); // TODO maybe need error Handling to check that
+        assert((long unsigned int)(state.back() + offset) < RET[job].size()); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < vec_size; i++)
         {
-            gist[i] = (*RET)[job][state[i] + offset];
+            gist[i] = RET[job][state[i] + offset];
         }
     }
 
