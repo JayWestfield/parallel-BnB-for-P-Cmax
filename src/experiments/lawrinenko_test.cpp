@@ -9,7 +9,7 @@
 #include "./../BnB/BnB.h"
 #include <string>
 #include "./readData/readData.h"
-
+#include <sys/wait.h>
 int main(int argc, char *argv[])
 {
     Parser readData;
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
             instances_to_solve.push_back(optimal.first);
     }
     for (auto instanceName : instances_to_solve)
-    {   
+    {
         int numJobs, numMachines;
         std::vector<int> jobDurations;
 
@@ -64,17 +64,25 @@ int main(int argc, char *argv[])
         int numThreads = 1;
         std::condition_variable cv;
         std::mutex mtx;
-        std::cout << instanceName;
-        BnB_base_Impl solver(true, true, true, false, 0);
+        std::cout << instanceName << std::flush;
+        BnB_base_Impl solver(true, true, true, false, 1);
         while (numThreads <= maxThreads)
         {
-            tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, numThreads);
-            std::future<void> canceler;
-            int result = 0;
+            pid_t pid = fork();
+            if (pid < 0)
+            {
+                std::cerr << "Fork failed" << std::endl;
+                return 1;
+            }
+            else if (pid == 0)
+            {
+                tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, numThreads);
+                std::future<void> canceler;
+                int result = 0;
 
-            bool timerExpired = false;
-            canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx, &timerExpired, &timeout]()
-                                  {
+                bool timerExpired = false;
+                canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx, &timerExpired, &timeout]()
+                                      {
                     std::unique_lock<std::mutex> lock(mtx);
                     if(cv.wait_for(lock, std::chrono::seconds(timeout), [&timerExpired]{ return timerExpired; })) {
                         return;
@@ -82,31 +90,40 @@ int main(int argc, char *argv[])
                     if (result == 0) {
                         solver.cancelExecution();
                         } });
-            solver.cleanUp();
-            auto start = std::chrono::high_resolution_clock::now();
-            result = solver.solve(numMachines, jobDurations);
-            auto end = std::chrono::high_resolution_clock::now();
+                solver.cleanUp();
+                auto start = std::chrono::high_resolution_clock::now();
+                result = solver.solve(numMachines, jobDurations);
+                auto end = std::chrono::high_resolution_clock::now();
 
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                timerExpired = true;
-            }
-            cv.notify_all();
-            canceler.get();
-            if (result == 0)
-                std::cout << " (canceled)";
-            else if (result != optimalSolutions.find(instanceName)->second)
-                std::cout << " error_wrong_makespan_of_" << result;
-            else {
-                std::string times = "{";
-                for (auto time : solver.timeFrames) {
-                    times += std::to_string(time.count()) + ";";
+                {
+                    std::lock_guard<std::mutex> lock(mtx);
+                    timerExpired = true;
                 }
-                times.pop_back();
-                times.append("}");
-                std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << times << "," << (int)solver.hardness << ")";
+                cv.notify_all();
+                canceler.get();
+                if (result == 0)
+                    std::cout << " (canceled)";
+                else if (result != optimalSolutions.find(instanceName)->second)
+                    std::cout << " error_wrong_makespan_of_" << result;
+                else
+                {
+                    std::string times = "{";
+                    for (auto time : solver.timeFrames)
+                    {
+                        times += std::to_string(time.count()) + ";";
+                    }
+                    times.pop_back();
+                    times.append("}");
+                    std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << times << "," << (int)solver.hardness << ")" << std::flush;
+                }
+                solver.cleanUp();
+                return 0;
             }
-            solver.cleanUp();
+            else
+            {
+                int status;
+                waitpid(pid, &status, 0);
+            }
             numThreads *= 2;
         }
         std::cout << std::endl;
