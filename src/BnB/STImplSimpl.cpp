@@ -19,6 +19,8 @@ public:
     STImplSimpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize)
     {
         initializeThreadLocalVector(vec_size + 1);
+        maps.rehash(1000000);
+
     }
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
@@ -39,8 +41,8 @@ public:
     {
         initializeThreadLocalVector(vec_size + 1);
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
-        if ((state.back() + offset) >= maximumRETIndex)
-            throw std::runtime_error("infeasible");
+        // if ((state.back() + offset) >= maximumRETIndex)
+        //     throw std::runtime_error("infeasible");
         assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
         for (auto i = 0; i < vec_size; i++)
         {
@@ -53,6 +55,7 @@ public:
     {
         assert(job < jobSize && job >= 0);
         std::shared_lock<std::shared_mutex> lock(updateBound);
+        if ((state.back() + offset) >= maximumRETIndex) return;
         computeGist2(state, job, threadLocalVector);
         HashMap::accessor acc;
         maps.insert(acc, threadLocalVector);
@@ -67,6 +70,7 @@ public:
         std::shared_lock<std::shared_mutex> lock(updateBound);
         if (job >= 0 && job < jobSize)
         {
+            if ((state.back() + offset) >= maximumRETIndex) return 2;
             computeGist2(state, job, threadLocalVector);
             HashMap::const_accessor acc;
             if (maps.find(acc, threadLocalVector))
@@ -76,11 +80,12 @@ public:
         }
         return 0;
     }
-
+    // TODO addprev must return a boolena for the out of bounds check
     void addPreviously(const std::vector<int> &state, int job) override
     {
         assert(job >= 0 && job < jobSize);
         std::shared_lock<std::shared_mutex> lock(updateBound);
+        if ((state.back() + offset) >= maximumRETIndex) return;
 
         computeGist2(state, job, threadLocalVector);
 
