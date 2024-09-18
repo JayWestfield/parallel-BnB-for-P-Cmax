@@ -9,9 +9,10 @@
 #include <string>
 #include <gperftools/profiler.h>
 #include "./readData/readData.h"
-
+#include <valgrind/callgrind.h>
 int main(int argc, char *argv[])
 {
+    CALLGRIND_TOGGLE_COLLECT; // Stop collecting data
     Parser readData;
     int ThreadsToUse = std::stoi(argv[1]);
     int STVersion = 0;
@@ -44,11 +45,17 @@ int main(int argc, char *argv[])
 
     tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, ThreadsToUse);
     int result = 0;
-    auto start = std::chrono::high_resolution_clock::now();
+    CALLGRIND_TOGGLE_COLLECT; // Start collecting data
+    setenv("CPUPROFILE_FREQUENCY", "10000002", 1); // Set the sampling frequency to 1000 Hz
+    ProfilerStart("profile.prof");
+    for (int i = 0; i < 20; i++){auto start = std::chrono::high_resolution_clock::now();
     result = solver.solve(numMachines, jobDurations);
     auto end = std::chrono::high_resolution_clock::now();
-    if (result != optimalSolutions.find(instanceName)->second)
-        std::cout << " error_wrong_makespan_of_" << result;
+    CALLGRIND_TOGGLE_COLLECT; // Stop collecting data
+    if (result != optimalSolutions.find(instanceName)->second) {
+        std::cout << " error_wrong_makespan_of_" << result  << " round " << i << " with nnodes " << solver.visitedNodes << std::endl;
+        return 1;
+    }
     else
     {
         std::string times = "{";
@@ -62,8 +69,9 @@ int main(int argc, char *argv[])
     }
     solver.cleanUp();
 
-
-    std::cout << std::endl;
+    std::cout << std::endl;}
+    // std::this_thread::sleep_for(std::chrono::seconds(5));
+        ProfilerStop();
 
     return 0;
 }

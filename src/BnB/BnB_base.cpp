@@ -233,7 +233,10 @@ private:
             int exists;
             try
             {
+                std::shared_lock<std::shared_mutex> lock(boundLock, std::try_to_lock);
+                if (lock.owns_lock()) {
                 exists = STInstance->exists(state, job);
+                } else exists = 0;
             }
             catch (const std::runtime_error &e)
             {
@@ -316,8 +319,8 @@ private:
                     resortAfterIncrement(*next, i);
 
                     solvePartial(*next, job + 1);
-
-                    if (state[i] + jobDurations[job] <= upperBound)
+                    // TODO check wether here is another ret lookup necessary
+                    if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
                     {
                         if (gist)
                         {
@@ -365,6 +368,7 @@ private:
 
             try
             {
+                
                 // filter delayed / solved assignments directly before spawning the tasks
                 auto ex = STInstance->exists(*next, job + 1);
                 switch (ex)
@@ -385,14 +389,13 @@ private:
                         else
                         {
                             throw std::runtime_error("count is illegal");
+                            //TODO unnecessary or do it with an assertion
                         }
                     }
                     else
                     {
-                        logging(*next, job + 1, "inter1");
                         tg.run([this, next, job]
                                { 
-                                logging(*next, job + 1, "inter2");
                                 solvePartial(*next, job + 1); });
                     }
 
@@ -489,16 +492,17 @@ private:
 
     bool lookupRet(int i, int j, int job)
     {
-        std::shared_lock lock(boundLock); // Depending on the bound update we can remove the lock
-        const int off = offset;
-        assert(i + off < (int)RET[job].size());
+        const int off = offset.load();
+        if (std::max(i,j) + off >= (int)RET[job].size()) return false;
+        assert(i + off < (int)RET[job].size() && j + off < (int)RET[job].size());
         return RET[job][i + off] == RET[job][j + off];
     }
     bool lookupRetFur(int i, int j, int job)
-    { // this is awful codestyle needs to be refactored
-        std::shared_lock lock(boundLock);
-        assert(i + offset < (int)RET[job].size() && initialUpperBound - j < (int)RET[job].size());
-        return RET[job][i + offset] == RET[job][initialUpperBound - j]; // need to make sure that upperbound and offset are correct done with initialBound (suboptimal)
+    { 
+        const int off = offset.load();
+        if (i + off >= (int)RET[job].size()) return false;
+        assert(i + off < (int)RET[job].size() && initialUpperBound - j < (int)RET[job].size());
+        return RET[job][i + off] == RET[job][initialUpperBound - j]; // need to make sure that upperbound and offset are correct done with initialBound (suboptimal)
     }
 
     /**
@@ -532,21 +536,24 @@ private:
         if (logBound)
             std::cout << "try Bound " << newBound << std::endl;
 
-        std::unique_lock lock(boundLock); // Todo this can be done with CAS ( i think)
         if (newBound > upperBound)
             return;
         if (logBound)
             std::cout << "new Bound " << newBound << std::endl;
+        std::unique_lock lock(boundLock); // Todo this can be done with CAS ( i think)
+        if (newBound > upperBound)
+            return;
         auto newTime = std::chrono::high_resolution_clock::now();
         timeFrames.push_back((std::chrono::duration<double>)(newTime - lastUpdate));
         lastUpdate = newTime;
-        upperBound = newBound - 1;
-        offset = initialUpperBound - upperBound;
+        upperBound.store(newBound - 1);
+        offset.store(initialUpperBound - (newBound - 1));
         if (gist)
-            STInstance->boundUpdate(offset);
+           { 
+            STInstance->boundUpdate(offset.load());
+            }
         if (logBound)
             std::cout << "new Bound " << newBound << "finished" << std::endl;
-        lock.unlock();
     }
 
     /**

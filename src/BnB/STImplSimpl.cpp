@@ -16,11 +16,16 @@ class STImplSimpl : public ST
 public:
     using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
 
-    STImplSimpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize)
+    STImplSimpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size)
     {
         initializeThreadLocalVector(vec_size + 1);
-        maps.rehash(1000000);
+        // maps.rehash(1000000);
+        maps.clear();
+        std::unique_lock<std::shared_mutex> lock(clearLock);
 
+    }
+    ~STImplSimpl(){
+                std::unique_lock<std::shared_mutex> lock(clearLock);
     }
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
@@ -54,7 +59,7 @@ public:
     void addGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
-        std::shared_lock<std::shared_mutex> lock(updateBound);
+        std::shared_lock<std::shared_mutex> lock(clearLock);
         if ((state.back() + offset) >= maximumRETIndex) return;
         computeGist2(state, job, threadLocalVector);
         HashMap::accessor acc;
@@ -66,15 +71,16 @@ public:
     int exists(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize);
-
-        std::shared_lock<std::shared_mutex> lock(updateBound);
+        // if (offset != 40) return 0;
+        std::shared_lock<std::shared_mutex> lock(clearLock);
         if (job >= 0 && job < jobSize)
         {
-            if ((state.back() + offset) >= maximumRETIndex) return 2;
+            if ((state.back() + offset) >= maximumRETIndex) return 0;
             computeGist2(state, job, threadLocalVector);
             HashMap::const_accessor acc;
             if (maps.find(acc, threadLocalVector))
             {
+                // if(acc->second) std::cout << "_";
                 return acc->second ? 2 : 1;
             }
         }
@@ -83,8 +89,9 @@ public:
     // TODO addprev must return a boolena for the out of bounds check
     void addPreviously(const std::vector<int> &state, int job) override
     {
+        return;
         assert(job >= 0 && job < jobSize);
-        std::shared_lock<std::shared_mutex> lock(updateBound);
+        std::shared_lock<std::shared_mutex> lock(clearLock);
         if ((state.back() + offset) >= maximumRETIndex) return;
 
         computeGist2(state, job, threadLocalVector);
@@ -98,14 +105,19 @@ public:
     void boundUpdate(int offset) override
     {
 
-        std::unique_lock<std::shared_mutex> lock(updateBound);
-        this->offset = offset;
+        std::unique_lock<std::shared_mutex> lock(clearLock);
+        if (offset <= this->offset) return;
         clear();
+
+        this->offset = offset;
+        if (maps.size() != 0 ) throw std::runtime_error("failed delete");
     }
     void clear() override
     {
-        HashMap newMaps(jobSize);
+        HashMap newMaps;
+        newMaps.clear();
         maps.swap(newMaps);
+        maps.clear();
     }
 
     void resumeAllDelayedTasks() override
@@ -121,7 +133,7 @@ private:
     HashMap maps;
     std::shared_mutex mapsLock; // shared_mutex zum Schutz der Hashmaps während boundUpdate
     bool useBitmaps = false;
-    std::shared_mutex updateBound; // shared_mutex zum Schutz der Hashmaps während boundUpdate
+    std::shared_mutex clearLock; // shared_mutex zum Schutz der Hashmaps während boundUpdate
     double getMemoryUsagePercentage()
     {
         long totalPages = sysconf(_SC_PHYS_PAGES);

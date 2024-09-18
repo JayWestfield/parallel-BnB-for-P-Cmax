@@ -18,8 +18,13 @@ public:
     using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
     using HashDelayedMap = tbb::concurrent_hash_map<std::vector<int>, std::vector<tbb::task::suspend_point>, VectorHasher>; // might have more than one suspension point for a gist
 
-    STImpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>()) {
+    STImpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(jobSize), delayedTasks(jobSize), bitmaps(jobSize, std::bitset<BITMAP_SIZE>())
+    {
         initializeThreadLocalVector(vec_size);
+    }
+    ~STImpl()
+    {
+        std::unique_lock<std::shared_mutex> lock(clearLock);
     }
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
@@ -35,7 +40,7 @@ public:
         }
         return gist;
     }
-       void computeGist2(const std::vector<int> &state, int job, std::vector<int> &gist) override
+    void computeGist2(const std::vector<int> &state, int job, std::vector<int> &gist) override
     {
         initializeThreadLocalVector(vec_size);
         // assume the state is sorted
@@ -62,7 +67,7 @@ public:
             evictEntries(job);
         }
 
-        std::shared_lock<std::shared_mutex> lock(updateBound);
+        std::shared_lock<std::shared_mutex> lock(clearLock);
         computeGist2(state, job, threadLocalVector);
 
         HashMap::accessor acc;
@@ -88,15 +93,16 @@ public:
     {
         assert(job < jobSize);
 
-        std::shared_lock<std::shared_mutex> lock(updateBound);
+        std::shared_lock<std::shared_mutex> lock(clearLock);
         if (job >= 0 && job < jobSize)
         {
-                    computeGist2(state, job, threadLocalVector);
+            computeGist2(state, job, threadLocalVector);
 
             HashMap::const_accessor acc;
             if (maps[job].find(acc, threadLocalVector))
             {
                 updateBitmap(job, threadLocalVector);
+                            if(acc->second) std::cout << "_";
                 return acc->second ? 2 : 1;
             }
         }
@@ -105,7 +111,7 @@ public:
 
     void addPreviously(const std::vector<int> &state, int job) override
     {
-        std::shared_lock<std::shared_mutex> lock(updateBound);
+        std::shared_lock<std::shared_mutex> lock(clearLock);
         computeGist2(state, job, threadLocalVector);
 
         if (job >= 0 && job < jobSize)
@@ -113,21 +119,29 @@ public:
             HashMap::accessor acc;
             if (maps[job].find(acc, threadLocalVector))
                 return;
-            else {
+            else
+            {
                 maps[job].insert(acc, threadLocalVector);
                 acc->second = false;
-                }
+            }
         }
         logging(state, job, "add Prev");
     }
 
     void boundUpdate(int offset) override
     {
+        std::unique_lock<std::shared_mutex> lock(clearLock);
 
-        std::unique_lock<std::shared_mutex> lock(updateBound);
-        this->offset = offset;
+        if (offset <= this->offset)
+            return;
+
         clear();
-        resumeAllDelayedTasksInternally(); // TODO does thos need the other lock?
+        int ele = 0;
+        for (auto m : maps) {
+            ele += m.size();
+        }
+
+        this->offset = offset;
     }
     void clear() override
     {
@@ -140,15 +154,15 @@ public:
                 bitmap.reset();
             }
         }
-        threadLocalVector.resize(0);
-        threadLocalVector.clear();
+        // threadLocalVector.resize(0);
+        // threadLocalVector.clear();
     }
 
     void resumeAllDelayedTasks() override
     {
         // std::cout << "resume " << delCount << std::endl;
         // needs an own lock because it is also called on cancel
-        std::unique_lock<std::shared_mutex> lock(updateBound);
+        std::unique_lock<std::shared_mutex> lock(clearLock);
 
         for (auto &delayedMap : delayedTasks)
         {
@@ -206,7 +220,7 @@ public:
 
         // std::cout << "add delay " << delCount << std::endl;
 
-        std::shared_lock<std::shared_mutex> mapLock(updateBound);
+        std::shared_lock<std::shared_mutex> mapLock(clearLock);
         // std::cout << "add delay: lock " << delCount << std::endl;
         computeGist2(state, job, threadLocalVector);
 
@@ -231,7 +245,6 @@ public:
         else
         {
             tbb::task::resume(tag);
-            std::cout << "intre" << std::endl;
             return;
         } // TODO that should only happen on bound update or evict
         logging(state, job, "endDelay");
@@ -245,8 +258,8 @@ private:
     std::vector<std::bitset<BITMAP_SIZE>> bitmaps;
     std::shared_mutex mapsLock; // shared_mutex zum Schutz der Hashmaps während boundUpdate
     bool useBitmaps = false;
-    std::shared_mutex delayed;     // shared_mutex zum Schutz der Hashmaps während boundUpdate
-    std::shared_mutex updateBound; // shared_mutex zum Schutz der Hashmaps während boundUpdate
+    std::shared_mutex delayed;   // shared_mutex zum Schutz der Hashmaps während boundUpdate
+    std::shared_mutex clearLock; // shared_mutex zum Schutz der Hashmaps während boundUpdate
 
     void updateBitmap(int job, const std::vector<int> &gist)
     {
