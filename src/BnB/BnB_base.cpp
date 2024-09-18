@@ -233,6 +233,7 @@ private:
             int exists;
             try
             {
+                // this should not need a lock since the ST itself should manage that but somehow that leads to an error
                 std::shared_lock<std::shared_mutex> lock(boundLock, std::try_to_lock);
                 if (lock.owns_lock()) {
                 exists = STInstance->exists(state, job);

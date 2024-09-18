@@ -19,10 +19,7 @@ public:
     STImplSimpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size)
     {
         initializeThreadLocalVector(vec_size + 1);
-        // maps.rehash(1000000);
-        maps.clear();
-        std::unique_lock<std::shared_mutex> lock(clearLock);
-
+        maps.rehash(1000000);
     }
     ~STImplSimpl(){
                 std::unique_lock<std::shared_mutex> lock(clearLock);
@@ -72,7 +69,8 @@ public:
     {
         assert(job < jobSize);
         // if (offset != 40) return 0;
-        std::shared_lock<std::shared_mutex> lock(clearLock);
+        std::shared_lock<std::shared_mutex> lock(clearLock, std::try_to_lock);
+        if (!lock.owns_lock()) return 0;
         if (job >= 0 && job < jobSize)
         {
             if ((state.back() + offset) >= maximumRETIndex) return 0;
