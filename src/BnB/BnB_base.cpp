@@ -235,9 +235,12 @@ private:
             {
                 // this should not need a lock since the ST itself should manage that but somehow that leads to an error
                 std::shared_lock<std::shared_mutex> lock(boundLock, std::try_to_lock);
-                if (lock.owns_lock()) {
-                exists = STInstance->exists(state, job);
-                } else exists = 0;
+                if (lock.owns_lock())
+                {
+                    exists = STInstance->exists(state, job);
+                }
+                else
+                    exists = 0;
             }
             catch (const std::runtime_error &e)
             {
@@ -369,13 +372,13 @@ private:
 
             try
             {
-                
+
                 // filter delayed / solved assignments directly before spawning the tasks
                 auto ex = STInstance->exists(*next, job + 1);
                 switch (ex)
                 {
                 case 0:
-                    if (job > lastSizeJobIndex / 3 && job > 6)
+                    if (job > lastSizeJobIndex / 4)
                     {
                         if (count++ < 2)
                         {
@@ -390,14 +393,13 @@ private:
                         else
                         {
                             throw std::runtime_error("count is illegal");
-                            //TODO unnecessary or do it with an assertion
+                            // TODO unnecessary or do it with an assertion
                         }
                     }
                     else
                     {
                         tg.run([this, next, job]
-                               { 
-                                solvePartial(*next, job + 1); });
+                               { solvePartial(*next, job + 1); });
                     }
 
                     break;
@@ -417,6 +419,8 @@ private:
 
         logging(state, job, "wait for tasks to finish");
         tg.wait();
+        count = 0;
+
         for (int i : delayed)
         {
             auto next = std::make_shared<std::vector<int>>(state);
@@ -428,6 +432,13 @@ private:
                 auto ex = STInstance->exists(*next, job + 1);
                 if (ex != 2)
                 {
+                    tg.run([this, next, job]
+                           { solvePartial(*next, job + 1); });
+                    if (count++ >= 2)
+                    {
+                        tg.wait();
+                        count = 0;
+                    }
                     solvePartial(*next, job + 1);
                 }
             }
@@ -472,9 +483,9 @@ private:
     void logging(const std::vector<int> &state, int job, T message = "")
     {
         if (!detailedLogging)
-                return;
+            return;
         try
-        {   
+        {
             std::stringstream gis;
             gis << message << " ";
             for (auto vla : state)
@@ -494,14 +505,16 @@ private:
     bool lookupRet(int i, int j, int job)
     {
         const int off = offset.load();
-        if (std::max(i,j) + off >= (int)RET[job].size()) return false;
+        if (std::max(i, j) + off >= (int)RET[job].size())
+            return false;
         assert(i + off < (int)RET[job].size() && j + off < (int)RET[job].size());
         return RET[job][i + off] == RET[job][j + off];
     }
     bool lookupRetFur(int i, int j, int job)
-    { 
+    {
         const int off = offset.load();
-        if (i + off >= (int)RET[job].size()) return false;
+        if (i + off >= (int)RET[job].size())
+            return false;
         assert(i + off < (int)RET[job].size() && initialUpperBound - j < (int)RET[job].size());
         return RET[job][i + off] == RET[job][initialUpperBound - j]; // need to make sure that upperbound and offset are correct done with initialBound (suboptimal)
     }
@@ -550,9 +563,9 @@ private:
         upperBound.store(newBound - 1);
         offset.store(initialUpperBound - (newBound - 1));
         if (gist)
-           { 
+        {
             STInstance->boundUpdate(offset.load());
-            }
+        }
         if (logBound)
             std::cout << "new Bound " << newBound << "finished" << std::endl;
     }
@@ -680,11 +693,12 @@ private:
         visitedNodes = 0;
         RET.clear();
         timeFrames.clear();
-        if ( STInstance != nullptr) {
+        if (STInstance != nullptr)
+        {
             STInstance->clear();
             delete STInstance;
         }
-        STInstance  = nullptr;
+        STInstance = nullptr;
     }
     // basically insertion sort
     void resortAfterIncrement(std::vector<int> &vec, size_t index)
