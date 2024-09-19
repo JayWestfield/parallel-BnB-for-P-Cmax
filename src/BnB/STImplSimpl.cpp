@@ -102,8 +102,6 @@ public:
         std::unique_lock<std::shared_mutex> lock(clearLock);
         if (offset <= this->offset) return;
         clear();
-        maps.rehash(1000000);
-
         this->offset = offset;
     }
     void clear() override
