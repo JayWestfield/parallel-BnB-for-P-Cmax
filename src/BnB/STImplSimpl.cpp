@@ -19,7 +19,6 @@ public:
     STImplSimpl(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size)
     {
         initializeThreadLocalVector(vec_size + 1);
-        maps.rehash(1000000);
     }
     ~STImplSimpl(){
                 std::unique_lock<std::shared_mutex> lock(clearLock);
@@ -28,7 +27,7 @@ public:
     {
         // assume the state is sorted
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
-        if ((state.back() + offset) >= maximumRETIndex)
+        if ((state[vec_size - 1]+ offset) >= maximumRETIndex)
             throw std::runtime_error("infeasible");
         std::vector<int> gist(vec_size + 1, 0);
         assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
@@ -43,7 +42,7 @@ public:
     {
         initializeThreadLocalVector(vec_size + 1);
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
-        // if ((state.back() + offset) >= maximumRETIndex)
+        // if ((state[vec_size - 1]+ offset) >= maximumRETIndex)
         //     throw std::runtime_error("infeasible");
         assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
         for (auto i = 0; i < vec_size; i++)
@@ -57,7 +56,7 @@ public:
     {
         assert(job < jobSize && job >= 0);
         std::shared_lock<std::shared_mutex> lock(clearLock);
-        if ((state.back() + offset) >= maximumRETIndex) return;
+        if ((state[vec_size - 1]+ offset) >= maximumRETIndex) return;
         computeGist2(state, job, threadLocalVector);
         HashMap::accessor acc;
         maps.insert(acc, threadLocalVector);
@@ -73,12 +72,11 @@ public:
         if (!lock.owns_lock()) return 0;
         if (job >= 0 && job < jobSize)
         {
-            if ((state.back() + offset) >= maximumRETIndex) return 0;
+            if ((state[vec_size - 1]+ offset) >= maximumRETIndex) return 0;
             computeGist2(state, job, threadLocalVector);
             HashMap::const_accessor acc;
             if (maps.find(acc, threadLocalVector))
             {
-                // if(acc->second) std::cout << "_";
                 return acc->second ? 2 : 1;
             }
         }
@@ -87,10 +85,10 @@ public:
     // TODO addprev must return a boolena for the out of bounds check
     void addPreviously(const std::vector<int> &state, int job) override
     {
-        return;
         assert(job >= 0 && job < jobSize);
-        std::shared_lock<std::shared_mutex> lock(clearLock);
-        if ((state.back() + offset) >= maximumRETIndex) return;
+        std::shared_lock<std::shared_mutex> lock(clearLock, std::try_to_lock);
+        if (!lock.owns_lock()) return;
+        if ((state[vec_size - 1]+ offset) >= maximumRETIndex) return;
 
         computeGist2(state, job, threadLocalVector);
 
@@ -106,6 +104,7 @@ public:
         std::unique_lock<std::shared_mutex> lock(clearLock);
         if (offset <= this->offset) return;
         clear();
+        maps.rehash(1000000);
 
         this->offset = offset;
         if (maps.size() != 0 ) throw std::runtime_error("failed delete");

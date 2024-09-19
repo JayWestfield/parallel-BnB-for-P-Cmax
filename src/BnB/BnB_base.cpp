@@ -420,7 +420,6 @@ private:
         logging(state, job, "wait for tasks to finish");
         tg.wait();
         count = 0;
-
         for (int i : delayed)
         {
             auto next = std::make_shared<std::vector<int>>(state);
