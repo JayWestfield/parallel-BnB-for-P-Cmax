@@ -30,8 +30,6 @@ public:
     {
         // assume the state is sorted
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()) && vec_size == state.size());
-        if ((long unsigned int)(state.back() + offset) >= RET[job].size())
-            throw std::runtime_error("infeasible");
         std::vector<int> gist(vec_size, 0);
         assert((long unsigned int)(state.back() + offset) < RET[job].size()); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < vec_size; i++)
@@ -48,8 +46,7 @@ public:
 
         assert(gist.size() >= vec_size);
         assert(gist.size() >= state.size());
-        if ((state.back() + offset) >= maximumRETIndex)
-            throw std::runtime_error("infeasible");
+
         assert((long unsigned int)(state.back() + offset) < RET[job].size()); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < vec_size; i++)
         {
@@ -68,6 +65,8 @@ public:
         }
 
         std::shared_lock<std::shared_mutex> lock(clearLock);
+        if ((state.back() + offset) >= maximumRETIndex) return;
+
         computeGist2(state, job, threadLocalVector);
 
         HashMap::accessor acc;
@@ -94,6 +93,7 @@ public:
         assert(job < jobSize);
 
         std::shared_lock<std::shared_mutex> lock(clearLock);
+        if ((state.back() + offset) >= maximumRETIndex) return 2;
         if (job >= 0 && job < jobSize)
         {
             computeGist2(state, job, threadLocalVector);
@@ -102,7 +102,6 @@ public:
             if (maps[job].find(acc, threadLocalVector))
             {
                 updateBitmap(job, threadLocalVector);
-                            if(acc->second) std::cout << "_";
                 return acc->second ? 2 : 1;
             }
         }
@@ -112,6 +111,7 @@ public:
     void addPreviously(const std::vector<int> &state, int job) override
     {
         std::shared_lock<std::shared_mutex> lock(clearLock);
+        if ((state.back() + offset) >= maximumRETIndex) return;
         computeGist2(state, job, threadLocalVector);
 
         if (job >= 0 && job < jobSize)

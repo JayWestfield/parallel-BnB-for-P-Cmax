@@ -231,22 +231,18 @@ private:
         if (gist)
         {
             int exists;
-            try
+
+            // this should not need a lock since the ST itself should manage that but somehow that leads to an error
+            std::shared_lock<std::shared_mutex> lock(boundLock, std::try_to_lock);
+            if (lock.owns_lock())
             {
-                // this should not need a lock since the ST itself should manage that but somehow that leads to an error
-                std::shared_lock<std::shared_mutex> lock(boundLock, std::try_to_lock);
-                if (lock.owns_lock())
-                {
-                    exists = STInstance->exists(state, job);
-                }
-                else
-                    exists = 0;
+                exists = STInstance->exists(state, job);
             }
-            catch (const std::runtime_error &e)
-            {
-                return;
-            }
+            else
+                exists = 0;
+
             logging(state, job, exists);
+            // TODO switch instead
             if (exists == 2)
             {
                 logging(state, job, "gist found");
@@ -255,59 +251,41 @@ private:
             }
             else if (exists == 1 && false)
             {
-                try
+
+                int repeated = 0;
+                while (STInstance->exists(state, job) == 1 && repeated++ < 1)
                 {
-                    int repeated = 0;
-                    while (STInstance->exists(state, job) == 1 && repeated++ < 1)
-                    { // TODO try catch for the whole block
-                        logging(state, job, "suspend");
-                        if (makespan > upperBound || foundOptimal || cancel)
-                        {
-                            logging(state, job, "after not worth continuing");
-                            return;
-                        }
-                        tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
-                                           {
+                    logging(state, job, "suspend");
+                    if (makespan > upperBound || foundOptimal || cancel)
+                    {
+                        logging(state, job, "after not worth continuing");
+                        return;
+                    }
+                    tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
+                                       {
   
                                                    tbb::task::resume(tag);
                                                return; });
-                        logging(state, job, "restarted");
-                        // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
-                        if (makespan > upperBound || foundOptimal || cancel)
-                        {
-                            logging(state, job, "after not worth continuing");
-                            return;
-                        }
-                    }
-                }
-                catch (const std::runtime_error &e)
-                {
-                    return;
-                }
-                try
-                {
-                    if (STInstance->exists(state, job) == 2)
+                    logging(state, job, "restarted");
+                    // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
+                    if (makespan > upperBound || foundOptimal || cancel)
                     {
-                        logging(state, job, "after restard found");
-
+                        logging(state, job, "after not worth continuing");
                         return;
                     }
                 }
-                catch (const std::runtime_error &e)
+
+                if (STInstance->exists(state, job) == 2)
                 {
+                    logging(state, job, "after restard found");
+
                     return;
                 }
             }
             else if (exists == 0)
-                try
-                {
-                    logging(state, job, "gist not found");
-                    STInstance->addPreviously(state, job);
-                }
-                catch (const std::runtime_error &e)
-                {
-                    return;
-                }
+
+                logging(state, job, "gist not found");
+            STInstance->addPreviously(state, job);
         }
 
         // FUR
@@ -328,14 +306,7 @@ private:
                     {
                         if (gist)
                         {
-                            try
-                            {
-                                STInstance->addGist(state, job);
-                            }
-                            catch (const std::runtime_error &e)
-                            {
-                                return;
-                            }
+                            STInstance->addGist(state, job);
                         }
                         logging(state, job, "after add");
                         return;
@@ -370,50 +341,42 @@ private:
             resortAfterIncrement(*next, i);
             logging(*next, job + 1, "child from recursion");
 
-            try
+            // filter delayed / solved assignments directly before spawning the tasks
+            auto ex = STInstance->exists(*next, job + 1);
+            switch (ex)
             {
-
-                // filter delayed / solved assignments directly before spawning the tasks
-                auto ex = STInstance->exists(*next, job + 1);
-                switch (ex)
+            case 0:
+                if (job > lastSizeJobIndex / 4)
                 {
-                case 0:
-                    if (job > lastSizeJobIndex / 4)
+                    if (count++ < 2)
                     {
-                        if (count++ < 2)
+                        tg.run([this, next, job]
+                               { solvePartial(*next, job + 1); });
+                        if (count >= 2)
                         {
-                            tg.run([this, next, job]
-                                   { solvePartial(*next, job + 1); });
-                            if (count >= 2)
-                            {
-                                tg.wait();
-                                count = 0;
-                            }
-                        }
-                        else
-                        {
-                            throw std::runtime_error("count is illegal");
-                            // TODO unnecessary or do it with an assertion
+                            tg.wait();
+                            count = 0;
                         }
                     }
                     else
                     {
-                        tg.run([this, next, job]
-                               { solvePartial(*next, job + 1); });
+                        throw std::runtime_error("count is illegal");
+                        // TODO unnecessary or do it with an assertion
                     }
-
-                    break;
-                case 1:
-                    delayed.push_back(i);
-                    break;
-                default:
-                    continue;
-                    break;
                 }
-            }
-            catch (const std::runtime_error &e)
-            {
+                else
+                {
+                    tg.run([this, next, job]
+                           { solvePartial(*next, job + 1); });
+                }
+
+                break;
+            case 1:
+                delayed.push_back(i);
+                break;
+            default:
                 continue;
+                break;
             }
         }
 
@@ -426,24 +389,18 @@ private:
             (*next)[i] += jobDurations[job];
             // std::sort(next.begin(), next.end());
             resortAfterIncrement(*next, i);
-            try
+
+            auto ex = STInstance->exists(*next, job + 1);
+            if (ex != 2)
             {
-                auto ex = STInstance->exists(*next, job + 1);
-                if (ex != 2)
+                tg.run([this, next, job]
+                       { solvePartial(*next, job + 1); });
+                if (count++ >= 2)
                 {
-                    tg.run([this, next, job]
-                           { solvePartial(*next, job + 1); });
-                    if (count++ >= 2)
-                    {
-                        tg.wait();
-                        count = 0;
-                    }
-                    solvePartial(*next, job + 1);
+                    tg.wait();
+                    count = 0;
                 }
-            }
-            catch (const std::runtime_error &e)
-            {
-                continue;
+                solvePartial(*next, job + 1);
             }
         }
 
@@ -466,14 +423,8 @@ private:
 
         if (gist)
         {
-            try
-            {
-                STInstance->addGist(state, job);
-            }
-            catch (const std::runtime_error &e)
-            {
-                return;
-            }
+
+            STInstance->addGist(state, job);
         }
         logging(state, job, "after add");
         return;
@@ -483,25 +434,19 @@ private:
     {
         if (!detailedLogging)
             return;
-        try
-        {
-            std::stringstream gis;
-            gis << message << " ";
-            for (auto vla : state)
-                gis << vla << ", ";
-            gis << " => ";
-            // for (auto vla : STInstance->computeGist(state, job))
-            //     gis << vla << " ";
-            gis << " Job: " << job;
-            std::cout << gis.str() << std::endl;
-        }
-        catch (const std::runtime_error &e)
-        {
-            return;
-        }
+
+        std::stringstream gis;
+        gis << message << " ";
+        for (auto vla : state)
+            gis << vla << ", ";
+        gis << " => ";
+        // for (auto vla : STInstance->computeGist(state, job))
+        //     gis << vla << " ";
+        gis << " Job: " << job;
+        std::cout << gis.str() << std::endl;
     }
 
-    bool lookupRet(int i, int j, int job)
+    inline bool lookupRet(int i, int j, int job)
     {
         const int off = offset.load();
         if (std::max(i, j) + off >= (int)RET[job].size())
@@ -509,7 +454,7 @@ private:
         assert(i + off < (int)RET[job].size() && j + off < (int)RET[job].size());
         return RET[job][i + off] == RET[job][j + off];
     }
-    bool lookupRetFur(int i, int j, int job)
+    inline bool lookupRetFur(int i, int j, int job)
     {
         const int off = offset.load();
         if (i + off >= (int)RET[job].size())

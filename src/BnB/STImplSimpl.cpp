@@ -27,8 +27,6 @@ public:
     {
         // assume the state is sorted
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
-        if ((state[vec_size - 1]+ offset) >= maximumRETIndex)
-            throw std::runtime_error("infeasible");
         std::vector<int> gist(vec_size + 1, 0);
         assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
         for (std::vector<int>::size_type i = 0; i < vec_size; i++)
@@ -107,7 +105,6 @@ public:
         maps.rehash(1000000);
 
         this->offset = offset;
-        if (maps.size() != 0 ) throw std::runtime_error("failed delete");
     }
     void clear() override
     {
