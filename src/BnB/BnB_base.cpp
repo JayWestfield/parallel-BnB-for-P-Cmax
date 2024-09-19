@@ -338,10 +338,33 @@ private:
         }
         tg.wait();
     }
-    inline void executeDelayed(const std::vector<tbb::detail::d1::numa_node_id> &delayed, const std::vector<tbb::detail::d1::numa_node_id> &state,const int job, tbb::detail::d1::task_group &tg)
+    inline void executeDelayed(const std::vector<tbb::detail::d1::numa_node_id> &delayed, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, tbb::detail::d1::task_group &tg)
     {
         int count = 0;
+        std::vector<tbb::detail::d1::numa_node_id> again;
+        again.reserve(delayed.size());
         for (int i : delayed)
+        {
+            auto next = std::make_shared<std::vector<int>>(state);
+            (*next)[i] += jobDurations[job];
+            // std::sort(next.begin(), next.end());
+            resortAfterIncrement(*next, i);
+
+            auto ex = STInstance->exists(*next, job + 1);
+            if (ex == 0)
+            {
+                tg.run([this, next, job]
+                       { solvePartial(*next, job + 1); });
+                if (++count >= limitedTaskSpawning)
+                {
+                    tg.wait();
+                    count = 0;
+                }
+            } else if (ex == 1) { // of the former delayed tasks try a better order of solving
+                again.push_back(i);
+            }
+        }
+        for (int i : again)
         {
             auto next = std::make_shared<std::vector<int>>(state);
             (*next)[i] += jobDurations[job];
@@ -361,7 +384,7 @@ private:
             }
         }
     }
-    inline void executeBaseCase(const int endState, const std::vector<tbb::detail::d1::numa_node_id> &state,const int job, std::vector<tbb::detail::d1::numa_node_id> &repeat, tbb::detail::d1::task_group &tg, std::vector<tbb::detail::d1::numa_node_id> &delayed)
+    inline void executeBaseCase(const int endState, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, std::vector<tbb::detail::d1::numa_node_id> &repeat, tbb::detail::d1::task_group &tg, std::vector<tbb::detail::d1::numa_node_id> &delayed)
     {
         int count = 0;
         for (int i = 0; i < endState; i++)
@@ -544,12 +567,6 @@ private:
      */
     int computeIrrelevanceIndex(int bound)
     {
-        /*std::vector<int> partialSum(jobDurations.size() + 1);
-        std::exclusive_scan(jobDurations.begin(), jobDurations.end(), partialSum.begin(), 0);
-        int i = jobDurations.size() - 1;
-        while ( i > 0 && partialSum[i] < numMachines * (bound - jobDurations[i] + 1)) i--;
-        return i; */
-
         std::vector<int> sum(jobDurations.size() + 1);
         sum[0] = 0;
 
