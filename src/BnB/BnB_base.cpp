@@ -326,14 +326,14 @@ private:
         {
             if (!lookupRet(state[i], state[i - 1], job))
             { // Rule 6
-                auto next = std::make_shared<std::vector<int>>(state);
+                auto next = new std::vector<int>(state);
                 (*next)[i] += jobDurations[job];
                 // std::sort(next.begin(), next.end());
                 resortAfterIncrement(*next, i);
                 logging(*next, job + 1, "Rule 6 from recursion");
                 tg.run([this, next, job]
-
-                       { solvePartial(*next, job + 1); });
+                       { solvePartial(*next, job + 1);
+                       delete next; });
             }
         }
         tg.wait();
@@ -345,7 +345,7 @@ private:
         again.reserve(delayed.size());
         for (int i : delayed)
         {
-            auto next = std::make_shared<std::vector<int>>(state);
+            auto next = new std::vector<int>(state);
             (*next)[i] += jobDurations[job];
             // std::sort(next.begin(), next.end());
             resortAfterIncrement(*next, i);
@@ -354,19 +354,21 @@ private:
             if (ex == 0)
             {
                 tg.run([this, next, job]
-                       { solvePartial(*next, job + 1); });
+                       { solvePartial(*next, job + 1); delete next; });
                 if (++count >= limitedTaskSpawning)
                 {
                     tg.wait();
                     count = 0;
                 }
-            } else if (ex == 1) { // of the former delayed tasks try a better order of solving
+            }
+            else if (ex == 1)
+            { // of the former delayed tasks try a better order of solving
                 again.push_back(i);
             }
         }
         for (int i : again)
         {
-            auto next = std::make_shared<std::vector<int>>(state);
+            auto next = new std::vector<int>(state);
             (*next)[i] += jobDurations[job];
             // std::sort(next.begin(), next.end());
             resortAfterIncrement(*next, i);
@@ -375,7 +377,7 @@ private:
             if (ex != 2)
             {
                 tg.run([this, next, job]
-                       { solvePartial(*next, job + 1); });
+                       { solvePartial(*next, job + 1); delete next; });
                 if (++count >= limitedTaskSpawning)
                 {
                     tg.wait();
@@ -396,7 +398,7 @@ private:
                 repeat.push_back(i);
                 continue;
             }
-            auto next = std::make_shared<std::vector<int>>(state);
+            auto next = new std::vector<int>(state);
             (*next)[i] += jobDurations[job];
 
             // std::sort(next.begin(), next.end());
@@ -412,7 +414,7 @@ private:
                 {
 
                     tg.run([this, next, job]
-                           { solvePartial(*next, job + 1); });
+                           { solvePartial(*next, job + 1); delete next; });
                     if (++count >= limitedTaskSpawning)
                     {
                         tg.wait();
@@ -422,14 +424,16 @@ private:
                 else
                 {
                     tg.run([this, next, job]
-                           { solvePartial(*next, job + 1); });
+                           { solvePartial(*next, job + 1); delete next; });
                 }
 
                 break;
             case 1:
+                delete next;
                 delayed.push_back(i);
                 break;
             default:
+                delete next;
                 continue;
                 break;
             }
@@ -442,12 +446,15 @@ private:
         {
             if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
             {
-                auto next = std::make_shared<std::vector<int>>(state); // when implemented carefully there is no copy needed (but we are not that far yet)
+                auto next = new std::vector<int>(state);
+                assert(*next == state);
+                // when implemented carefully there is no copy needed (but we are not that far yet)
                 (*next)[i] += jobDurations[job];
                 // std::sort(next.begin(), next.end());
                 resortAfterIncrement(*next, i);
 
                 solvePartial(*next, job + 1);
+                delete next;
                 // TODO check wether here is another ret lookup necessary
                 if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
                 {
