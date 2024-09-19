@@ -10,6 +10,7 @@
 #include <numeric>
 #include <tbb/tbb.h>
 #include <condition_variable>
+const int limitedTaskSpawning = 2;
 class BnB_base_Impl : public BnBSolverBase
 {
 public:
@@ -230,89 +231,65 @@ private:
         // Gist Lookup
         if (gist)
         {
-            int exists;
 
             // this should not need a lock since the ST itself should manage that but somehow that leads to an error
             std::shared_lock<std::shared_mutex> lock(boundLock, std::try_to_lock);
-            if (lock.owns_lock())
-            {
-                exists = STInstance->exists(state, job);
-            }
-            else
-                exists = 0;
+            int exists = lock.owns_lock() ? STInstance->exists(state, job) : 0;
 
             logging(state, job, exists);
-            // TODO switch instead
-            if (exists == 2)
+            switch (exists)
             {
+            case 2:
                 logging(state, job, "gist found");
-
                 return;
-            }
-            else if (exists == 1 && false)
-            {
-
-                int repeated = 0;
-                while (STInstance->exists(state, job) == 1 && repeated++ < 1)
+            case 1:
+                // currently not handling this case
+                if (addPreviously && false)
                 {
-                    logging(state, job, "suspend");
-                    if (makespan > upperBound || foundOptimal || cancel)
+                    int repeated = 0;
+                    while (STInstance->exists(state, job) == 1 && repeated++ < 1)
                     {
-                        logging(state, job, "after not worth continuing");
-                        return;
-                    }
-                    tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
-                                       {
+                        logging(state, job, "suspend");
+                        if (makespan > upperBound || foundOptimal || cancel)
+                        {
+                            logging(state, job, "after not worth continuing");
+                            return;
+                        }
+                        tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
+                                           {
   
                                                    tbb::task::resume(tag);
                                                return; });
-                    logging(state, job, "restarted");
-                    // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
-                    if (makespan > upperBound || foundOptimal || cancel)
+                        logging(state, job, "restarted");
+                        // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
+                        if (makespan > upperBound || foundOptimal || cancel)
+                        {
+                            logging(state, job, "after not worth continuing");
+                            return;
+                        }
+                    }
+
+                    if (STInstance->exists(state, job) == 2)
                     {
-                        logging(state, job, "after not worth continuing");
+                        logging(state, job, "after restard found");
+
                         return;
                     }
                 }
-
-                if (STInstance->exists(state, job) == 2)
-                {
-                    logging(state, job, "after restard found");
-
-                    return;
-                }
-            }
-            else if (exists == 0)
-
+                break;
+            default:
                 logging(state, job, "gist not found");
-            STInstance->addPreviously(state, job);
+                STInstance->addPreviously(state, job);
+            }
         }
 
         // FUR
         if (fur)
         {
-            for (int i = (numMachines - 1); i >= 0; i--)
-            {
-                if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
-                {
-                    auto next = std::make_shared<std::vector<int>>(state); // when implemented carefully there is no copy needed (but we are not that far yet)
-                    (*next)[i] += jobDurations[job];
-                    // std::sort(next.begin(), next.end());
-                    resortAfterIncrement(*next, i);
-
-                    solvePartial(*next, job + 1);
-                    // TODO check wether here is another ret lookup necessary
-                    if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
-                    {
-                        if (gist)
-                        {
-                            STInstance->addGist(state, job);
-                        }
-                        logging(state, job, "after add");
-                        return;
-                    }
-                }
-            }
+            bool retFlag;
+            executeFUR(state, job, retFlag);
+            if (retFlag)
+                return;
         }
         logging(state, job, "after Fur");
 
@@ -324,6 +301,68 @@ private:
             endState = lastRelevantJobIndex - job + 1; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
 
         assert(endState <= numMachines);
+        // base case
+        executeBaseCase(endState, state, job, repeat, tg, delayed);
+
+        logging(state, job, "wait for tasks to finish");
+        tg.wait();
+
+        executeDelayed(delayed, state, job, tg);
+
+        logging(state, job, "after recursion");
+        executeR6Delayed(repeat, state, job, tg);
+
+        if (gist)
+        {
+
+            STInstance->addGist(state, job);
+        }
+        logging(state, job, "after add");
+        return;
+    }
+    inline void executeR6Delayed(const std::vector<tbb::detail::d1::numa_node_id> &repeat, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, tbb::detail::d1::task_group &tg)
+    {
+        for (int i : repeat)
+        {
+            if (!lookupRet(state[i], state[i - 1], job))
+            { // Rule 6
+                auto next = std::make_shared<std::vector<int>>(state);
+                (*next)[i] += jobDurations[job];
+                // std::sort(next.begin(), next.end());
+                resortAfterIncrement(*next, i);
+                logging(*next, job + 1, "Rule 6 from recursion");
+                tg.run([this, next, job]
+
+                       { solvePartial(*next, job + 1); });
+            }
+        }
+        tg.wait();
+    }
+    inline void executeDelayed(const std::vector<tbb::detail::d1::numa_node_id> &delayed, const std::vector<tbb::detail::d1::numa_node_id> &state,const int job, tbb::detail::d1::task_group &tg)
+    {
+        int count = 0;
+        for (int i : delayed)
+        {
+            auto next = std::make_shared<std::vector<int>>(state);
+            (*next)[i] += jobDurations[job];
+            // std::sort(next.begin(), next.end());
+            resortAfterIncrement(*next, i);
+
+            auto ex = STInstance->exists(*next, job + 1);
+            if (ex != 2)
+            {
+                tg.run([this, next, job]
+                       { solvePartial(*next, job + 1); });
+                if (++count >= limitedTaskSpawning)
+                {
+                    tg.wait();
+                    count = 0;
+                }
+            }
+        }
+    }
+    inline void executeBaseCase(const int endState, const std::vector<tbb::detail::d1::numa_node_id> &state,const int job, std::vector<tbb::detail::d1::numa_node_id> &repeat, tbb::detail::d1::task_group &tg, std::vector<tbb::detail::d1::numa_node_id> &delayed)
+    {
         int count = 0;
         for (int i = 0; i < endState; i++)
         {
@@ -348,20 +387,13 @@ private:
             case 0:
                 if (job > lastSizeJobIndex / 4)
                 {
-                    if (count++ < 2)
+
+                    tg.run([this, next, job]
+                           { solvePartial(*next, job + 1); });
+                    if (++count >= limitedTaskSpawning)
                     {
-                        tg.run([this, next, job]
-                               { solvePartial(*next, job + 1); });
-                        if (count >= 2)
-                        {
-                            tg.wait();
-                            count = 0;
-                        }
-                    }
-                    else
-                    {
-                        throw std::runtime_error("count is illegal");
-                        // TODO unnecessary or do it with an assertion
+                        tg.wait();
+                        count = 0;
                     }
                 }
                 else
@@ -379,58 +411,36 @@ private:
                 break;
             }
         }
-
-        logging(state, job, "wait for tasks to finish");
-        tg.wait();
-        count = 0;
-        for (int i : delayed)
+    }
+    inline void executeFUR(const std::vector<tbb::detail::d1::numa_node_id> &state, int job, bool &retFlag)
+    {
+        retFlag = true;
+        for (int i = (numMachines - 1); i >= 0; i--)
         {
-            auto next = std::make_shared<std::vector<int>>(state);
-            (*next)[i] += jobDurations[job];
-            // std::sort(next.begin(), next.end());
-            resortAfterIncrement(*next, i);
-
-            auto ex = STInstance->exists(*next, job + 1);
-            if (ex != 2)
+            if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
             {
-                tg.run([this, next, job]
-                       { solvePartial(*next, job + 1); });
-                if (count++ >= 2)
-                {
-                    tg.wait();
-                    count = 0;
-                }
-                solvePartial(*next, job + 1);
-            }
-        }
-
-        logging(state, job, "after recursion");
-        for (int i : repeat)
-        {
-            if (!lookupRet(state[i], state[i - 1], job))
-            { // Rule 6
-                auto next = std::make_shared<std::vector<int>>(state);
+                auto next = std::make_shared<std::vector<int>>(state); // when implemented carefully there is no copy needed (but we are not that far yet)
                 (*next)[i] += jobDurations[job];
                 // std::sort(next.begin(), next.end());
                 resortAfterIncrement(*next, i);
-                logging(*next, job + 1, "Rule 6 from recursion");
-                tg.run([this, next, job]
 
-                       { solvePartial(*next, job + 1); });
+                solvePartial(*next, job + 1);
+                // TODO check wether here is another ret lookup necessary
+                if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
+                {
+                    if (gist)
+                    {
+                        STInstance->addGist(state, job);
+                    }
+                    logging(state, job, "after add");
+                    return;
+                }
             }
         }
-        tg.wait();
-
-        if (gist)
-        {
-
-            STInstance->addGist(state, job);
-        }
-        logging(state, job, "after add");
-        return;
+        retFlag = false;
     }
     template <typename T>
-    void logging(const std::vector<int> &state, int job, T message = "")
+    inline void logging(const std::vector<int> &state, int job, T message = "")
     {
         if (!detailedLogging)
             return;
