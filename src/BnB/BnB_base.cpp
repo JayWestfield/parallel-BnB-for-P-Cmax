@@ -80,7 +80,6 @@ public:
         tbb::task_group tg;
         tg.run([this, initialState]
                { solvePartial(initialState, 0); });
-
         // TODO find another way to check that because
         std::condition_variable mycond;
         auto start = std::chrono::high_resolution_clock::now();
@@ -111,6 +110,8 @@ public:
                         } 
                         return; });
         tg.wait();
+        // std::cout << "info delayed: " << runWithPrev << "/" << allPrev << std::endl;
+
         // std::cout << "finito" << std::endl;
         mycond.notify_one();
         monitoringThread.join();
@@ -172,6 +173,10 @@ private:
 
     int lastRelevantJobIndex;
 
+    // out of interest
+    std::atomic<int> runWithPrev = 0;
+    std::atomic<int> allPrev = 0;
+
     // only one jobsize left
     int lastSizeJobIndex;
     int trivialLowerBound()
@@ -231,10 +236,7 @@ private:
         // Gist Lookup
         if (gist)
         {
-
-            // this should not need a lock since the ST itself should manage that but somehow that leads to an error
-            std::shared_lock<std::shared_mutex> lock(boundLock, std::try_to_lock);
-            int exists = lock.owns_lock() ? STInstance->exists(state, job) : 0;
+            int exists = STInstance->exists(state, job);
 
             logging(state, job, exists);
             switch (exists)
@@ -338,51 +340,77 @@ private:
         }
         tg.wait();
     }
-    inline void executeDelayed(const std::vector<tbb::detail::d1::numa_node_id> &delayed, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, tbb::detail::d1::task_group &tg)
+    inline void executeDelayed(std::vector<tbb::detail::d1::numa_node_id> &delayed, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, tbb::detail::d1::task_group &tg)
     {
         int count = 0;
         std::vector<tbb::detail::d1::numa_node_id> again;
         again.reserve(delayed.size());
+        // allPrev += delayed.size();
+        for (int i = 0; i < 1; i++)
+        {
+            for (int i : delayed)
+            {
+                auto next = new std::vector<int>(state);
+                (*next)[i] += jobDurations[job];
+                // std::sort(next.begin(), next.end());
+                resortAfterIncrement(*next, i);
+
+                auto ex = STInstance->exists(*next, job + 1);
+                if (ex == 0)
+                {
+                    tg.run([this, next, job]
+                           { solvePartial(*next, job + 1); delete next; });
+                    if (++count >= limitedTaskSpawning)
+                    {
+                        tg.wait();
+                        count = 0;
+                    }
+                }
+                else if (ex == 1)
+                { // of the former delayed tasks try a better order of solving
+                    again.push_back(i);
+                }
+            }
+            if (again.size() == delayed.size())
+                break;
+            delayed.clear();
+            for (int i : again)
+            {
+                auto next = new std::vector<int>(state);
+                (*next)[i] += jobDurations[job];
+                // std::sort(next.begin(), next.end());
+                resortAfterIncrement(*next, i);
+
+                auto ex = STInstance->exists(*next, job + 1);
+                if (ex == 0)
+                {
+                    tg.run([this, next, job]
+                           { solvePartial(*next, job + 1); delete next; });
+                    if (++count >= limitedTaskSpawning)
+                    {
+                        tg.wait();
+                        count = 0;
+                    }
+                }
+                else if (ex == 1)
+                { // of the former delayed tasks try a better order of solving
+                    delayed.push_back(i);
+                }
+            }
+            again.clear();
+        }
         for (int i : delayed)
         {
             auto next = new std::vector<int>(state);
             (*next)[i] += jobDurations[job];
-            // std::sort(next.begin(), next.end());
             resortAfterIncrement(*next, i);
-
-            auto ex = STInstance->exists(*next, job + 1);
-            if (ex == 0)
+            // runWithPrev++;
+            tg.run([this, next, job]
+                   { solvePartial(*next, job + 1); delete next; });
+            if (++count >= limitedTaskSpawning)
             {
-                tg.run([this, next, job]
-                       { solvePartial(*next, job + 1); delete next; });
-                if (++count >= limitedTaskSpawning)
-                {
-                    tg.wait();
-                    count = 0;
-                }
-            }
-            else if (ex == 1)
-            { // of the former delayed tasks try a better order of solving
-                again.push_back(i);
-            }
-        }
-        for (int i : again)
-        {
-            auto next = new std::vector<int>(state);
-            (*next)[i] += jobDurations[job];
-            // std::sort(next.begin(), next.end());
-            resortAfterIncrement(*next, i);
-
-            auto ex = STInstance->exists(*next, job + 1);
-            if (ex != 2)
-            {
-                tg.run([this, next, job]
-                       { solvePartial(*next, job + 1); delete next; });
-                if (++count >= limitedTaskSpawning)
-                {
-                    tg.wait();
-                    count = 0;
-                }
+                tg.wait();
+                count = 0;
             }
         }
     }
@@ -538,18 +566,19 @@ private:
             return;
         if (logBound)
             std::cout << "new Bound " << newBound << std::endl;
-        std::unique_lock lock(boundLock); // Todo this can be done with CAS ( i think)
+        std::unique_lock lock(boundLock); // Todo this can be done with CAS ( i think) this one does not appear often so no need for that
         if (newBound > upperBound)
             return;
+        if (gist) // it is importatnt to d othe bound update on the ST before updating the offset/upperBound, because otherwise the exist might return a false positive (i am not 100% sure why)
+        {
+            STInstance->boundUpdate(initialUpperBound - (newBound - 1));
+        }
+        upperBound.store(newBound - 1);
+        offset.store(initialUpperBound - (newBound - 1));
+        
         auto newTime = std::chrono::high_resolution_clock::now();
         timeFrames.push_back((std::chrono::duration<double>)(newTime - lastUpdate));
         lastUpdate = newTime;
-        upperBound.store(newBound - 1);
-        offset.store(initialUpperBound - (newBound - 1));
-        if (gist)
-        {
-            STInstance->boundUpdate(offset.load());
-        }
         if (logBound)
             std::cout << "new Bound " << newBound << "finished" << std::endl;
     }
