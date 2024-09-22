@@ -124,7 +124,8 @@ int main(int argc, char *argv[])
                 int status;
                 waitpid(pid, &status, 0);
             }
-            numThreads *= 2;
+            // ab 8 threads plus 8 für bessere auflösung
+            numThreads += (numThreads > 8) ? 8 : numThreads;
         }
         std::cout << std::endl;
     }
