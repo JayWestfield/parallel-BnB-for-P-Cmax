@@ -1,0 +1,47 @@
+login
+ssh westenfelder@i10login.ae.iti.kit.edu
+
+scp westenfelder@i10login.ae.iti.kit.edu:~/parallel-BnB-for-P-Cmax/results/pureInterest.txt \\wsl.localhost\Ubuntu\home\jannik\parallel-BnB-for-P-Cmax\results
+
+nohup exclusive ./dst/runAllFast 8 120 lawrinenko class1 > ./results/filteredRun_class1.txt 2>&1 &
+
+nohup exclusive ./dst/experiment 8 20 > ./results/pureInterest.txt 2>&1 &
+htop
+
+
+
+valgrind --tool=massif  --pages-as-heap=yes --massif-out-file=./profiling_results/massif.out.%p   ./dst/experiment 1 30000 > ./results/ProfilingRun2.txt
+valgrind --tool=callgrind --separate-threads=yes --callgrind-out-file=./profiling_results/callgrind.out.%p   --collect-jumps=yes --dump-instr=yes ./dst/profiler 6 1 p_cmax-class1-n108-m48-minsize1-maxsize100-seed18680.txt
+
+mv callgrind ./profiling_results
+kcachegrind ./profiling_results/callgrind.out.
+
+
+improve compute gist2 curretnrly 13,88%
+
+compiler unroll => 
+
+
+
+1. parallelisiere den startup (lowprio)
+2. find a better concurrent hashmap
+3. the shared lock in the ST takes some time even with the try lock () also the unlock and the one from the BnB_base
+4. deeper look into addPrviously (ther is currently some loggin) include that in the plots etc?
+5. give a nother datastructure a try for the state propose kind of a list where we  save the index instead of the pointer ( and maybe the )
+6. rule for the same jobsize is not implemented yet ( would be easier with point 5)
+7. branchless fillRet?
+8. lower bonding techiniques
+9. for states with only one follow up state no need to copy the state (fe FUR) but be really careful 
+10. increase startup a bit by directly starting with solve partial not with 0 0 0 ... but with assigning the first few jobs (all the possibilities [don't do to meuich here but maybe the first 3 jobs])
+11. remove logging ( that somehow sill takes time even though jump prediction should do quite well here)
+
+TODO why do i need to lock the eist on bound update see this p_cmax-class6-n54-m24-minsize54-maxsize216-seed15421.txt
+p_cmax-class6-n54-m24-minsize54-maxsize216-seed15421.txt
+p_cmax-class6-n36-m16-minsize36-maxsize144-seed4929.txt   should be 2017
+fioxed by first clearing st before offset/bound
+
+spurious error:
+p_cmax-class4-n20-m8-mu100-sigma20-seed12629.txt
+
+
+
