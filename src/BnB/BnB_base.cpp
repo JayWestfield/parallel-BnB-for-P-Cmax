@@ -156,7 +156,7 @@ private:
     std::atomic<int> upperBound;
     std::atomic<int> lowerBound;
     int initialUpperBound;
-    std::shared_mutex boundLock;
+    std::mutex boundLock;
 
     // RET
     std::vector<std::vector<int>> RET = {{}};
@@ -566,15 +566,20 @@ private:
             return;
         if (logBound)
             std::cout << "new Bound " << newBound << std::endl;
-        std::unique_lock lock(boundLock); // Todo this can be done with CAS ( i think) this one does not appear often so no need for that
+        std::unique_lock lock(boundLock, std::try_to_lock); // this one does not appear often so no need for that
+        while (!lock.owns_lock()) {
+            if (newBound > upperBound.load()) return;
+            lock.try_lock();
+        }
         if (newBound > upperBound)
             return;
+        const int newOffset = initialUpperBound - (newBound - 1);
         if (gist) // it is importatnt to d othe bound update on the ST before updating the offset/upperBound, because otherwise the exist might return a false positive (i am not 100% sure why)
         {
-            STInstance->boundUpdate(initialUpperBound - (newBound - 1));
+            STInstance->boundUpdate(newOffset);
         }
         upperBound.store(newBound - 1);
-        offset.store(initialUpperBound - (newBound - 1));
+        offset.store(newOffset);
         
         auto newTime = std::chrono::high_resolution_clock::now();
         timeFrames.push_back((std::chrono::duration<double>)(newTime - lastUpdate));
