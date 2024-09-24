@@ -72,11 +72,10 @@ public:
         // if (offset != 40) return 0;
         if (clearFlag)
             return 0;
-        referenceCounter++;
         assert(job >= 0 && job < jobSize);
-
         if ((state[vec_size - 1] + offset) >= maximumRETIndex)
             return 0;
+        referenceCounter++;
         computeGist2(state, job, threadLocalVector);
         HashMap::const_accessor acc;
         int result = 0;
@@ -111,9 +110,10 @@ public:
         if (offset <= this->offset)
             return;
         clearFlag = true;
+
         while (referenceCounter.load() > 0)
         {
-            // wait maybe yield etc
+            // std::cout << referenceCounter.load() << std::endl;
         }
         maps.clear();
         this->offset = offset;

@@ -740,10 +740,10 @@ private:
             STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
         case 1:
-            STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines);
+            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
         case 2:
-            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
+            STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
         default:
             STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
