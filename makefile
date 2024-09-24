@@ -4,7 +4,7 @@ CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb  -DNDEBUG -funroll-loops
 LDFLAGS = -ltbb 
 
 # Define the source and target files
-BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp src/BnB/STImplSimpl.cpp src/BnB/threadLocal/threadLocal.cpp
+BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp src/BnB/STImplSimpl.cpp  src/BnB/STImplSimplCustomLock.cpp src/BnB/threadLocal/threadLocal.cpp
 SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
 TARGET = dst/parallel_solver
 SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/lawrinenko_test.cpp
@@ -48,16 +48,15 @@ plot2:
 $(PROFILE_DST): $(PROFILE_SRC) $(BASEFILES)
 	$(CXX) $(CXXFLAGS) -o $(PROFILE_DST) $(PROFILE_SRC) $(BASEFILES) $(LDFLAGS)
 
+# arguments threads repeat STVersion (instance) (benchmark)
 runProfile: $(PROFILE_DST)
 	rm -f ./profiling_results/profile_*.prof
 	@./$(PROFILE_DST) $(filter-out runProfile,$(MAKECMDGOALS))
 	google-pprof --callgrind ./dst/profiler ./profiling_results/profile_*.prof > ./profiling_results/transformed_gperf.out
-	export $(dbus-launch)
 	kcachegrind ./profiling_results/transformed_gperf.out
 
 viewProfile: 
 	google-pprof --callgrind ./dst/profiler ./profiling_results/profile_*.prof > ./profiling_results/transformed_gperf.out
-	export $(dbus-launch)
 	kcachegrind ./profiling_results/transformed_gperf.out
 # Define a clean rule to remove compiled files
 clean:

@@ -3,6 +3,7 @@
 
 #include "STImplSimpl.cpp"
 #include "STImpl.cpp"
+#include "STImplSimplCustomLock.cpp"
 
 #include <sstream>
 #include <stdexcept>
@@ -739,6 +740,9 @@ private:
             STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
         case 1:
+            STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines);
+            break;
+        case 2:
             STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
         default:

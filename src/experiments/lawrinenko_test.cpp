@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
         std::condition_variable cv;
         std::mutex mtx;
         std::cout << instanceName << std::flush;
-        BnB_base_Impl solver(true, true, true, false, 1);
+        BnB_base_Impl solver(true, true, true, false, 2);
         while (numThreads <= maxThreads)
         {
             pid_t pid = fork();
