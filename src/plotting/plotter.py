@@ -69,6 +69,11 @@ def save_plots(fig, filename="plots/all_plots_in_one.png"):
 
 def plot_cumulative_times(ax, data):
     num_thread_configs = len(data[0][1])
+    # just in case a computation failed and not even canceled has been logged added a print to find taht isntance
+    for name, times in data:
+        if (len(times) != num_thread_configs):
+            print(name)
+            print(len(times))
     for i in range(num_thread_configs):
         times = np.sort([times[i] for name, times in data if times[i] != float('inf')])
         ax.plot(times, np.arange(1, len(times) + 1), label=f'{indexToThreads(i)} Threads')
@@ -411,7 +416,7 @@ def plot_last_bounds_time_distribution(ax, data, num_bounds=4):
 
 def plot_all_in_one(data, ComplexData, plotpath):
     fig, axs = initialize_subplots(4, 3, "Analyse der Laufzeiten und Speedups")
-    min_time = 1
+    min_time = 0.1
     plot_cumulative_times(axs[0, 0], data)
     plot_speedups(axs[1, 0], data)
     plot_speedup_statistics(axs[0, 2], data)

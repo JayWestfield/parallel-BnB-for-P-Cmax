@@ -58,6 +58,11 @@ public:
         if ((state[vec_size - 1] + offset) >= maximumRETIndex)
             return;
         referenceCounter++;
+        if (clearFlag)
+        {
+            referenceCounter--;
+            return;
+        }
         computeGist2(state, job, threadLocalVector);
         HashMap::accessor acc;
         maps.insert(acc, threadLocalVector);
@@ -70,12 +75,18 @@ public:
     {
         assert(job < jobSize);
         // if (offset != 40) return 0;
+        // problem clearflag und referenceCounter zwischendrin kann ein clear kommen !!!
         if (clearFlag)
             return 0;
         assert(job >= 0 && job < jobSize);
         if ((state[vec_size - 1] + offset) >= maximumRETIndex)
             return 0;
         referenceCounter++;
+        if (clearFlag)
+        {
+            referenceCounter--;
+            return 0;
+        }
         computeGist2(state, job, threadLocalVector);
         HashMap::const_accessor acc;
         int result = 0;
@@ -96,6 +107,11 @@ public:
             return;
 
         referenceCounter++;
+        if (clearFlag)
+        {
+            referenceCounter--;
+            return;
+        }
         computeGist2(state, job, threadLocalVector);
         HashMap::accessor acc;
         if (maps.insert(acc, threadLocalVector))
@@ -110,9 +126,11 @@ public:
         if (offset <= this->offset)
             return;
         clearFlag = true;
-
+        int test = 0;
         while (referenceCounter.load() > 0)
-        {
+        {   
+            if (test++ > 1000000) std::cout << "probably stuck in an endless loop" << std::endl;
+            std::this_thread::yield();
             // std::cout << referenceCounter.load() << std::endl;
         }
         maps.clear();
