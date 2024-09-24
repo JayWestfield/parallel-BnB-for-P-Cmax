@@ -71,7 +71,7 @@ def plot_cumulative_times(ax, data):
     num_thread_configs = len(data[0][1])
     for i in range(num_thread_configs):
         times = np.sort([times[i] for name, times in data if times[i] != float('inf')])
-        ax.plot(times, np.arange(1, len(times) + 1), label=f'{2**i} Threads')
+        ax.plot(times, np.arange(1, len(times) + 1), label=f'{indexToThreads(i)} Threads')
     
     ax.set_xlabel('Zeit (s)')
     ax.set_ylabel('Anzahl der Instanzen')
@@ -81,16 +81,16 @@ def plot_cumulative_times(ax, data):
 
 def plot_speedups(ax, data):
     num_thread_configs = len(data[0][1])
-    speedups = {f'{2**i} Threads': [] for i in range(1, num_thread_configs)}
+    speedups = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
     
     for name, times in data:
         for i in range(1, num_thread_configs):
             if times[i] != float('inf') and times[0] != float('inf'):
                 speedup = times[0] / times[i]
-                if (speedup > 2 ** (i + 1)): # filter speedups
+                if (speedup > indexToThreads(i) * 1.5): # filter speedups
                     continue
                 else:
-                    speedups[f'{2**i} Threads'].append(speedup)
+                    speedups[f'{indexToThreads(i)} Threads'].append(speedup)
     
     for label, values in speedups.items():
         ax.plot(sorted(values), np.arange(1, len(values) + 1), label=label)
@@ -103,16 +103,16 @@ def plot_speedups(ax, data):
 
 def plot_speedup_statistics(ax, data):
     num_thread_configs = len(data[0][1])
-    speedups_per_thread = {f'{2**i} Threads': [] for i in range(1, num_thread_configs)}
+    speedups_per_thread = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
 
     for name, times in data:
         for i in range(1, num_thread_configs):
             if times[i] != float('inf') and times[0] != float('inf'):
                 speedup = times[0] / times[i]
-                if (speedup > 2 ** (i + 1)): # filter speedups
+                if (speedup > indexToThreads(i) * 1.5): # filter speedups
                     continue
                 else:
-                    speedups_per_thread[f'{2**i} Threads'].append(speedup)
+                    speedups_per_thread[f'{indexToThreads(i)} Threads'].append(speedup)
 
     median_speedups = {}
     mean_speedups = {}
@@ -130,9 +130,10 @@ def plot_speedup_statistics(ax, data):
     for threads, median in median_speedups.items():
         textstr += f"{threads}: {median:.3f}\n"
 
-    textstr += "\nArithmetisches Mittel der Speedups:\n"
-    for threads, mean in mean_speedups.items():
-        textstr += f"{threads}: {mean:.3f}\n"
+    # not relevant
+    # textstr += "\nArithmetisches Mittel der Speedups:\n"
+    # for threads, mean in mean_speedups.items():
+    #     textstr += f"{threads}: {mean:.3f}\n"
 
     # Positioniere den Text im Subplot
     ax.text(0.1, 0.5, textstr, fontsize=12, verticalalignment='center', transform=ax.transAxes)
@@ -141,7 +142,7 @@ def plot_speedup_statistics(ax, data):
 
 def plot_speedup_boxplot(ax, data):
     num_thread_configs = len(data[0][1])
-    speedups_per_thread = {f'{2**i} Threads': [] for i in range(1, num_thread_configs)}
+    speedups_per_thread = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
 
     for name, times in data:
         for i in range(1, num_thread_configs):
@@ -150,7 +151,7 @@ def plot_speedup_boxplot(ax, data):
                 if (speedup > 2 ** (i + 1)): # filter speedups
                     continue
                 else:
-                    speedups_per_thread[f'{2**i} Threads'].append(speedup)
+                    speedups_per_thread[f'{indexToThreads(i)} Threads'].append(speedup)
 
     # Sammle die Speedups in einer Liste für den Boxplot
     speedups_data = [speedups_per_thread[threads] for threads in speedups_per_thread]
@@ -164,7 +165,7 @@ def plot_speedup_boxplot(ax, data):
 
 def plot_speedup_boxplot_filtered(ax, data, min_time=0.01):
     num_thread_configs = len(data[0][1])
-    speedups_per_thread = {f'{2**i} Threads': [] for i in range(1, num_thread_configs)}
+    speedups_per_thread = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
 
     for name, times in data:
         if times[0] >= min_time and all(t >= min_time for t in times):  # Bedingung: Laufzeit mindestens 0.1 s für alle Konfigurationen
@@ -174,7 +175,7 @@ def plot_speedup_boxplot_filtered(ax, data, min_time=0.01):
                     if (speedup > 2 ** (i + 1)): # filter speedups
                         continue
                     else:
-                        speedups_per_thread[f'{2**i} Threads'].append(speedup)
+                        speedups_per_thread[f'{indexToThreads(i)} Threads'].append(speedup)
 
     # Sammle die Speedups in einer Liste für den Boxplot
     speedups_data = [speedups_per_thread[threads] for threads in speedups_per_thread]
@@ -195,7 +196,7 @@ def plot_boxplot_times(ax, data):
         valid_times = [times[i] for name, times in data if times[i] != float('inf')]
         times_data.append(valid_times)
     
-    ax.boxplot(times_data, tick_labels=[f'{2**i} Threads' for i in range(num_thread_configs)])
+    ax.boxplot(times_data, tick_labels=[f'{indexToThreads(i)} Threads' for i in range(num_thread_configs)])
     ax.set_xlabel('Anzahl der Threads')
     ax.set_ylabel('Laufzeiten (s)')
     ax.set_title('Verteilung der Laufzeiten')
@@ -206,7 +207,7 @@ def plot_histogram_times(ax, data):
     
     for i in range(num_thread_configs):
         valid_times = [times[i] for name, times in data if times[i] != float('inf')]
-        ax.hist(valid_times, bins=100, alpha=0.5, label=f'{2**i} Threads')  # Erhöhte Anzahl von Bins
+        ax.hist(valid_times, bins=100, alpha=0.5, label=f'{indexToThreads(i)} Threads')  # Erhöhte Anzahl von Bins
     
     ax.set_xlabel('Laufzeiten (s)')
     ax.set_ylabel('Häufigkeit')
@@ -217,14 +218,14 @@ def plot_histogram_times(ax, data):
 
 def plot_canceled_jobs(ax, data):
     num_thread_configs = len(data[0][1])
-    canceled_jobs = {f'{2**i} Threads': 0 for i in range(num_thread_configs)}
-    total_jobs = {f'{2**i} Threads': 0 for i in range(num_thread_configs)}
+    canceled_jobs = {f'{indexToThreads(i)} Threads': 0 for i in range(num_thread_configs)}
+    total_jobs = {f'{indexToThreads(i)} Threads': 0 for i in range(num_thread_configs)}
     
     for name, times in data:
         for i in range(num_thread_configs):
-            total_jobs[f'{2**i} Threads'] += 1
+            total_jobs[f'{indexToThreads(i)} Threads'] += 1
             if times[i] == float('inf'):
-                canceled_jobs[f'{2**i} Threads'] += 1
+                canceled_jobs[f'{indexToThreads(i)} Threads'] += 1
 
     # Textdarstellung der gecancelten Jobs und deren Anteil
     textstr = "Completed Jobs:\n"
@@ -245,7 +246,7 @@ def plot_cumulative_times_filtered(ax, data, min_time=0.01):
     for i in range(num_thread_configs):
         # Filtern der Laufzeiten größer als min_time
         times = np.sort([times[i] for name, times in data])
-        ax.plot(times, np.arange(1, len(times) + 1), label=f'{2**i} Threads')
+        ax.plot(times, np.arange(1, len(times) + 1), label=f'{indexToThreads(i)} Threads')
         for t in times:
             if i == 1 and  t < min_time:
                 ymin = ymin + 1
@@ -261,14 +262,14 @@ def plot_cumulative_times_filtered(ax, data, min_time=0.01):
 
 def plot_speedup_statistics_filtered(ax, data,  min_time=0.01):
     num_thread_configs = len(data[0][1])
-    speedups_per_thread = {f'{2**i} Threads': [] for i in range(1, num_thread_configs)}
+    speedups_per_thread = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
 
     for name, times in data:
         if all(time > min_time for time in times[:num_thread_configs]):
             for i in range(1, num_thread_configs):
                 if times[i] != float('inf') and times[0] != float('inf') :
                     speedup = times[0] / times[i]
-                    speedups_per_thread[f'{2**i} Threads'].append(speedup)
+                    speedups_per_thread[f'{indexToThreads(i)} Threads'].append(speedup)
 
     median_speedups = {}
     mean_speedups = {}
@@ -287,9 +288,10 @@ def plot_speedup_statistics_filtered(ax, data,  min_time=0.01):
     for threads, median in median_speedups.items():
         textstr += f"{threads}: {median:.3f}\n"
 
-    textstr += "\nArithmetisches Mittel der Speedups:\n"
-    for threads, mean in mean_speedups.items():
-        textstr += f"{threads}: {mean:.3f}\n"
+    # irrelevant
+    # textstr += "\nArithmetisches Mittel der Speedups:\n"
+    # for threads, mean in mean_speedups.items():
+    #     textstr += f"{threads}: {mean:.3f}\n"
 
     # Positioniere den Text im Subplot
     ax.text(0.1, 0.5, textstr, fontsize=12, verticalalignment='center', transform=ax.transAxes)
@@ -298,7 +300,7 @@ def plot_speedup_statistics_filtered(ax, data,  min_time=0.01):
 
 def plot_nodes_ratio_boxplot(ax, data):
     num_thread_configs = len(data[0][1])
-    node_ratios_per_thread = {f'{2**i} Threads': [] for i in range(1, num_thread_configs)}
+    node_ratios_per_thread = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
     
     for name, infos in data:
         base_nodes = infos[0][1]
@@ -308,7 +310,9 @@ def plot_nodes_ratio_boxplot(ax, data):
         for i in range(1, num_thread_configs):
             if infos[i][1] is not None:
                 node_ratio = infos[i][1] / base_nodes
-                node_ratios_per_thread[f'{2**i} Threads'].append(node_ratio)
+                # if node_ratio > 50:
+                #     continue
+                node_ratios_per_thread[f'{indexToThreads(i)} Threads'].append(node_ratio)
     
     ax.boxplot(node_ratios_per_thread.values(), labels=node_ratios_per_thread.keys())
     ax.set_xlabel('Anzahl der Threads')
@@ -332,12 +336,12 @@ def plot_speedup_vs_nodes_ratio(ax, data):
         
         if speedup_vs_nodes:
             speedups, nodes_ratios = zip(*speedup_vs_nodes)
-            ax.scatter(nodes_ratios, speedups, alpha=0.5, label=f'{2**i} Threads', s=5)
+            ax.scatter(nodes_ratios, speedups, alpha=0.5, label=f'{indexToThreads(i)} Threads', s=5)
     
     ax.set_xlabel('Verhältnis der besuchten Knoten')
     ax.set_ylabel('Speedup')
-    ax.set_xlim(0,10)
-    ax.set_ylim(0,8)
+    # ax.set_xlim(0,50)
+    # ax.set_ylim(0,8)
 
     ax.set_title('Speedup vs. Verhältnis der besuchten Knoten')
     ax.legend()
@@ -376,15 +380,44 @@ def plot_relative_array_values_per_instance(ax, data, interp_length=100):
     ax.legend()
     ax.grid(True)
 
+def plot_last_bounds_time_distribution(ax, data, num_bounds=4):
+    num_thread_configs = len(data[0][1])
+    time_ratios_per_bound = [[] for _ in range(num_bounds)]
+
+    for name, times_info in data:
+        for i in range(num_thread_configs):
+            if i != 2:
+                continue
+            time, nodes, array_values, difficulty = times_info[i]
+            if time != float('inf') and len(array_values) >= num_bounds:
+                for j in range(1, num_bounds + 1):
+                    bound_time = array_values[-j]
+                    time_ratio = bound_time / time
+                    time_ratios_per_bound[num_bounds - j].append(time_ratio)
+
+    # Creating box plots for each of the last bounds
+    ax.boxplot(time_ratios_per_bound, vert=True, patch_artist=True, 
+               boxprops=dict(facecolor='skyblue', color='blue'),
+               whiskerprops=dict(color='blue'),
+               capprops=dict(color='blue'),
+               flierprops=dict(color='blue', markeredgecolor='blue'),
+               medianprops=dict(color='red'))
+
+    ax.set_xticklabels([f'{i} Bound' for i in range(num_bounds, 0, -1)])
+    ax.set_ylabel('Prozentualer Anteil')
+    ax.set_title('Prozentualer Zeitanteil der letzten Bounds')
+    ax.grid(True)
+
 
 def plot_all_in_one(data, ComplexData, plotpath):
     fig, axs = initialize_subplots(4, 3, "Analyse der Laufzeiten und Speedups")
-    min_time = 0.1
+    min_time = 1
     plot_cumulative_times(axs[0, 0], data)
     plot_speedups(axs[1, 0], data)
     plot_speedup_statistics(axs[0, 2], data)
     plot_speedup_boxplot(axs[0, 1], data)
     # plot_boxplot_times(axs[1, 1], data)
+    plot_last_bounds_time_distribution(axs[1, 1], ComplexData)
     plot_canceled_jobs(axs[1,2], data)
     plot_cumulative_times_filtered(axs[2,0], data, min_time)
     plot_speedup_boxplot_filtered(axs[2,1], data, min_time)
@@ -397,7 +430,14 @@ def plot_all_in_one(data, ComplexData, plotpath):
 def main(filepath, plotpath):
     data = read_data_times(filepath)
     ComplexData = read_data(filepath)
+
     plot_all_in_one(data, ComplexData, plotpath)
+
+def indexToThreads(index):
+    if (index <= 4): 
+        return 2 ** index
+    
+    return 16 + 8 * (index - 4)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

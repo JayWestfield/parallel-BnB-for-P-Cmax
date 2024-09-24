@@ -1,6 +1,6 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb -DNDEBUG -funroll-loops -O3
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb  -DNDEBUG -funroll-loops -O3
 LDFLAGS = -ltbb 
 
 # Define the source and target files
@@ -12,7 +12,7 @@ TARGETEXP = dst/experiment
 FILTERALL = dst/runAllFast
 SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/test_to_filter_benchmark.cpp
 
-PROFILE_SRC = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp 
+PROFILE_SRC = src/BnB/STImplSimpl.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp  -ltcmalloc_and_profiler -lprofiler
 PROFILE_DST = dst/profiler 
 
 
@@ -20,11 +20,8 @@ PROFILE_DST = dst/profiler
 $(TARGET): $(SOURCES)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES) $(LDFLAGS)
 
-# Define a rule for running the program
-run: $(TARGET)
-	./$(TARGET)
 
-$(TARGETEXP): $(SOURCESEXP)
+$(TARGETEXP): $(SOURCESEXP) $(BASEFILES)
 	$(CXX) $(CXXFLAGS) $(BASEFILES) -o $(TARGETEXP) $(SOURCESEXP) $(LDFLAGS)
 
 exp: $(TARGETEXP)
@@ -39,21 +36,29 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py results/experiment_lawrinenko_improved_3.txt plots/improved_3.png
-	code plots/improved_3.png
-
+	python3 src/plotting/plotter.py ./results/pureInterest.txt plots/test6.png
+	code plots/test6.png
+localplot:  
+	python3 src/plotting/plotter.py o.txt plots/local2.png
+	code plots/local2.png
 plot2:
-	python3 src/plotting/compare_executions.py results/experiment_lawrinenko_base_prevO3.txt  results/experiment_lawrinenko_improved_3.txt plots/compare2.png
-	code plots/compare2.png
+	python3 src/plotting/compare_executions.py ./results/experiment_lawrinenko_test3.txt  ./results/experiment_lawrinenko_test_parallel.txt plots/compare3.png
+	code plots/compare3.png
 
-$(PROFILE_DST): $(PROFILE_SRC)
+$(PROFILE_DST): $(PROFILE_SRC) $(BASEFILES)
 	$(CXX) $(CXXFLAGS) -o $(PROFILE_DST) $(PROFILE_SRC) $(BASEFILES) $(LDFLAGS)
 
-profile: $(PROFILE_DST)
+runProfile: $(PROFILE_DST)
+	rm -f ./profiling_results/profile_*.prof
+	@./$(PROFILE_DST) $(filter-out runProfile,$(MAKECMDGOALS))
+	google-pprof --callgrind ./dst/profiler ./profiling_results/profile_*.prof > ./profiling_results/transformed_gperf.out
+	export $(dbus-launch)
+	kcachegrind ./profiling_results/transformed_gperf.out
 
 viewProfile: 
-	google-pprof --pdf  ./dst/profiler profile.prof > outputq.pdf
-	code outputq.pdf
+	google-pprof --callgrind ./dst/profiler ./profiling_results/profile_*.prof > ./profiling_results/transformed_gperf.out
+	export $(dbus-launch)
+	kcachegrind ./profiling_results/transformed_gperf.out
 # Define a clean rule to remove compiled files
 clean:
 	rm -f $(TARGET)
