@@ -121,12 +121,13 @@ struct boolWriteTrue
         computeGist2(state, job, threadLocalVector);
         auto handle = maps.get_handle();
         auto temp = handle.find(threadLocalVector);
+        int result = 0;
         if (temp != handle.end())
         {
-            return (*temp).second ? 2 : 1;
+            result =  (*temp).second ? 2 : 1;
         };
         referenceCounter--;
-        return 0;
+        return result;
         // HashMap::const_accessor acc;
         // int result = 0;
         // if (maps.find(acc, threadLocalVector))
@@ -170,7 +171,7 @@ struct boolWriteTrue
         while (referenceCounter.load() > 0)
         {
             if (test++ > 1000000)
-                std::cout << "probably stuck in an endless loop" << std::endl;
+                std::cout << "probably stuck in an endless loop"  << referenceCounter << std::endl;
             std::this_thread::yield();
             // std::cout << referenceCounter.load() << std::endl;
         }

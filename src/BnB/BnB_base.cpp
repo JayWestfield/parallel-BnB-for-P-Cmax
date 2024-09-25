@@ -90,7 +90,7 @@ public:
                                      {
                     while ( !foundOptimal && !cancel)
                         {
-                        if (getMemoryUsagePercentage() > 70)
+                        if (getMemoryUsagePercentage() > 85)
                             {
                                 double memoryUsage = getMemoryUsagePercentage();
                                 std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll. "  << ( (std::chrono::duration<double>)(std::chrono::high_resolution_clock::now() - start)).count()<< std::endl;
@@ -755,6 +755,7 @@ private:
             break;
         case 3:
             STInstance = new STImplGrowt(lastRelevantJobIndex + 1, offset, RET, numMachines);
+            break;
         default:
             STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
         }
