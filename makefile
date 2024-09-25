@@ -1,10 +1,10 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb  -DNDEBUG -funroll-loops -O3
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb  -DNDEBUG -funroll-loops -O3 -Igrowt
 LDFLAGS = -ltbb 
 
 # Define the source and target files
-BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp src/BnB/STImplSimpl.cpp  src/BnB/STImplSimplCustomLock.cpp src/BnB/threadLocal/threadLocal.cpp
+BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp src/BnB/STImplSimpl.cpp  src/BnB/STImplSimplCustomLock.cpp  src/BnB/STImplGrowt.cpp src/BnB/threadLocal/threadLocal.cpp
 SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
 TARGET = dst/parallel_solver
 SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/lawrinenko_test.cpp
@@ -36,13 +36,13 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py ./results/pureInterest.txt plots/test6.png
+	python3 src/plotting/plotter.py ./results/customLock_fixed.txt plots/test6.png
 	code plots/test6.png
 localplot:  
 	python3 src/plotting/plotter.py o.txt plots/local2.png
 	code plots/local2.png
 plot2:
-	python3 src/plotting/compare_executions.py ./results/experiment_lawrinenko_test3.txt  ./results/experiment_lawrinenko_test_parallel.txt plots/compare3.png
+	python3 src/plotting/compare_executions.py ./results/present.txt  ./results/customLock_fixed.txt plots/compare3.png
 	code plots/compare3.png
 
 $(PROFILE_DST): $(PROFILE_SRC) $(BASEFILES)
