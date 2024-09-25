@@ -13,14 +13,8 @@
 
 int main(int argc, char *argv[])
 {
-    setenv("CPUPROFILE_FREQUENCY", "1000", 1); // Set the sampling frequency to 1000 Hz
-    const char* freq = getenv("CPUPROFILE_FREQUENCY");
-    if (freq) {
-        std::cout << "CPUPROFILE_FREQUENCY is set to: " << freq << std::endl;
-    } else {
-        std::cerr << "Failed to set CPUPROFILE_FREQUENCY" << std::endl;
-        return 1;
-    }
+    setenv("CPUPROFILE_FREQUENCY", "1000", 1); // Set the sampling frequency to 1000 Hz (that somehow does not work)
+
     CALLGRIND_TOGGLE_COLLECT; // Stop collecting data
     Parser readData;
     int ThreadsToUse = std::stoi(argv[1]);

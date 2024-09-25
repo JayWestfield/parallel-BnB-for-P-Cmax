@@ -104,6 +104,10 @@ public:
         clear();
         this->offset = offset;
     }
+    void prepareBoundUpdate() override
+    {
+    }
+
     void clear() override
     {
         HashMap newMaps;

@@ -143,6 +143,9 @@ public:
 
         this->offset = offset;
     }
+        void prepareBoundUpdate() override
+    {
+    }
     void clear() override
     {
         std::vector<HashMap> newMaps(jobSize);

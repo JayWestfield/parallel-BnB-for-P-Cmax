@@ -1,5 +1,5 @@
-#ifndef ST_IMPL_Simpl_Custom_lock_H
-#define ST_IMPL_Simpl_Custom_lock_H
+#ifndef ST_IMPL_Growt_H
+#define ST_IMPL_Growt_H
 
 #include "ST.h"
 #include <tbb/tbb.h>
@@ -10,13 +10,42 @@
 #include <stdexcept>
 #include <unistd.h>
 #include <random>
-class STImplSimplCustomLock : public ST
+#include "data-structures/table_config.hpp"
+#include "allocator/alignedallocator.hpp"
+const int startSize = 200;
+class STImplGrowt : public ST
 {
 
 public:
-    using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
+struct boolWriteTrue
+{
+    using mapped_type = bool;
 
-    STImplSimplCustomLock(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size)
+    mapped_type operator()(mapped_type& lhs, const mapped_type& rhs) const
+    {
+        lhs = rhs;
+        return rhs;
+    }
+
+    // an atomic implementation can improve the performance of updates in .sGrow
+    // this will be detected automatically
+    mapped_type atomic(mapped_type& lhs, const mapped_type& rhs) const
+    {
+
+        lhs = rhs;
+        return rhs;
+    }
+
+    // Only necessary for JunctionWrapper (not needed)
+    using junction_compatible = std::true_type;
+};
+    using allocator_type = growt::AlignedAllocator<bool>;
+
+    using HashMap = typename growt::table_config<std::vector<tbb::detail::d1::numa_node_id>, bool, VectorHasher, allocator_type,
+                                                 hmod::growable, hmod::deletion>::table_type;
+    // using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
+
+    STImplGrowt(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size), maps(startSize)
     {
         initializeThreadLocalVector(vec_size + 1);
         referenceCounter = 0;
@@ -64,10 +93,12 @@ public:
             return;
         }
         computeGist2(state, job, threadLocalVector);
-        HashMap::accessor acc;
-        maps.insert(acc, threadLocalVector);
-        acc->second = true;
-        assert(acc->second == true);
+        auto handle = maps.get_handle();
+        handle.insert_or_update(threadLocalVector, true, boolWriteTrue(), true);
+        // HashMap::accessor acc;
+        // maps.insert(acc, threadLocalVector);
+        // acc->second = true;
+        // assert(acc->second == true);
         referenceCounter--;
     }
 
@@ -88,14 +119,21 @@ public:
             return 0;
         }
         computeGist2(state, job, threadLocalVector);
-        HashMap::const_accessor acc;
-        int result = 0;
-        if (maps.find(acc, threadLocalVector))
+        auto handle = maps.get_handle();
+        auto temp = handle.find(threadLocalVector);
+        if (temp != handle.end())
         {
-            result = acc->second ? 2 : 1;
-        }
+            return (*temp).second ? 2 : 1;
+        };
         referenceCounter--;
-        return result;
+        return 0;
+        // HashMap::const_accessor acc;
+        // int result = 0;
+        // if (maps.find(acc, threadLocalVector))
+        // {
+        //     result = acc->second ? 2 : 1;
+        // }
+        // return result;
     }
     // TODO addprev must return a boolena for the out of bounds check
     void addPreviously(const std::vector<int> &state, int job) override
@@ -113,9 +151,11 @@ public:
             return;
         }
         computeGist2(state, job, threadLocalVector);
-        HashMap::accessor acc;
-        if (maps.insert(acc, threadLocalVector))
-            acc->second = false;
+        auto handle = maps.get_handle();
+        handle.insert(threadLocalVector, false);
+        // HashMap::accessor acc;
+        // if (maps.insert(acc, threadLocalVector))
+        //     acc->second = false;
         logging(state, job, "add Prev");
         referenceCounter--;
     }
@@ -128,12 +168,14 @@ public:
         clearFlag = true;
         int test = 0;
         while (referenceCounter.load() > 0)
-        {   
-            if (test++ > 1000000) std::cout << "probably stuck in an endless loop" << std::endl;
+        {
+            if (test++ > 1000000)
+                std::cout << "probably stuck in an endless loop" << std::endl;
             std::this_thread::yield();
             // std::cout << referenceCounter.load() << std::endl;
         }
-        maps.clear();
+        maps = HashMap(startSize);
+        // maps.clear();
         this->offset = offset;
         clearFlag = false;
     }
@@ -143,10 +185,11 @@ public:
     }
     void clear() override
     {
-        HashMap newMaps;
-        newMaps.clear();
-        maps.swap(newMaps);
-        maps.clear();
+        maps = HashMap(startSize);
+        // HashMap newMaps;
+        // newMaps.clear();
+        // maps.swap(newMaps);
+        // maps.clear();
     }
 
     void resumeAllDelayedTasks() override
@@ -203,7 +246,9 @@ private:
         {
             // wait maybe yield etc
         }
-        maps.clear();
+        maps = HashMap(startSize);
+
+        // maps.clear();
         this->offset = offset;
         clearFlag = false;
     }

@@ -3,6 +3,7 @@
 
 #include "STImplSimpl.cpp"
 #include "STImpl.cpp"
+#include "STImplGrowt.cpp"
 #include "STImplSimplCustomLock.cpp"
 
 #include <sstream>
@@ -569,12 +570,19 @@ private:
             std::cout << "new Bound " << newBound << std::endl;
         std::unique_lock lock(boundLock, std::try_to_lock); // this one does not appear often so no need for that
         while (!lock.owns_lock()) {
-            if (newBound > upperBound.load()) return;
+            std::this_thread::yield();
+            if (newBound > upperBound.load()) return; // TODO check wether this works fine because we end an exploration path even though the bound is not yet updated
             lock.try_lock();
         }
         if (newBound > upperBound)
             return;
         const int newOffset = initialUpperBound - (newBound - 1);
+        if (gist) // it is importatnt to d othe bound update on the ST before updating the offset/upperBound, because otherwise the exist might return a false positive (i am not 100% sure why)
+        {
+            STInstance->prepareBoundUpdate();
+        }
+        upperBound.store(newBound - 1);
+        offset.store(newOffset);
         if (gist) // it is importatnt to d othe bound update on the ST before updating the offset/upperBound, because otherwise the exist might return a false positive (i am not 100% sure why)
         {
             STInstance->boundUpdate(newOffset);
@@ -745,6 +753,8 @@ private:
         case 2:
             STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
+        case 3:
+            STInstance = new STImplGrowt(lastRelevantJobIndex + 1, offset, RET, numMachines);
         default:
             STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
         }

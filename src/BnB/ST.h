@@ -61,11 +61,21 @@ struct VectorHasher
 
         return h;
     }
-    inline void hash_combine(std::size_t &s, const tbb::detail::d1::numa_node_id &v)
+    inline void hash_combine(std::size_t &s, const tbb::detail::d1::numa_node_id &v) const
     {
         s ^= hashing::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
     }
     size_t hash(const std::vector<tbb::detail::d1::numa_node_id> &vec)
+    {
+        size_t h = 17;
+        for (auto entry : vec) {
+            hash_combine(h, entry);
+        }
+        return h;
+        // since this is called very often and the vector size depends on the instance it should be possible to optimize that in a way vec.size() does not need to be called
+        //return murmur_hash64(vec);
+    }
+    size_t operator()(const std::vector<tbb::detail::d1::numa_node_id> &vec) const
     {
         size_t h = 17;
         for (auto entry : vec) {
@@ -99,6 +109,7 @@ public:
     virtual void addDelayed(const std::vector<int> &gist, int job, oneapi::tbb::task::suspend_point tag) = 0;
     virtual void resumeAllDelayedTasks() = 0;
     virtual void clear() = 0;
+    virtual void prepareBoundUpdate() = 0;
     // ob das  funktioniert?
     // static thread_local std::vector<int> threadLocalVector;
 

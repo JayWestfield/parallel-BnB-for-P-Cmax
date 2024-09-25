@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
                 tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, numThreads);
                 std::future<void> canceler;
                 int result = 0;
-                BnB_base_Impl solver(true, true, true, false, 2);
+                BnB_base_Impl solver(true, true, true, false, 3);
                 bool timerExpired = false;
                 canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx, &timerExpired, &timeout]()
                                       {
