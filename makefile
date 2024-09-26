@@ -1,10 +1,10 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb -g -ggdb  -DNDEBUG -funroll-loops -O3 -Igrowt
-LDFLAGS = -ltbb 
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb   -g -ggdb  -DNDEBUG -funroll-loops -O3 -Igrowt  -I/usr/include/folly #-I/usr/include/junction -I -Ifolly/folly -Iturf -Ijunction
+LDFLAGS = -ltbb #-lfolly
 
 # Define the source and target files
-BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp src/BnB/STImplSimpl.cpp  src/BnB/STImplSimplCustomLock.cpp  src/BnB/STImplGrowt.cpp src/BnB/threadLocal/threadLocal.cpp
+BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp  src/BnB/STImplSimplCustomLock.cpp  src/BnB/threadLocal/threadLocal.cpp
 SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
 TARGET = dst/parallel_solver
 SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/lawrinenko_test.cpp
@@ -12,7 +12,7 @@ TARGETEXP = dst/experiment
 FILTERALL = dst/runAllFast
 SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/test_to_filter_benchmark.cpp
 
-PROFILE_SRC = src/BnB/STImplSimpl.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp  -ltcmalloc_and_profiler -lprofiler
+PROFILE_SRC =  src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp  -ltcmalloc_and_profiler -lprofiler
 PROFILE_DST = dst/profiler 
 
 
@@ -36,13 +36,13 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py ./results/customLock_fixed.txt plots/test6.png
+	python3 src/plotting/plotter.py ./results/growt.txt plots/test6.png
 	code plots/test6.png
 localplot:  
 	python3 src/plotting/plotter.py o.txt plots/local2.png
 	code plots/local2.png
 plot2:
-	python3 src/plotting/compare_executions.py ./results/present.txt  ./results/customLock_fixed.txt plots/compare3.png
+	python3 src/plotting/compare_executions.py ./results/customLock_fixed.txt  ./results/growt.txt plots/compare3.png
 	code plots/compare3.png
 
 $(PROFILE_DST): $(PROFILE_SRC) $(BASEFILES)

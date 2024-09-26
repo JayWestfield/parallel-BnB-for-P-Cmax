@@ -158,7 +158,8 @@ def calculate_speedup_statistics(ax, data1, data2):
     # Initialisiere Dictionaries
     speedups = {f'{2**i} Threads': [] for i in range(len(data1[0][1]))}
     not_considered = {f'{2**i} Threads': [0, 0] for i in range(len(data1[0][1]))}
-
+    overall1 = {f'{2**i} Threads': [] for i in range(len(data1[0][1]))}
+    overall2 = {f'{2**i} Threads': [] for i in range(len(data1[0][1]))}
     # Erstelle Dictionaries für die Laufzeiten von Run 1 und Run 2
     times1_dict = {name: times for name, times in data1}
     times2_dict = {name: times for name, times in data2}
@@ -173,15 +174,26 @@ def calculate_speedup_statistics(ax, data1, data2):
         
         for i in range(0, len(times1)):
             if times1[i][0] != float('inf') and times2[i][0] != float('inf'):
-                speedup = times1[0][0] / times2[i][0]
+                speedup =  times1[i][0] / times2[i][0]
                 speedups[f'{2**i} Threads'].append(speedup)
+                overall1[f'{2**i} Threads'].append(times1[i][0])
+                overall2[f'{2**i} Threads'].append(times2[i][0])
             elif times1[i][0] == float('inf') and times2[i][0] != float('inf'):
                 not_considered[f'{2**i} Threads'][0] += 1
             elif times1[i][0] != float('inf') and times2[i][0] == float('inf'):
                 not_considered[f'{2**i} Threads'][1] += 1
     # Berechne die Speedup-Median und -Mittelwert
     median_speedups = {}
-    
+    overall_speedups = {}
+    overall_sums1 = {}
+    overall_sums2 = {}
+    for threads, values in overall1.items():
+        overall_sums1[threads] = np.sum(values)
+    for threads, values in overall2.items():
+        overall_sums2[threads] = np.sum(values)
+    for threads, values in overall_sums1.items():
+        overall_speedups[threads] = values / overall_sums2.get(threads)
+
     for threads, values in speedups.items():
         if values:
             median_speedups[threads] = np.median(values)
@@ -189,14 +201,13 @@ def calculate_speedup_statistics(ax, data1, data2):
             median_speedups[threads] = float('nan')
 
     # Textdarstellung der Ergebnisse auf der Achse
-    textstr = "Overall Speedup pro Thread:\n"
+    textstr = "Median Speedup pro Thread:\n"
     for threads, median in median_speedups.items():
-        textstr += f"{threads}: Median = {median:.3f}\n"
-    
+        textstr += f"{threads}: Median = {median:.3f}, overall = {overall_speedups.get(threads):.3f}\n"
+
     textstr += "\nNicht berücksichtigte Instanzen:\n"
     for threads, counts in not_considered.items():
         textstr += f"{threads}: Run 1 nicht berücksichtigt = {counts[0]}, Run 2 nicht berücksichtigt = {counts[1]}\n"
-
     # Positioniere den Text im Subplot
     ax.text(0.1, 0.5, textstr, fontsize=12, verticalalignment='center', transform=ax.transAxes)
     

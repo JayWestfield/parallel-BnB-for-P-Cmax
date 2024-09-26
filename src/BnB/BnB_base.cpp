@@ -1,9 +1,7 @@
 #ifndef BnB_base_Impl_H
 #define BnB_base_Impl_H
 
-#include "STImplSimpl.cpp"
 #include "STImpl.cpp"
-#include "STImplGrowt.cpp"
 #include "STImplSimplCustomLock.cpp"
 
 #include <sstream>
@@ -747,17 +745,11 @@ private:
         case 0:
             STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
-        case 1:
-            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
-            break;
         case 2:
             STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
-        case 3:
-            STInstance = new STImplGrowt(lastRelevantJobIndex + 1, offset, RET, numMachines);
-            break;
         default:
-            STInstance = new STImplSimpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
+            STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines);
         }
     }
 };

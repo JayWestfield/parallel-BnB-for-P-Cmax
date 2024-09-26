@@ -10,15 +10,25 @@
 #include <stdexcept>
 #include <unistd.h>
 #include <random>
+#include "./hashmap/IConcurrentHashMap.h"
+#include "./hashmap/TBBHashMap.cpp"
+// #include "./hashmap/FollyHashMap.cpp"
+// #include "./hashmap/JunctionHashMap.cpp"
+#include "./hashmap/GrowtHashMap.cpp"
+
+
+
+
 class STImplSimplCustomLock : public ST
 {
 
 public:
-    using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
+    // using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
 
     STImplSimplCustomLock(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size)
     {
         initializeThreadLocalVector(vec_size + 1);
+        initializeHashMap(2);
         referenceCounter = 0;
         clearFlag = false;
     }
@@ -53,7 +63,7 @@ public:
     void addGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
-        if (clearFlag)
+        if (clearFlag || skipThis(job))
             return;
         if ((state[vec_size - 1] + offset) >= maximumRETIndex)
             return;
@@ -64,10 +74,7 @@ public:
             return;
         }
         computeGist2(state, job, threadLocalVector);
-        HashMap::accessor acc;
-        maps.insert(acc, threadLocalVector);
-        acc->second = true;
-        assert(acc->second == true);
+        maps->insert(threadLocalVector, true);
         referenceCounter--;
     }
 
@@ -76,7 +83,7 @@ public:
         assert(job < jobSize);
         // if (offset != 40) return 0;
         // problem clearflag und referenceCounter zwischendrin kann ein clear kommen !!!
-        if (clearFlag)
+        if (clearFlag || skipThis(job))
             return 0;
         assert(job >= 0 && job < jobSize);
         if ((state[vec_size - 1] + offset) >= maximumRETIndex)
@@ -88,12 +95,7 @@ public:
             return 0;
         }
         computeGist2(state, job, threadLocalVector);
-        HashMap::const_accessor acc;
-        int result = 0;
-        if (maps.find(acc, threadLocalVector))
-        {
-            result = acc->second ? 2 : 1;
-        }
+        const int result = maps->find(threadLocalVector);
         referenceCounter--;
         return result;
     }
@@ -101,7 +103,7 @@ public:
     void addPreviously(const std::vector<int> &state, int job) override
     {
         assert(job >= 0 && job < jobSize);
-        if (clearFlag)
+        if (clearFlag || skipThis(job))
             return;
         if ((state[vec_size - 1] + offset) >= maximumRETIndex)
             return;
@@ -113,9 +115,7 @@ public:
             return;
         }
         computeGist2(state, job, threadLocalVector);
-        HashMap::accessor acc;
-        if (maps.insert(acc, threadLocalVector))
-            acc->second = false;
+        maps->insert(threadLocalVector, false);
         logging(state, job, "add Prev");
         referenceCounter--;
     }
@@ -133,7 +133,7 @@ public:
             std::this_thread::yield();
             // std::cout << referenceCounter.load() << std::endl;
         }
-        maps.clear();
+        maps->clear();
         this->offset = offset;
         clearFlag = false;
     }
@@ -143,10 +143,8 @@ public:
     }
     void clear() override
     {
-        HashMap newMaps;
-        newMaps.clear();
-        maps.swap(newMaps);
-        maps.clear();
+
+        maps->clear();
     }
 
     void resumeAllDelayedTasks() override
@@ -159,9 +157,29 @@ public:
 
 private:
     bool detailedLogging = false;
-    HashMap maps;
+    IConcurrentHashMap *maps;
     bool useBitmaps = false;
-
+    void initializeHashMap(int type)
+    {
+        delete maps;
+        switch (type)
+        {
+        case 0:
+            maps = new TBBHashMap();
+            break;
+        // case 1:
+        //     maps = new FollyHashMap();
+        //     break;
+        case 2:
+            maps = new GrowtHashMap();
+            break;
+        // case 3 :
+        //     maps = new JunctionHashMap();
+        //     break;
+        default:
+            maps = new TBBHashMap();
+        }
+    }
     // custom lock
     std::atomic<u_int32_t> referenceCounter;
     bool clearFlag;
@@ -179,6 +197,9 @@ private:
             return (usedMemory / totalMemory) * 100.0;
         }
         return -1.0; // Fehlerfall
+    }
+    inline bool skipThis(int depth) {
+        return false;//depth % 2 == 0;
     }
     template <typename T>
     void logging(const std::vector<int> &state, int job, T message = "")
@@ -203,7 +224,7 @@ private:
         {
             // wait maybe yield etc
         }
-        maps.clear();
+        maps->clear();
         this->offset = offset;
         clearFlag = false;
     }

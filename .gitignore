@@ -37,3 +37,8 @@ parallel_solver
 
 # VSCode
 .vscode/
+
+# profiling
+profiling_results/*
+callgrind*
+heaptrack*

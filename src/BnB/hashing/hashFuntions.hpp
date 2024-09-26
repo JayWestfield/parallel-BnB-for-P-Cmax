@@ -1,3 +1,5 @@
+#ifndef hashing_H
+#define hashing_H
 #include <cstdint>
 #include <cstdlib>
 
@@ -16,4 +18,5 @@ namespace hashing
         // x ^= x >> 33U;
         return static_cast<size_t>(x);
     }
-}
+};
+#endif
