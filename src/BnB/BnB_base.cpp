@@ -3,6 +3,8 @@
 
 #include "STImpl.cpp"
 #include "STImplSimplCustomLock.cpp"
+#include "BnB_solveSubinstances.cpp"
+#include "LowerBounds/lowerBounds_ret.cpp"
 
 #include <sstream>
 #include <stdexcept>
@@ -33,6 +35,7 @@ public:
         // reset all private variables
         numMachines = numMachine;
         jobDurations = jobDuration;
+        tbb::task_group tg;
 
         // assume sorted
         assert(std::is_sorted(jobDurations.begin(), jobDurations.end(), std::greater<int>()));
@@ -52,12 +55,18 @@ public:
             hardness = Difficulty::trivial;
             return initialUpperBound;
         }
-
+        
+        tbb::task_group tg_lower;
+        
         // irrelevance
         lastRelevantJobIndex = jobDurations.size() - 1;
         if (irrelevance)
             lastRelevantJobIndex = computeIrrelevanceIndex(lowerBound);
 
+        tg_lower.run([this]
+               { 
+                improveLowerBound((double)lastRelevantJobIndex );
+                });
         // RET
         offset = 1;
         fillRET();
@@ -77,7 +86,6 @@ public:
         lastUpdate = std::chrono::high_resolution_clock::now();
         // start Computing
         std::vector<int> initialState(numMachines, 0);
-        tbb::task_group tg;
         tg.run([this, initialState]
                { solvePartial(initialState, 0); });
         // TODO find another way to check that because
@@ -110,7 +118,7 @@ public:
                         } 
                         return; });
         tg.wait();
-        // std::cout << "info delayed: " << runWithPrev << "/" << allPrev << std::endl;
+                // std::cout << "info delayed: " << runWithPrev << "/" << allPrev << std::endl;
 
         // std::cout << "finito" << std::endl;
         mycond.notify_one();
@@ -119,6 +127,9 @@ public:
 
         if (cancel)
             return 0;
+
+        foundOptimal = true;
+
         // upper Bound is the next best bound so + 1 is the best found bound
         if (initialUpperBound == upperBound + 1)
         {
@@ -132,7 +143,61 @@ public:
         {
             hardness = Difficulty::full;
         }
+        std::cout << "finished computation" << (double)  (std::chrono::high_resolution_clock::now() - lastUpdate).count() << std::endl;
+        tg_lower.wait();
         return upperBound + 1;
+    }
+
+    void improveLowerBound(int jobSize)
+    {
+        std::cout << "solve for the largest " << jobSize << std::endl;
+
+        std::vector<int> sub(lastRelevantJobIndex);
+        for (int i = 0; i <= jobSize; i++)
+        {
+            sub[i] = jobDurations[i];
+        }
+        for (int i = jobSize + 1; i < lastRelevantJobIndex; i++)
+        {
+            sub[i] = jobDurations[lastRelevantJobIndex];
+        }
+        std::stringstream gis;
+        gis << "original" << " ";
+        for (auto vla : jobDurations)
+            gis << vla << ", ";
+        gis << " => ";
+        // for (auto vla : STInstance->computeGist(state, job))
+        //     gis << vla << " ";
+        std::cout << gis.str() << std::endl;
+        sub.resize(jobSize);
+        std::stringstream gis2;
+        gis2 << "subinstance" << " ";
+        for (auto vla : sub)
+            gis2 << vla << ", ";
+        gis2 << " => ";
+        // for (auto vla : STInstance->computeGist(state, job))
+        //     gis2 << vla << " ";
+        std::cout << gis2.str() << std::endl;
+        int solvedSubinstance = solveOptimally(sub, numMachines);
+        std::cout << "testimprov" << foundOptimal << std::endl;
+
+        if (solvedSubinstance > lowerBound)
+            lowerBound = solvedSubinstance;
+        if (lowerBound > upperBound)
+            {
+                    std::cout << "lower Bound of  " << lowerBound << " compared to Upper bOund "<< upperBound<<  std::endl;
+                foundOptimal = true;}
+        std::cout << "finished lowerBound with " << solvedSubinstance << std::endl;
+            std::cout << "lower bound Time" << (double)  (std::chrono::high_resolution_clock::now() - lastUpdate).count() << std::endl;
+    }
+
+    int solveOptimally(std::vector<int> jobs, int nummachine)
+    {
+        // TODO implement a fast single threaded version to solve this subInstance
+        std::cout << "testOPt" << foundOptimal << std::endl;
+
+        lowerBounds_ret lowerSolver(foundOptimal, cancel);
+        return lowerSolver.solve(jobs, nummachine);
     }
 
     void cleanUp()
@@ -498,7 +563,7 @@ private:
         retFlag = false;
     }
     template <typename T>
-    inline void logging(const std::vector<int> &state, int job, T message = "")
+    void logging(const std::vector<int> &state, int job, T message = "")
     {
         if (!detailedLogging)
             return;
@@ -567,9 +632,11 @@ private:
         if (logBound)
             std::cout << "new Bound " << newBound << std::endl;
         std::unique_lock lock(boundLock, std::try_to_lock); // this one does not appear often so no need for that
-        while (!lock.owns_lock()) {
+        while (!lock.owns_lock())
+        {
             std::this_thread::yield();
-            if (newBound > upperBound.load()) return; // TODO check wether this works fine because we end an exploration path even though the bound is not yet updated
+            if (newBound > upperBound.load())
+                return; // TODO check wether this works fine because we end an exploration path even though the bound is not yet updated
             lock.try_lock();
         }
         if (newBound > upperBound)
@@ -587,7 +654,7 @@ private:
         }
         upperBound.store(newBound - 1);
         offset.store(newOffset);
-        
+
         auto newTime = std::chrono::high_resolution_clock::now();
         timeFrames.push_back((std::chrono::duration<double>)(newTime - lastUpdate));
         lastUpdate = newTime;
@@ -746,10 +813,10 @@ private:
             STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
             break;
         case 2:
-            STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines);
+            STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines, 2);
             break;
         default:
-            STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines);
+            STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines, 0);
         }
     }
 };

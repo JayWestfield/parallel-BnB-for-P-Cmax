@@ -14,7 +14,7 @@
 #include "./hashmap/TBBHashMap.cpp"
 // #include "./hashmap/FollyHashMap.cpp"
 // #include "./hashmap/JunctionHashMap.cpp"
-#include "./hashmap/GrowtHashMap.cpp"
+// #include "./hashmap/GrowtHashMap.cpp"
 
 
 
@@ -25,10 +25,10 @@ class STImplSimplCustomLock : public ST
 public:
     // using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
 
-    STImplSimplCustomLock(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : ST(jobSize, offset, RET, vec_size)
+    STImplSimplCustomLock(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size, int HashmapType) : ST(jobSize, offset, RET, vec_size)
     {
         initializeThreadLocalVector(vec_size + 1);
-        initializeHashMap(2);
+        initializeHashMap(HashmapType);
         referenceCounter = 0;
         clearFlag = false;
     }
@@ -161,7 +161,6 @@ private:
     bool useBitmaps = false;
     void initializeHashMap(int type)
     {
-        delete maps;
         switch (type)
         {
         case 0:
@@ -171,8 +170,8 @@ private:
         //     maps = new FollyHashMap();
         //     break;
         case 2:
-            maps = new GrowtHashMap();
-            break;
+            // maps = new GrowtHashMap();
+            // break;
         // case 3 :
         //     maps = new JunctionHashMap();
         //     break;

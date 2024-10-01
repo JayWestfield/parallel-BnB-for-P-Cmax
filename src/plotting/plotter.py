@@ -59,7 +59,7 @@ def read_data_times(filepath):
     return data
 
 def initialize_subplots(rows, cols, title):
-    fig, axs = plt.subplots(rows, cols, figsize=(18, 12))
+    fig, axs = plt.subplots(rows, cols, figsize=(18, 30))
     fig.suptitle(title)
     return fig, axs
 
@@ -385,7 +385,7 @@ def plot_relative_array_values_per_instance(ax, data, interp_length=100):
     ax.legend()
     ax.grid(True)
 
-def plot_last_bounds_time_distribution(ax, data, num_bounds=4):
+def plot_last_bounds_time_distribution(ax, data, num_bounds=4, hardness_filter=None, time_check_func=None):
     num_thread_configs = len(data[0][1])
     time_ratios_per_bound = [[] for _ in range(num_bounds)]
 
@@ -394,6 +394,14 @@ def plot_last_bounds_time_distribution(ax, data, num_bounds=4):
             if i != 2:
                 continue
             time, nodes, array_values, difficulty = times_info[i]
+            # Apply hardness filter if provided
+            if hardness_filter is not None and difficulty not in hardness_filter:
+                continue
+            
+            # Apply time check function if provided
+            if time_check_func is not None and not time_check_func(time):
+                continue
+            
             if time != float('inf') and len(array_values) >= num_bounds:
                 for j in range(1, num_bounds + 1):
                     bound_time = array_values[-j]
@@ -414,9 +422,12 @@ def plot_last_bounds_time_distribution(ax, data, num_bounds=4):
     ax.grid(True)
 
 
+
 def plot_all_in_one(data, ComplexData, plotpath):
-    fig, axs = initialize_subplots(4, 3, "Analyse der Laufzeiten und Speedups")
+    fig, axs = initialize_subplots(7, 3, "Analyse der Laufzeiten und Speedups")
     min_time = 0.1
+    numberOfBounds = 4
+ 
     plot_cumulative_times(axs[0, 0], data)
     plot_speedups(axs[1, 0], data)
     plot_speedup_statistics(axs[0, 2], data)
@@ -430,7 +441,46 @@ def plot_all_in_one(data, ComplexData, plotpath):
     plot_nodes_ratio_boxplot(axs[3,0], ComplexData)
     plot_speedup_vs_nodes_ratio(axs[3,1], ComplexData)
     plot_relative_array_values_per_instance(axs[3,2], ComplexData)
+    # plot_relative_array_values_per_instance(axs[4,1], ComplexData)
+
+
+    # bound time plots
+    hardness_filters1 = ["lowerBoundOptimal"]
+    hardness_filters2 = ["full"]
+    hardness_filters3 = ["lowerBoundOptimal", "full"]
+
+    time_check_func1 = lambda time: time < min_time
+    time_check_func2 = lambda time: time >= min_time
+    time_check_func3 = lambda time: True
+
+    
+    axs[3, 1].text(0.5, -0.3, 'hardness_filters = ["lowerBoundOptimal"]', transform=axs[3, 1].transAxes, ha='center', va='center', fontsize=14)
+
+    # hardness_filters = ["lowerBoundOptimal"]
+    plot_last_bounds_time_distribution(axs[4, 0], ComplexData, 5, hardness_filters1, time_check_func1)
+    plot_last_bounds_time_distribution(axs[4, 1], ComplexData, 5, hardness_filters1, time_check_func2)
+    plot_last_bounds_time_distribution(axs[4, 2], ComplexData, 5, hardness_filters1, time_check_func3)
+    axs[5, 1].text(0.5, -0.3, 'hardness_filters = ["full"]', transform=axs[4, 1].transAxes, ha='center', va='center', fontsize=14)
+
+    # hardness_filters = ["full"]
+    plot_last_bounds_time_distribution(axs[5, 0], ComplexData, 5, hardness_filters2, time_check_func1)
+    plot_last_bounds_time_distribution(axs[5, 1], ComplexData, 5, hardness_filters2, time_check_func2)
+    plot_last_bounds_time_distribution(axs[5, 2], ComplexData, 5, hardness_filters2, time_check_func3)
+
+    axs[5, 1].text(0.5, -0.3, 'hardness_filters = ["lowerBoundOptimal","full"]', transform=axs[5, 1].transAxes, ha='center', va='center', fontsize=14)
+
+    # hardness_filters = ["lowerBoundOptimal", "full"]
+    plot_last_bounds_time_distribution(axs[6, 0], ComplexData, 5, hardness_filters3, time_check_func1)
+    plot_last_bounds_time_distribution(axs[6, 1], ComplexData, 5, hardness_filters3, time_check_func2)
+    plot_last_bounds_time_distribution(axs[6, 2], ComplexData, 5, hardness_filters3, time_check_func3)
+
+    # Anzeigen des Plots
+    fig.subplots_adjust(hspace=1)  # Hier den Abstand erhöhen
+    fig.tight_layout()
     save_plots(fig, plotpath)
+
+
+
     
 def main(filepath, plotpath):
     data = read_data_times(filepath)

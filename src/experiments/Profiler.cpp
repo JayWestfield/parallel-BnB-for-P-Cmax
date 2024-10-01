@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
         CALLGRIND_TOGGLE_COLLECT; // Stop collecting data
         if (result != optimalSolutions.find(instanceName)->second)
         {
-            std::cout << " error_wrong_makespan_of_" << result << " round " << i << " with nnodes " << solver.visitedNodes << std::endl;
+            std::cout << " error_wrong_makespan_of_ " << result << " instead of " << optimalSolutions.find(instanceName)->second <<  " round " << i << " with nnodes " << solver.visitedNodes << std::endl;
             return 1;
         }
         else

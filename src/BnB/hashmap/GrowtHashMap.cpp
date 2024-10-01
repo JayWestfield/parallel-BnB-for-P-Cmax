@@ -18,7 +18,7 @@ class GrowtHashMap : public IConcurrentHashMap
     using allocator_type = growt::AlignedAllocator<bool>;
 
     using HashMap = typename growt::table_config<std::vector<tbb::detail::d1::numa_node_id>, bool, VectorHasher, allocator_type,
-                                                 hmod::growable, hmod::deletion>::table_type;
+                                                 hmod::growable>::table_type;
     struct boolWriteTrue
     {
         using mapped_type = bool;
