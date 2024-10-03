@@ -8,7 +8,8 @@ def parse_difficulty(value):
         '0': 'trivial',
         '1': 'lptOpt',
         '2': 'lowerBoundOptimal',
-        '3': 'full'
+        '3': 'improvedlowerBoundOptimal',
+        '4': 'full'
     }
     return difficulty_map.get(value, 'unknown')
 

@@ -42,7 +42,8 @@ public:
         offset = 1;
         tbb::task_group firstbounds;
         firstbounds.run([&]
-                        { lowerBound = std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines); });
+                        { initialLowerBound = trivialLowerBound(); 
+                        lowerBound = initialLowerBound; });
 
         firstbounds.run([&]
                         {
@@ -55,18 +56,16 @@ public:
             hardness = Difficulty::trivial;
             return initialUpperBound;
         }
-        
+
         tbb::task_group tg_lower;
-        
+
         // irrelevance
         lastRelevantJobIndex = jobDurations.size() - 1;
         if (irrelevance)
             lastRelevantJobIndex = computeIrrelevanceIndex(lowerBound);
 
         tg_lower.run([this]
-               { 
-                improveLowerBound((double)lastRelevantJobIndex );
-                });
+                     { improveLowerBound(); });
         // RET
         offset = 1;
         fillRET();
@@ -118,7 +117,8 @@ public:
                         } 
                         return; });
         tg.wait();
-                // std::cout << "info delayed: " << runWithPrev << "/" << allPrev << std::endl;
+
+        // std::cout << "info delayed: " << runWithPrev << "/" << allPrev << std::endl;
 
         // std::cout << "finito" << std::endl;
         mycond.notify_one();
@@ -126,9 +126,13 @@ public:
         timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
 
         if (cancel)
+        {
+            tg_lower.wait();
             return 0;
+        }
 
         foundOptimal = true;
+        tg_lower.wait();
 
         // upper Bound is the next best bound so + 1 is the best found bound
         if (initialUpperBound == upperBound + 1)
@@ -137,67 +141,60 @@ public:
         }
         else if (upperBound + 1 == lowerBound)
         {
-            hardness = Difficulty::lowerBoundOptimal;
+            if (lowerBound != initialLowerBound)
+                hardness = Difficulty::lowerBoundOptimal2;
+            else
+                hardness = Difficulty::lowerBoundOptimal;
         }
         else
         {
             hardness = Difficulty::full;
         }
-        std::cout << "finished computation" << (double)  (std::chrono::high_resolution_clock::now() - lastUpdate).count() << std::endl;
-        tg_lower.wait();
         return upperBound + 1;
     }
 
-    void improveLowerBound(int jobSize)
+    void getSubInstance(std::vector<int> &sub, int jobSize)
     {
-        std::cout << "solve for the largest " << jobSize << std::endl;
-
-        std::vector<int> sub(lastRelevantJobIndex);
-        for (int i = 0; i <= jobSize; i++)
+        for (int i = 0; i < jobSize; i++)
         {
             sub[i] = jobDurations[i];
         }
-        for (int i = jobSize + 1; i < lastRelevantJobIndex; i++)
+        if (fillSubinstances)
         {
-            sub[i] = jobDurations[lastRelevantJobIndex];
-        }
-        std::stringstream gis;
-        gis << "original" << " ";
-        for (auto vla : jobDurations)
-            gis << vla << ", ";
-        gis << " => ";
-        // for (auto vla : STInstance->computeGist(state, job))
-        //     gis << vla << " ";
-        std::cout << gis.str() << std::endl;
-        sub.resize(jobSize);
-        std::stringstream gis2;
-        gis2 << "subinstance" << " ";
-        for (auto vla : sub)
-            gis2 << vla << ", ";
-        gis2 << " => ";
-        // for (auto vla : STInstance->computeGist(state, job))
-        //     gis2 << vla << " ";
-        std::cout << gis2.str() << std::endl;
-        int solvedSubinstance = solveOptimally(sub, numMachines);
-        std::cout << "testimprov" << foundOptimal << std::endl;
-
-        if (solvedSubinstance > lowerBound)
-            lowerBound = solvedSubinstance;
-        if (lowerBound > upperBound)
+            int fillSize = jobDurations[lastRelevantJobIndex];
+            for (int i = jobSize + 1; i < lastRelevantJobIndex; i++)
             {
-                    std::cout << "lower Bound of  " << lowerBound << " compared to Upper bOund "<< upperBound<<  std::endl;
-                foundOptimal = true;}
-        std::cout << "finished lowerBound with " << solvedSubinstance << std::endl;
-            std::cout << "lower bound Time" << (double)  (std::chrono::high_resolution_clock::now() - lastUpdate).count() << std::endl;
+                sub[i] = fillSize;
+            }
+        }
+        else
+        {
+            sub.resize(jobSize);
+        }
     }
-
-    int solveOptimally(std::vector<int> jobs, int nummachine)
+    void improveLowerBound()
     {
-        // TODO implement a fast single threaded version to solve this subInstance
-        std::cout << "testOPt" << foundOptimal << std::endl;
-
-        lowerBounds_ret lowerSolver(foundOptimal, cancel);
-        return lowerSolver.solve(jobs, nummachine);
+        int jobSize = (double)lastRelevantJobIndex * 0.75;
+        std::vector<int> sub(lastRelevantJobIndex);
+        while (!cancel && !foundOptimal)
+        {
+            lowerBounds_ret lowerSolver(foundOptimal, cancel);
+            getSubInstance(sub, jobSize);
+            int solvedSubinstance = lowerSolver.solve(sub, numMachines);
+            if (solvedSubinstance > lowerBound)
+                lowerBound = solvedSubinstance;
+            if (lowerBound == upperBound + 1)
+            {
+                foundOptimal = true;
+            }
+            if (lowerBound > upperBound + 1) // TODO that should be an assert
+            {
+                throw std::runtime_error("Subinstance found a lower bound " + std::to_string(lowerBound) + " that is higher than the current UpperBound " + std::to_string(upperBound));
+            }
+            jobSize += 4;
+            if (jobSize >= lastRelevantJobIndex)
+                break;
+        }
     }
 
     void cleanUp()
@@ -219,6 +216,7 @@ private:
 
     // Bounds
     std::atomic<int> upperBound;
+    int initialLowerBound;
     std::atomic<int> lowerBound;
     int initialUpperBound;
     std::mutex boundLock;
@@ -238,13 +236,18 @@ private:
 
     int lastRelevantJobIndex;
 
+    // solve Subinstances
+    bool useSubinstances = true;
+    bool fillSubinstances = false;
+    bool adaptiveSubinstances = true; // experimental for the future do sth. like depending on the variety of jobsizes do fill subinstances or not or adapt the size of the subinstance
+
     // out of interest
     std::atomic<int> runWithPrev = 0;
     std::atomic<int> allPrev = 0;
 
     // only one jobsize left
     int lastSizeJobIndex;
-    int trivialLowerBound()
+    inline int trivialLowerBound()
     {
         return std::max(std::max(jobDurations[0], jobDurations[numMachines - 1] + jobDurations[numMachines]), std::accumulate(jobDurations.begin(), jobDurations.end(), 0) / numMachines);
     }
@@ -378,6 +381,7 @@ private:
 
         logging(state, job, "after recursion");
         executeR6Delayed(repeat, state, job, tg);
+        tg.wait();
 
         if (gist)
         {
@@ -434,6 +438,9 @@ private:
                 else if (ex == 1)
                 { // of the former delayed tasks try a better order of solving
                     again.push_back(i);
+                    delete next;
+                } else {
+                    delete next;
                 }
             }
             if (again.size() == delayed.size())
@@ -460,10 +467,14 @@ private:
                 else if (ex == 1)
                 { // of the former delayed tasks try a better order of solving
                     delayed.push_back(i);
+                    delete next;    
+                } else {
+                    delete next;
                 }
             }
             again.clear();
         }
+        tg.wait();
         for (int i : delayed)
         {
             auto next = new std::vector<int>(state);
@@ -478,6 +489,7 @@ private:
                 count = 0;
             }
         }
+        tg.wait();
     }
     inline void executeBaseCase(const int endState, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, std::vector<tbb::detail::d1::numa_node_id> &repeat, tbb::detail::d1::task_group &tg, std::vector<tbb::detail::d1::numa_node_id> &delayed)
     {
@@ -499,10 +511,42 @@ private:
             logging(*next, job + 1, "child from recursion");
 
             // filter delayed / solved assignments directly before spawning the tasks
-            auto ex = STInstance->exists(*next, job + 1);
-            switch (ex)
+            if (gist)
             {
-            case 0:
+                auto ex = STInstance->exists(*next, job + 1);
+                switch (ex)
+                {
+                case 0:
+                    if (job > lastSizeJobIndex / 4)
+                    {
+
+                        tg.run([this, next, job]
+                               { solvePartial(*next, job + 1); delete next; });
+                        if (++count >= limitedTaskSpawning)
+                        {
+                            tg.wait();
+                            count = 0;
+                        }
+                    }
+                    else
+                    {
+                        tg.run([this, next, job]
+                               { solvePartial(*next, job + 1); delete next; });
+                    }
+
+                    break;
+                case 1:
+                    delete next;
+                    delayed.push_back(i);
+                    break;
+                default:
+                    delete next;
+                    continue;
+                    break;
+                }
+            }
+            else
+            {
                 if (job > lastSizeJobIndex / 4)
                 {
 
@@ -519,16 +563,6 @@ private:
                     tg.run([this, next, job]
                            { solvePartial(*next, job + 1); delete next; });
                 }
-
-                break;
-            case 1:
-                delete next;
-                delayed.push_back(i);
-                break;
-            default:
-                delete next;
-                continue;
-                break;
             }
         }
     }
@@ -809,9 +843,10 @@ private:
     {
         switch (STtype)
         {
-        case 0:
-            STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
-            break;
+            // STImpl currently not maintained
+        // case 0:
+        //     STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET, numMachines);
+        //     break;
         case 2:
             STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines, 2);
             break;

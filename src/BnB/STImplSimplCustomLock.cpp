@@ -32,7 +32,10 @@ public:
         referenceCounter = 0;
         clearFlag = false;
     }
-
+    ~STImplSimplCustomLock() {
+        if (maps != nullptr) delete maps;
+    }
+    
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         // assume the state is sorted
@@ -157,10 +160,11 @@ public:
 
 private:
     bool detailedLogging = false;
-    IConcurrentHashMap *maps;
+    IConcurrentHashMap *maps = nullptr;
     bool useBitmaps = false;
     void initializeHashMap(int type)
     {
+        if (maps != nullptr) delete maps;
         switch (type)
         {
         case 0:

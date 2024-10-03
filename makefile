@@ -1,10 +1,10 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb   -g -ggdb  -DNDEBUG -funroll-loops -O3 -Igrowt  -I/usr/include/folly #-I/usr/include/junction -I -Ifolly/folly -Iturf -Ijunction
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb   -g -ggdb  -DNDEBUG -funroll-loops -O3 # -Igrowt  #-I/usr/include/folly #-I/usr/include/junction -I -Ifolly/folly -Iturf -Ijunction
 LDFLAGS = -ltbb #-lfolly
 
 # Define the source and target files
-BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp  src/BnB/STImplSimplCustomLock.cpp  src/BnB/threadLocal/threadLocal.cpp
+BASEFILES  = src/BnB/BnB_base.cpp src/experiments/readData/readData.cpp src/BnB/STImpl.cpp  src/BnB/STImplSimplCustomLock.cpp  src/BnB/threadLocal/threadLocal.cpp src/BnB/hashmap/SingleThreadedHashMap/stdHashMap.cpp src/BnB/LowerBounds/lowerBounds_ret.cpp
 SOURCES = src/main.cpp src/BnB/BnB.cpp src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h 
 TARGET = dst/parallel_solver
 SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/lawrinenko_test.cpp
@@ -36,8 +36,8 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py ./results/growt.txt plots/test6.png
-	code plots/test6.png
+	python3 src/plotting/plotter.py ./results/customLock_fixed.txt plots/test6.png
+# code plots/test6.png
 localplot:  
 	python3 src/plotting/plotter.py o.txt plots/local2.png
 	code plots/local2.png

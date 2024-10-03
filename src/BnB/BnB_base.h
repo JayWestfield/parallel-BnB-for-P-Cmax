@@ -43,6 +43,10 @@ public:
          */
         lowerBoundOptimal,
         /**
+         * @brief optimal solution is found by a non trivial lower Bound
+         */
+        lowerBoundOptimal2,
+        /**
          * @brief full search is necessary to gurantee optimum
          */
         full

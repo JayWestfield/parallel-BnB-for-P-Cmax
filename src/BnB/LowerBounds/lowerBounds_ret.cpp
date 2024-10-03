@@ -1,3 +1,6 @@
+// lowerBounds_ret.h
+#pragma once
+
 #include <vector>
 #include <queue>
 #include <algorithm>
@@ -8,17 +11,23 @@
 #include "lowerBounds.h"
 #include <cassert>
 #include <sstream>
+#include "../hashmap/SingleThreadedHashMap/stdHashMap.cpp"
+#include <sys/resource.h>
 
 class lowerBounds_ret : public LowerBound_base
 {
 public:
     lowerBounds_ret(std::atomic<bool> &foundOptimal, std::atomic<bool> &cancel)
-        : LowerBound_base(foundOptimal, cancel) {}
+        : LowerBound_base(foundOptimal, cancel) {
+
+        }
 
     int solve(const std::vector<int> &jobs, int numMachine)
     {
-        this->numMachines = numMachine;
-        this->jobDurations = jobs;
+        gist = std::vector<int>(numMachine + 1);
+        ST.clear();
+        numMachines = numMachine;
+        jobDurations = jobs;
         // init();
         offset = 1;
         initialUpperBound = lPTUpperBound();
@@ -44,7 +53,8 @@ public:
 
         std::vector<int> initialState(numMachines, 0);
         solvePartial(initialState, 0);
-        if ( cancel || foundOptimal) return 0;
+        if (cancel || foundOptimal)
+            return 0;
         return upperBound + 1;
     }
     // TODO check whole file wether upper bound is the last found best solution or one below
@@ -63,6 +73,14 @@ private:
     int lastSizeJobIndex;
     int lastRelevantJobIndex;
 
+    std::vector<int> gist;
+    // ST
+    stdHashMap ST;
+
+    bool exists(const std::vector<int>& state, int job) {
+        computeGist2(state, job);
+        return ST.find(gist);
+    }
     bool solvePartial(std::vector<int> state, int job)
     {
         assert(std::is_sorted(state.begin(), state.end()));
@@ -71,13 +89,11 @@ private:
         if (foundOptimal || cancel || makespan > upperBound)
             return false;
 
-
         if (job > lastRelevantJobIndex)
         {
             if (makespan <= upperBound)
             {
-                upperBound = makespan - 1;
-                offset = initialUpperBound - upperBound;
+                updateBound(makespan);
                 return true;
             }
             else
@@ -87,6 +103,8 @@ private:
         {
             return lpt(state, job);
         }
+        if (exists(state, job)) return false;
+
 
         // Fur
         for (int i = (numMachines - 1); i >= 0; i--)
@@ -104,11 +122,13 @@ private:
                 {
                     if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
                     {
+                        addGist(state, job);
                         return true;
                     }
                 }
                 else
                 {
+                    addGist(state, job);
                     return false;
                 }
             }
@@ -149,7 +169,8 @@ private:
                 improvement = isImprove || improvement;
             }
         }
-        return true;
+        addGist(state, job);
+        return improvement;
     }
     inline int trivialLowerBound()
     {
@@ -185,7 +206,7 @@ private:
                 return 0;
             return RET[i + 1][u + jobDurations[i]];
         };
-        RET = std::vector<std::vector<int>>(lastRelevantJobIndex + 1, std::vector<int>(initialUpperBound + 1));
+        RET = std::vector<std::vector<int>>(lastRelevantJobIndex + 1, std::vector<int>(initialUpperBound + 1,0));
         for (auto u = 0; u <= initialUpperBound; u++)
         { // TODO there is some point u where everithing before is a 1 and after it is a 2 so 2 for loops could be less branches
             if (u + jobDurations[lastRelevantJobIndex] > initialUpperBound)
@@ -216,6 +237,12 @@ private:
             }
         }
     }
+    void updateBound(int foundSolution)
+    {
+        upperBound = foundSolution - 1;
+        offset = initialUpperBound - upperBound;
+        ST.clear();
+    }
     /**
      * @brief runs Lpt on the given partialassignment
      */
@@ -230,8 +257,7 @@ private:
         int makespan = *std::max_element(state.begin(), state.end());
         if (makespan <= upperBound)
         {
-            upperBound = makespan - 1;
-            offset = initialUpperBound - upperBound;
+            updateBound(makespan);
             return true;
         }
         else
@@ -295,5 +321,54 @@ private:
         //     gis << vla << " ";
         gis << " Job: " << job;
         std::cout << gis.str() << std::endl;
+    }
+
+    struct VectorHasher
+    {
+        inline void hash_combine(std::size_t &s, const tbb::detail::d1::numa_node_id &v) const
+        {
+            s ^= hashing::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+        }
+        size_t hash(const std::vector<tbb::detail::d1::numa_node_id> &vec)
+        {
+            size_t h = 17;
+            for (auto entry : vec)
+            {
+                hash_combine(h, entry);
+            }
+            return h;
+            // since this is called very often and the vector size depends on the instance it should be possible to optimize that in a way vec.size() does not need to be called
+            // return murmur_hash64(vec);
+        }
+        size_t operator()(const std::vector<tbb::detail::d1::numa_node_id> &vec) const
+        {
+            size_t h = 17;
+            for (auto entry : vec)
+            {
+                hash_combine(h, entry);
+            }
+            return h;
+            // since this is called very often and the vector size depends on the instance it should be possible to optimize that in a way vec.size() does not need to be called
+            // return murmur_hash64(vec);
+        }
+        bool equal(const std::vector<int> &a, const std::vector<int> &b) const
+        {
+            return std::equal(a.begin(), a.end(), b.begin());
+        }
+    };
+
+    void computeGist2(const std::vector<int> &state, int job)
+    {   
+        for (auto i = 0; i < numMachines; i++)
+        {   
+            assert(RET[job].size() >= state[i] + offset);
+            gist[i] = RET[job][state[i] + offset];
+        }
+        gist[numMachines] = job;
+    }
+    void addGist(const std::vector<int> &state, int job)
+    {
+        computeGist2(state, job);
+        ST.insert(gist);
     }
 };

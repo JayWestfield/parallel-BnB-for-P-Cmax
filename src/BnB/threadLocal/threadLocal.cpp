@@ -4,6 +4,6 @@
 thread_local std::vector<int> threadLocalVector;
 void initializeThreadLocalVector(int size) {
     if (threadLocalVector.size() != size ) {
-        threadLocalVector.resize(size, 0);
+        threadLocalVector.resize(size);
     }
 }
