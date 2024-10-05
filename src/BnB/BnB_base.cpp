@@ -161,11 +161,17 @@ public:
         }
         if (fillSubinstances)
         {
-            int fillSize = jobDurations[lastRelevantJobIndex];
-            for (int i = jobSize + 1; i < lastRelevantJobIndex; i++)
+            int fillTo = lastRelevantJobIndex;
+            int fillSize = jobDurations[lastRelevantJobIndex]; // TODO find a better way 
+            if (jobSize < lastRelevantJobIndex - 5) {
+                fillTo -= 5;
+                fillSize = jobDurations[fillTo];
+            }
+            for (int i = jobSize; i < fillTo; i++)
             {
                 sub[i] = fillSize;
             }
+            sub.resize(fillTo);
         }
         else
         {
@@ -174,7 +180,7 @@ public:
     }
     void improveLowerBound()
     {
-        int jobSize = (double)lastRelevantJobIndex * 0.75;
+        int jobSize = (double)lastRelevantJobIndex * 0.5; // so setzen, dass ein gewisser prozentteil des gesamtgewichtes drin ist
         std::vector<int> sub(lastRelevantJobIndex);
         while (!cancel && !foundOptimal)
         {
@@ -182,6 +188,7 @@ public:
             getSubInstance(sub, jobSize);
             int solvedSubinstance = lowerSolver.solve(sub, numMachines);
             if (solvedSubinstance > lowerBound)
+            // std::cout << "new lower bound " << solvedSubinstance << "compared to " << lowerBound << std::endl;
                 lowerBound = solvedSubinstance;
             if (lowerBound == upperBound + 1)
             {
@@ -314,7 +321,7 @@ private:
                 return;
             case 1:
                 // currently not handling this case
-                if (addPreviously && false)
+                if (addPreviously)
                 {
                     int repeated = 0;
                     while (STInstance->exists(state, job) == 1 && repeated++ < 1)
@@ -327,7 +334,8 @@ private:
                         }
                         tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
                                            {
-  
+                                            // STInstance->addDelayed)=
+                                            // std::cout << "delayed" << std::endl;
                                                    tbb::task::resume(tag);
                                                return; });
                         logging(state, job, "restarted");
