@@ -107,6 +107,69 @@ def plot_speedups(ax, data):
     ax.legend()
     ax.grid(True)
 
+def plot_weak_scaling(ax, data):
+    num_thread_configs = len(data[0][1])
+    all_single_thread_times = [times[0] for name, times in data if times[0] != float('inf')]
+    time_thresholds = np.linspace(min(all_single_thread_times), max(all_single_thread_times), 100)
+    
+    for i in range(1, num_thread_configs):
+        speedups = []
+        for threshold in time_thresholds:
+            filtered_speedups = [
+                times[0] / times[i]
+                for name, times in data
+                if times[0] >= threshold and times[i] != float('inf') and times[0] != float('inf') 
+            ]
+            if filtered_speedups:
+                median_speedup = np.median(filtered_speedups)
+                speedups.append(median_speedup)
+            else:
+                speedups.append(np.nan)  # For cases where no instances meet the threshold
+        
+        ax.plot(time_thresholds, speedups, label=f'{indexToThreads(i)} Threads')
+    
+    ax.set_xlabel('Laufzeit in Single-Threaded-Konfiguration (s)')
+    ax.set_ylabel('Median Speedup')
+    ax.set_title('Weak Scaling')
+    ax.legend()
+    ax.grid(True)
+
+def plot_weak_scaling_with_uncertainty(ax, data):
+    num_thread_configs = len(data[0][1])
+    all_single_thread_times = [times[0] for name, times in data if times[0] != float('inf')]
+    time_thresholds = np.linspace(min(all_single_thread_times), max(all_single_thread_times), 100)
+    
+    for i in range(1, num_thread_configs):
+        medians = []
+        lower_quartiles = []
+        upper_quartiles = []
+        mins = []
+        maxs = []
+        
+        for threshold in time_thresholds:
+            filtered_speedups = [
+                times[0] / times[i]
+                for name, times in data
+                if times[0] >= threshold and times[i] != float('inf') and times[0] != float('inf') 
+            ]
+            if filtered_speedups:
+                medians.append(np.median(filtered_speedups))
+                lower_quartiles.append(np.percentile(filtered_speedups, 25))
+                upper_quartiles.append(np.percentile(filtered_speedups, 75))
+            else:
+                medians.append(np.nan)
+                lower_quartiles.append(np.nan)
+                upper_quartiles.append(np.nan)
+        
+        ax.plot(time_thresholds, medians, label=f'{indexToThreads(i)} Threads')
+        ax.fill_between(time_thresholds, lower_quartiles, upper_quartiles, alpha=0.2)
+    
+    ax.set_xlabel('Laufzeit in Single-Threaded-Konfiguration (s)')
+    ax.set_ylabel('Median Speedup')
+    ax.set_title('Weak Scaling mit Unsicherheiten')
+    ax.legend()
+    ax.grid(True)
+
 def plot_speedup_statistics(ax, data):
     num_thread_configs = len(data[0][1])
     speedups_per_thread = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
@@ -174,7 +237,7 @@ def plot_speedup_boxplot_filtered(ax, data, min_time=0.01):
     speedups_per_thread = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
 
     for name, times in data:
-        if times[0] >= min_time and all(t >= min_time for t in times):  # Bedingung: Laufzeit mindestens 0.1 s für alle Konfigurationen
+        if times[0] >= min_time:
             for i in range(1, num_thread_configs):
                 if times[i] != float('inf'):
                     speedup = times[0] / times[i]
@@ -271,7 +334,7 @@ def plot_speedup_statistics_filtered(ax, data,  min_time=0.01):
     speedups_per_thread = {f'{indexToThreads(i)} Threads': [] for i in range(1, num_thread_configs)}
 
     for name, times in data:
-        if all(time > min_time for time in times[:num_thread_configs]):
+        if times[0] > min_time:
             for i in range(1, num_thread_configs):
                 if times[i] != float('inf') and times[0] != float('inf') :
                     speedup = times[0] / times[i]
@@ -425,16 +488,16 @@ def plot_last_bounds_time_distribution(ax, data, num_bounds=4, hardness_filter=N
 
 
 def plot_all_in_one(data, ComplexData, plotpath):
-    fig, axs = initialize_subplots(7, 3, "Analyse der Laufzeiten und Speedups")
-    min_time = 0.1
+    fig, axs = initialize_subplots(8, 3, "Analyse der Laufzeiten und Speedups")
+    min_time = 1
     numberOfBounds = 4
- 
+    
     plot_cumulative_times(axs[0, 0], data)
-    plot_speedups(axs[1, 0], data)
+    plot_weak_scaling_with_uncertainty(axs[1, 0], data)
     plot_speedup_statistics(axs[0, 2], data)
     plot_speedup_boxplot(axs[0, 1], data)
     # plot_boxplot_times(axs[1, 1], data)
-    plot_last_bounds_time_distribution(axs[1, 1], ComplexData)
+    plot_weak_scaling(axs[1, 1], data)
     plot_canceled_jobs(axs[1,2], data)
     plot_cumulative_times_filtered(axs[2,0], data, min_time)
     plot_speedup_boxplot_filtered(axs[2,1], data, min_time)
@@ -447,8 +510,9 @@ def plot_all_in_one(data, ComplexData, plotpath):
 
     # bound time plots
     hardness_filters1 = ["lowerBoundOptimal"]
-    hardness_filters2 = ["full"]
-    hardness_filters3 = ["lowerBoundOptimal", "full"]
+    hardness_filters2 = ["improvedlowerBoundOptimal"]
+    hardness_filters3 = ["full"]
+    hardness_filters4 = None
 
     time_check_func1 = lambda time: time < min_time
     time_check_func2 = lambda time: time >= min_time
@@ -461,19 +525,25 @@ def plot_all_in_one(data, ComplexData, plotpath):
     plot_last_bounds_time_distribution(axs[4, 0], ComplexData, 5, hardness_filters1, time_check_func1)
     plot_last_bounds_time_distribution(axs[4, 1], ComplexData, 5, hardness_filters1, time_check_func2)
     plot_last_bounds_time_distribution(axs[4, 2], ComplexData, 5, hardness_filters1, time_check_func3)
-    axs[5, 1].text(0.5, -0.3, 'hardness_filters = ["full"]', transform=axs[4, 1].transAxes, ha='center', va='center', fontsize=14)
+    axs[4, 1].text(0.5, -0.3, 'hardness_filters = ["improvedlowerBoundOptimal"]', transform=axs[4, 1].transAxes, ha='center', va='center', fontsize=14)
 
-    # hardness_filters = ["full"]
+    # hardness_filters = ["improvedlowerBoundOptimal"]
     plot_last_bounds_time_distribution(axs[5, 0], ComplexData, 5, hardness_filters2, time_check_func1)
     plot_last_bounds_time_distribution(axs[5, 1], ComplexData, 5, hardness_filters2, time_check_func2)
     plot_last_bounds_time_distribution(axs[5, 2], ComplexData, 5, hardness_filters2, time_check_func3)
+    axs[5, 1].text(0.5, -0.3, 'hardness_filters = ["full"]', transform=axs[5, 1].transAxes, ha='center', va='center', fontsize=14)
 
-    axs[5, 1].text(0.5, -0.3, 'hardness_filters = ["lowerBoundOptimal","full"]', transform=axs[5, 1].transAxes, ha='center', va='center', fontsize=14)
-
-    # hardness_filters = ["lowerBoundOptimal", "full"]
+    # hardness_filters = ["full"]
     plot_last_bounds_time_distribution(axs[6, 0], ComplexData, 5, hardness_filters3, time_check_func1)
     plot_last_bounds_time_distribution(axs[6, 1], ComplexData, 5, hardness_filters3, time_check_func2)
     plot_last_bounds_time_distribution(axs[6, 2], ComplexData, 5, hardness_filters3, time_check_func3)
+
+    axs[6, 1].text(0.5, -0.3, 'hardness_filters = None', transform=axs[6, 1].transAxes, ha='center', va='center', fontsize=14)
+
+    # hardness_filters = ["lowerBoundOptimal", "full"]
+    plot_last_bounds_time_distribution(axs[7, 0], ComplexData, 5, hardness_filters3, time_check_func1)
+    plot_last_bounds_time_distribution(axs[7, 1], ComplexData, 5, hardness_filters3, time_check_func2)
+    plot_last_bounds_time_distribution(axs[7, 2], ComplexData, 5, hardness_filters3, time_check_func3)
 
     # Anzeigen des Plots
     fig.subplots_adjust(hspace=1)  # Hier den Abstand erhöhen
@@ -481,7 +551,44 @@ def plot_all_in_one(data, ComplexData, plotpath):
     save_plots(fig, plotpath)
 
 
-
+fake_data = [
+    ("instance_0", [(15, 500, [1, 2, 2, 2, 12], 0), (10, 600, [1, 1, 2, 2, 8], 1)]),
+    ("instance_1", [(20, 450, [1, 3, 3, 2, 16], 2), (18, 550, [2, 2, 2, 2, 14], 0)]),
+    ("instance_2", [(25, 400, [2, 2, 2, 3, 20], 1), (22, 650, [2, 1, 2, 2, 17], 2)]),
+    ("instance_3", [(30, 470, [3, 2, 2, 3, 24], 3), (28, 520, [2, 2, 2, 3, 22], 1)]),
+    ("instance_4", [(12, 520, [1, 1, 2, 1, 10], 0), (14, 610, [1, 1, 2, 1, 12], 0)]),
+    ("instance_5", [(18, 510, [1, 1, 2, 2, 14], 1), (16, 480, [1, 2, 2, 1, 12], 2)]),
+    ("instance_6", [(22, 470, [2, 2, 2, 2, 18], 3), (20, 550, [1, 1, 3, 2, 16], 1)]),
+    ("instance_7", [(28, 490, [2, 2, 3, 3, 22], 0), (26, 630, [2, 1, 2, 3, 20], 2)]),
+    ("instance_8", [(25, 530, [1, 3, 3, 2, 20], 1), (23, 590, [2, 2, 2, 2, 18], 3)]),
+    ("instance_9", [(30, 500, [3, 2, 2, 3, 24], 2), (29, 540, [2, 1, 2, 3, 23], 1)]),
+    ("instance_10", [(15, 500, [1, 2, 2, 2, 12], 0), (10, 600, [1, 1, 2, 2, 8], 1)]),
+    ("instance_11", [(20, 450, [1, 3, 3, 2, 16], 2), (18, 550, [2, 2, 2, 2, 14], 0)]),
+    ("instance_12", [(25, 400, [2, 2, 2, 3, 20], 1), (22, 650, [2, 1, 2, 2, 17], 2)]),
+    ("instance_13", [(30, 470, [3, 2, 2, 3, 24], 3), (28, 520, [2, 2, 2, 3, 22], 1)]),
+    ("instance_14", [(12, 520, [1, 1, 2, 1, 10], 0), (14, 610, [1, 1, 2, 1, 12], 0)]),
+    ("instance_15", [(18, 510, [1, 1, 2, 2, 14], 1), (16, 480, [1, 2, 2, 1, 12], 2)]),
+    ("instance_16", [(22, 470, [2, 2, 2, 2, 18], 3), (20, 550, [1, 1, 3, 2, 16], 1)]),
+    ("instance_17", [(28, 490, [2, 2, 3, 3, 22], 0), (26, 630, [2, 1, 2, 3, 20], 2)]),
+    ("instance_18", [(25, 530, [1, 3, 3, 2, 20], 1), (23, 590, [2, 2, 2, 2, 18], 3)]),
+    ("instance_19", [(30, 500, [3, 2, 2, 3, 24], 2), (29, 540, [2, 1, 2, 3, 23], 1)]),
+    ("instance_20", [(15, 500, [1, 2, 2, 2, 12], 0), (10, 600, [1, 1, 2, 2, 8], 1)]),
+    ("instance_21", [(20, 450, [1, 3, 3, 2, 16], 2), (18, 550, [2, 2, 2, 2, 14], 0)]),
+    ("instance_22", [(25, 400, [2, 2, 2, 3, 20], 1), (22, 650, [2, 1, 2, 2, 17], 2)]),
+    ("instance_23", [(30, 470, [3, 2, 2, 3, 24], 3), (28, 520, [2, 2, 2, 3, 22], 1)]),
+    ("instance_24", [(12, 520, [1, 1, 2, 1, 10], 0), (14, 610, [1, 1, 2, 1, 12], 0)]),
+    ("instance_25", [(18, 510, [1, 1, 2, 2, 14], 1), (16, 480, [1, 2, 2, 1, 12], 2)]),
+    ("instance_26", [(22, 470, [2, 2, 2, 2, 18], 3), (20, 550, [1, 1, 3, 2, 16], 1)]),
+    ("instance_27", [(28, 490, [2, 2, 3, 3, 22], 0), (26, 630, [2, 1, 2, 3, 20], 2)]),
+    ("instance_28", [(25, 530, [1, 3, 3, 2, 20], 1), (23, 590, [2, 2, 2, 2, 18], 3)]),
+    ("instance_29", [(30, 500, [3, 2, 2, 3, 24], 2), (29, 540, [2, 1, 2, 3, 23], 1)]),
+    ("instance_30", [(15, 500, [1, 2, 2, 2, 12], 0), (10, 600, [1, 1, 2, 2, 8], 1)]),
+    ("instance_31", [(20, 450, [1, 3, 3, 2, 16], 2), (18, 550, [2, 2, 2, 2, 14], 0)]),
+    ("instance_32", [(25, 400, [2, 2, 2, 3, 20], 1), (22, 650, [2, 1, 2, 2, 17], 2)]),
+    ("instance_33", [(30, 470, [3, 2, 2, 3, 24], 3), (28, 520, [2, 2, 2, 3, 22], 1)]),
+    ("instance_34", [(12, 520, [1, 1, 2, 1, 10], 0), (14, 610, [1, 1, 2, 1, 12], 0)]),
+    ("instance_35", [(18, 510, [1, 1, 2, 2, 14], 1), (16, 480, [1, 2, 2, 1, 12], 2)]),
+]
     
 def main(filepath, plotpath):
     data = read_data_times(filepath)
