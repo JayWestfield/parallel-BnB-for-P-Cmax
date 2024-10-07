@@ -36,6 +36,12 @@ def read_data(filepath):
                     bound_times = list(map(float, bound_times_str.strip('{}').split(';')))
                     difficulty = parse_difficulty(difficulty_str)
                 times_info.append((time, nodes, bound_times, difficulty))
+            while len(times_info) < 4:
+                time = float('inf')
+                nodes = None
+                difficulty = None
+                bound_times = None
+                times_info.append((time, nodes, bound_times, difficulty))
             data.append((name, times_info))
     return data
 
@@ -56,6 +62,8 @@ def read_data_times(filepath):
                     times.append(float('inf'))  # Unendlich für Fehler
                 else:
                     times.append(float(entry.split(',')[0]))
+            while len(times) < 4:
+                times.append(float('inf'))  # Unendlich für canceled
             data.append((name, times))
     return data
 
@@ -489,7 +497,7 @@ def plot_last_bounds_time_distribution(ax, data, num_bounds=4, hardness_filter=N
 
 def plot_all_in_one(data, ComplexData, plotpath):
     fig, axs = initialize_subplots(8, 3, "Analyse der Laufzeiten und Speedups")
-    min_time = 1
+    min_time = 0.1
     numberOfBounds = 4
     
     plot_cumulative_times(axs[0, 0], data)

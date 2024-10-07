@@ -12,16 +12,46 @@
 #include <random>
 #include "./hashmap/IConcurrentHashMap.h"
 #include "./hashmap/TBBHashMap.cpp"
+#include "./hashmap/delayedHashMaps/stdDelayedMap.cpp"
 // #include "./hashmap/FollyHashMap.cpp"
 // #include "./hashmap/JunctionHashMap.cpp"
 // #include "./hashmap/GrowtHashMap.cpp"
 
-
-
-
 class STImplSimplCustomLock : public ST
 {
-
+struct VectorHasher
+    {
+        inline void hash_combine(std::size_t &s, const tbb::detail::d1::numa_node_id &v) const
+        {
+            s ^= hashing::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+        }
+        size_t hash(const std::vector<tbb::detail::d1::numa_node_id> &vec)
+        {
+            size_t h = 17;
+            for (auto entry : vec)
+            {
+                hash_combine(h, entry);
+            }
+            return h;
+            // since this is called very often and the vector size depends on the instance it should be possible to optimize that in a way vec.size() does not need to be called
+            // return murmur_hash64(vec);
+        }
+        size_t operator()(const std::vector<tbb::detail::d1::numa_node_id> &vec) const
+        {
+            size_t h = 17;
+            for (auto entry : vec)
+            {
+                hash_combine(h, entry);
+            }
+            return h;
+            // since this is called very often and the vector size depends on the instance it should be possible to optimize that in a way vec.size() does not need to be called
+            // return murmur_hash64(vec);
+        }
+        bool equal(const std::vector<int> &a, const std::vector<int> &b) const
+        {
+            return std::equal(a.begin(), a.end(), b.begin());
+        }
+    };
 public:
     // using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
 
@@ -32,10 +62,12 @@ public:
         referenceCounter = 0;
         clearFlag = false;
     }
-    ~STImplSimplCustomLock() {
-        if (maps != nullptr) delete maps;
+    ~STImplSimplCustomLock()
+    {
+        if (maps != nullptr)
+            delete maps;
     }
-    
+
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         // assume the state is sorted
@@ -78,6 +110,8 @@ public:
         }
         computeGist2(state, job, threadLocalVector);
         maps->insert(threadLocalVector, true);
+        // resumeGist(threadLocalVector);
+        resumeAllDelayedTasks();
         referenceCounter--;
     }
 
@@ -131,13 +165,15 @@ public:
         clearFlag = true;
         int test = 0;
         while (referenceCounter.load() > 0)
-        {   
-            if (test++ > 1000000) std::cout << "probably stuck in an endless loop" << std::endl;
+        {
+            if (test++ > 1000000)
+                std::cout << "probably stuck in an endless loop" << std::endl;
             std::this_thread::yield();
             // std::cout << referenceCounter.load() << std::endl;
         }
         maps->clear();
         this->offset = offset;
+        resumeAllDelayedTasks();
         clearFlag = false;
     }
     void prepareBoundUpdate()
@@ -152,19 +188,71 @@ public:
 
     void resumeAllDelayedTasks() override
     {
+        delayedLock.lock();
+        delayedMap.resumeAll();
+        // for (std::tuple<std::vector<int>, tbb::task::suspend_point> entry : delayedMap) {
+        //     tbb::task::resume(std::get<1>(entry));
+        // }
+        // delayedMap.clear();
+        delayedLock.unlock();
+
     }
 
-    void addDelayed(const std::vector<int> &gist, int job, tbb::task::suspend_point tag) override
+    void addDelayed(const std::vector<int> &state, int job, tbb::task::suspend_point tag) override
     {
+        assert(job < jobSize && job >= 0);
+
+        // std::cout << "add delay "  << std::endl;
+        delayedLock.lock();
+        if (clearFlag)
+        {
+            delayedLock.unlock();
+            tbb::task::resume(tag);
+            return;
+        }
+        
+        computeGist2(state, job, threadLocalVector);
+        if (maps->find(threadLocalVector) != 1){
+            tbb::task::resume(tag);
+        } else {
+            delayedMap.insert(threadLocalVector, tag);
+            // delayedMap.push_back(std::make_tuple(threadLocalVector, tag));
+        }
+        delayedLock.unlock();
+        logging(state, job, "endDelay");
     }
 
 private:
     bool detailedLogging = false;
     IConcurrentHashMap *maps = nullptr;
     bool useBitmaps = false;
+    // std::vector<std::tuple<std::vector<int>, tbb::task::suspend_point>>  delayedMap;
+    // std::unordered_map<std::vector<int>, std::vector<tbb::task::suspend_point>, VectorHasher> delayedMap;
+    HashMapWrapper delayedMap;
+    std::mutex delayedLock;
+
+    void resumeGist(std::vector<int> gist) {
+        delayedLock.lock();
+        delayedMap.resume(gist);
+        // auto const resume = delayedMap.find(gist);
+        // if (resume != delayedMap.end()) {
+        //     for (auto task : (std::get<1>(*resume))) {
+        //         tbb::task::resume(task);
+        //     }
+        // }
+        
+        // for (auto entry : delayedMap) {
+        //     if (std::get<0>(entry) == gist) {
+        //         tbb::task::resume(std::get<1>(entry));
+        //     }
+        // }
+        delayedLock.unlock();
+
+    }
     void initializeHashMap(int type)
     {
-        if (maps != nullptr) delete maps;
+        if (maps != nullptr)
+            delete maps;
         switch (type)
         {
         case 0:
@@ -201,8 +289,9 @@ private:
         }
         return -1.0; // Fehlerfall
     }
-    inline bool skipThis(int depth) {
-        return false;//depth % 2 == 0;
+    inline bool skipThis(int depth)
+    {
+        return false; // depth % 2 == 0;
     }
     template <typename T>
     void logging(const std::vector<int> &state, int job, T message = "")
@@ -231,6 +320,7 @@ private:
         this->offset = offset;
         clearFlag = false;
     }
+
 };
 
 #endif

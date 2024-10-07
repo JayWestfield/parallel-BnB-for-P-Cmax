@@ -53,6 +53,8 @@ int main(int argc, char *argv[])
         for (const auto &optimal : optimalSolutions)
             instances_to_solve.push_back(optimal.first);
     }
+
+    bool ownProcess = false;
     for (auto instanceName : instances_to_solve)
     {
         int numJobs, numMachines;
@@ -67,12 +69,16 @@ int main(int argc, char *argv[])
         std::cout << instanceName << std::flush;
         while (numThreads <= maxThreads)
         {
-            pid_t pid = fork();
-            if (pid < 0)
-            {
-                std::cerr << "Fork failed" << std::endl;
-                return 1;
+            pid_t pid = 0;
+            if (ownProcess) {
+                pid_t pid = fork();
+                if (pid < 0)
+                {
+                    std::cerr << "Fork failed" << std::endl;
+                    return 1;
+                }
             }
+
             else if (pid == 0)
             {
                 tbb::global_control global_limit(tbb::global_control::max_allowed_parallelism, numThreads);
@@ -116,7 +122,7 @@ int main(int argc, char *argv[])
                     std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count() << "," << solver.visitedNodes << "," << times << "," << (int)solver.hardness << ")" << std::flush;
                 }
                 solver.cleanUp();
-                return 0;
+                if (ownProcess) return 0;
             }
             else
             {

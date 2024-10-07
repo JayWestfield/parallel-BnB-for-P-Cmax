@@ -5,17 +5,18 @@
 #include "STImplSimplCustomLock.cpp"
 #include "BnB_solveSubinstances.cpp"
 #include "LowerBounds/lowerBounds_ret.cpp"
-
+#include <chrono>
 #include <sstream>
 #include <stdexcept>
 #include "BnB_base.h"
 #include <numeric>
 #include <tbb/tbb.h>
 #include <condition_variable>
-const int limitedTaskSpawning = 2;
+const int limitedTaskSpawning = 2000;
 class BnB_base_Impl : public BnBSolverBase
 {
 public:
+
     std::vector<std::chrono::duration<double>> timeFrames;
     std::chrono::_V2::system_clock::time_point lastUpdate;
     /**
@@ -321,7 +322,7 @@ private:
                 return;
             case 1:
                 // currently not handling this case
-                if (addPreviously)
+                if (addPreviously && job <= lastSizeJobIndex * 0.8)
                 {
                     int repeated = 0;
                     while (STInstance->exists(state, job) == 1 && repeated++ < 1)
@@ -334,9 +335,14 @@ private:
                         }
                         tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
                                            {
-                                            // STInstance->addDelayed)=
+                                            std::thread([tag]() {
+                                                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                                                tbb::task::resume(tag);
+                                            }).detach();
+                                            // STInstance->addDelayed(state, job,  tag);
                                             // std::cout << "delayed" << std::endl;
-                                                   tbb::task::resume(tag);
+                                            // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                                            //        tbb::task::resume(tag);
                                                return; });
                         logging(state, job, "restarted");
                         // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
@@ -384,6 +390,7 @@ private:
 
         logging(state, job, "wait for tasks to finish");
         tg.wait();
+        logging(state, job, "execute Delayed Tasks");
 
         executeDelayed(delayed, state, job, tg);
 
@@ -516,7 +523,6 @@ private:
 
             // std::sort(next.begin(), next.end());
             resortAfterIncrement(*next, i);
-            logging(*next, job + 1, "child from recursion");
 
             // filter delayed / solved assignments directly before spawning the tasks
             if (gist)
@@ -527,7 +533,7 @@ private:
                 case 0:
                     if (job > lastSizeJobIndex / 4)
                     {
-
+                        logging(*next, job + 1, "child from recursion");
                         tg.run([this, next, job]
                                { solvePartial(*next, job + 1); delete next; });
                         if (++count >= limitedTaskSpawning)
@@ -538,6 +544,7 @@ private:
                     }
                     else
                     {
+                        logging(*next, job + 1, "child from recursion");
                         tg.run([this, next, job]
                                { solvePartial(*next, job + 1); delete next; });
                     }
@@ -615,8 +622,8 @@ private:
         for (auto vla : state)
             gis << vla << ", ";
         gis << " => ";
-        // for (auto vla : STInstance->computeGist(state, job))
-        //     gis << vla << " ";
+        for (auto vla : STInstance->computeGist(state, job))
+            gis << vla << " ";
         gis << " Job: " << job;
         std::cout << gis.str() << std::endl;
     }
@@ -831,7 +838,7 @@ private:
     // basically insertion sort
     void resortAfterIncrement(std::vector<int> &vec, size_t index)
     {
-        logging(vec, 66, "before sort");
+        // logging(vec, 66, "before sort");
 
         assert(index < vec.size());
         int incrementedValue = vec[index];
@@ -843,7 +850,7 @@ private:
             return;
         }
         std::rotate(vec.begin() + index, vec.begin() + index + 1, vec.begin() + newPosIndex);
-        logging(vec, 66, "after sort");
+        // logging(vec, 66, "after sort");
         assert(std::is_sorted(vec.begin(), vec.end()));
     }
 

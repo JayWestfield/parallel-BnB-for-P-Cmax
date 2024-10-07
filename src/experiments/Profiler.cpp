@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
     std::unordered_map<std::string, int> optimalSolutions;
     readData.readOptimalSolutions(basePath + "/opt-known-instances-" + benchmark + ".txt", optimalSolutions);
     std::vector<std::string> instances_to_solve = {instanceName};
-    BnB_base_Impl solver(true, true, true, false, STVersion);
+    BnB_base_Impl solver(true, true, true, true, STVersion);
 
     std::condition_variable cv;
     std::mutex mtx;

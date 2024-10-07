@@ -49,3 +49,20 @@ remove timing on bounds?
 cleanup not in the timed run
 parallel start (lpt etc is sequential)
 TODO rule for the same job size (not in the end)
+normal pointer insterad of shared ones and deleting them manually
+
+Testing Ideas:
+loop unrolling (especially for compute gist) better to do it manually or ba compiler with -funroll-loops  (profiler says compiler is better)
+state another datastructure, because after increment many moves? list sould be better but pointer for ints nah better use a struct with two vectors one for the load and one that has the index of the next bigger entry (might also need one int for start or a dummy element)
+in the basecase for the ret checks and the equal checks try doing it branchless
+
+for single threaded one should disable the addPreviously because it would be dishonest to compare to a not optimized base case
+
+for later minimize the ST accesses? do not access after a specific depth etc
+
+have a deeper look at p_cmax-class6-n140-m70-minsize140-maxsize560-seed30946.txt according to profile 6 threads are much slower than 1
+
+Ideas for experiments:
+LowerBounds:
+is the fill up usefull?`maybe find out when it is usefull (depending on the instance)
+approximate the instance divide into sequences that all have the same size and then make the sequences smaller => first need to implement the rule for same job size
