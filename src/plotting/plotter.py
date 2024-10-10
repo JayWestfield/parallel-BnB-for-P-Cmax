@@ -497,7 +497,7 @@ def plot_last_bounds_time_distribution(ax, data, num_bounds=4, hardness_filter=N
 
 def plot_all_in_one(data, ComplexData, plotpath):
     fig, axs = initialize_subplots(8, 3, "Analyse der Laufzeiten und Speedups")
-    min_time = 0.1
+    min_time = 15
     numberOfBounds = 4
     
     plot_cumulative_times(axs[0, 0], data)

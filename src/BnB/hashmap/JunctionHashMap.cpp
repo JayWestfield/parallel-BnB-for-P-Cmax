@@ -12,7 +12,7 @@ class JunctionHashMap : public IConcurrentHashMap {
     typedef std::vector<int>* Key;
 
     static size_t hash(const Key& key) {
-        VectorHasher hasher;
+        hashing::VectorHasher hasher;
         return hasher(*key);
     }
 

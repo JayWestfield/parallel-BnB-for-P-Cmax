@@ -3,7 +3,6 @@
 
 #include "STImpl.cpp"
 #include "STImplSimplCustomLock.cpp"
-#include "BnB_solveSubinstances.cpp"
 #include "LowerBounds/lowerBounds_ret.cpp"
 #include <chrono>
 #include <sstream>
@@ -87,50 +86,37 @@ public:
         lastUpdate = std::chrono::high_resolution_clock::now();
         // start Computing
         std::vector<int> initialState(numMachines, 0);
+        auto start = std::chrono::high_resolution_clock::now();
         tg.run([this, initialState]
                { solvePartial(initialState, 0); });
-        // TODO find another way to check that because
         std::condition_variable mycond;
-        auto start = std::chrono::high_resolution_clock::now();
         std::mutex mtx;
-        // std::unique_lock<std::mutex> memLock(mtx);
-        std::thread monitoringThread([&]()
-                                     {
-                    while ( !foundOptimal && !cancel)
-                        {
-                        // std::cout << "trigger mem and resume " <<  foundOptimal << std::endl;
-                        // STInstance->resumeAllDelayedTasks();
-                        if (getMemoryUsagePercentage() > 85)
-                            {
-                                double memoryUsage = getMemoryUsagePercentage();
-                                std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll. "  << ( (std::chrono::duration<double>)(std::chrono::high_resolution_clock::now() - start)).count()<< std::endl;
-                                // STInstance->evictAll();
 
-                                // Überprüfe die Speicherauslastung nach evictAll
-                                std::unique_lock lock(boundLock); // Todo this can be done with CAS ( i think)
-                                STInstance->clear();
-                                // delete STInstance;
-                                // initializeST();
-                                memoryUsage = getMemoryUsagePercentage();
+        std::thread monitoringThread([&](){
+            while ( !foundOptimal && !cancel)
+                {
+                // std::cout << "trigger mem and resume " <<  foundOptimal << std::endl;
+                // STInstance->resumeAllDelayedTasks();
+                double memoryUsage = getMemoryUsagePercentage();
+                if (memoryUsage > 85)
+                    {
+                        std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll. "  << ( (std::chrono::duration<double>)(std::chrono::high_resolution_clock::now() - start)).count()<< std::endl;
+                        // STInstance->evictAll();
 
-                                std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
-                            } 
-                            // std::this_thread::sleep_for(std::chrono::seconds(5));
-                            std::unique_lock<std::mutex> condLock(mtx);
-                            mycond.wait_for( condLock, std::chrono::milliseconds(500) );
+                        std::unique_lock lock(boundLock);
+                        STInstance->clear();
 
-                            // std::unique_lock<std::mutex> condLock(mtx);
-                            // if (mycond.wait_for( condLock,  std::chrono::milliseconds(500),  [&]() {  return condLock.owns_lock();} )) {
-                            //     // return;
-                            // }
-                        } 
-                        std::cout << "end while" <<  foundOptimal << std::endl;
-                        return; });
+                        memoryUsage = getMemoryUsagePercentage();
+                        std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
+                    } 
+                    // interuptable wait
+                    std::unique_lock<std::mutex> condLock(mtx);
+                    mycond.wait_for( condLock, std::chrono::milliseconds(500));
+                } 
+            std::cout << "end while" <<  foundOptimal << std::endl;
+            return; 
+        });
         tg.wait();
-        // memLock.unlock();
-        // std::cout << "info delayed: " << runWithPrev << "/" << allPrev << std::endl;
-
-        // std::cout << "finito" << std::endl;
 
         timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
 
@@ -141,10 +127,8 @@ public:
         }
 
         foundOptimal = true;
-        std::cout << "end" << std::endl;
         mycond.notify_all();
-        monitoringThread.join();
-        tg_lower.wait();
+
 
         // upper Bound is the next best bound so + 1 is the best found bound
         if (initialUpperBound == upperBound + 1)
@@ -162,6 +146,10 @@ public:
         {
             hardness = Difficulty::full;
         }
+
+        monitoringThread.join();
+        tg_lower.wait();
+
         return upperBound + 1;
     }
 
@@ -192,7 +180,7 @@ public:
     }
     void improveLowerBound()
     {
-        int jobSize = (double)lastRelevantJobIndex * 0.5; // so setzen, dass ein gewisser prozentteil des gesamtgewichtes drin ist
+        int jobSize = (double)lastRelevantJobIndex * 0.7; // TODO so setzen, dass ein gewisser prozentteil des gesamtgewichtes drin ist
         std::vector<int> sub(lastRelevantJobIndex);
         while (!cancel && !foundOptimal)
         {
@@ -200,7 +188,6 @@ public:
             getSubInstance(sub, jobSize);
             int solvedSubinstance = lowerSolver.solve(sub, numMachines);
             if (solvedSubinstance > lowerBound)
-            // std::cout << "new lower bound " << solvedSubinstance << "compared to " << lowerBound << std::endl;
                 lowerBound = solvedSubinstance;
             if (lowerBound == upperBound + 1)
             {
@@ -216,7 +203,7 @@ public:
         }
     }
 
-    void cleanUp()
+    void cleanUp() override
     {
         reset();
         resetLocals();
@@ -244,7 +231,7 @@ private:
     std::vector<std::vector<int>> RET = {{}};
     std::atomic<int> offset;
 
-    // gist
+    // ST
     ST *STInstance = nullptr;
 
     // Logging
@@ -260,7 +247,7 @@ private:
     bool fillSubinstances = false;
     bool adaptiveSubinstances = true; // experimental for the future do sth. like depending on the variety of jobsizes do fill subinstances or not or adapt the size of the subinstance
 
-    // out of interest
+    // for logging the amount of tasks that get executed even though the gist is currently computed
     std::atomic<int> runWithPrev = 0;
     std::atomic<int> allPrev = 0;
 
@@ -298,7 +285,6 @@ private:
         }
         else if (makespan > upperBound)
             return;
-
         // 3 jobs remaining
         else if (job == lastRelevantJobIndex - 2)
         {
@@ -313,14 +299,13 @@ private:
         else if (job >= lastSizeJobIndex)
         { // Rule 5
             // TODO it should be able to do this faster (at least for many jobs with the same size) by keeping the state in a priority queu or sth like that
-            // TODO there is a contition whioch says, wether that instance can be solved
+            // TODO there is a condition which says, wether that instance can be solved that might be faster than running lpt
             std::vector<int> one = state;
             lpt(one, job);
             return;
         }
         logging(state, job, "before lookup");
 
-        // Gist Lookup
         if (gist)
         {
             int exists = STInstance->exists(state, job);
@@ -332,7 +317,6 @@ private:
                 logging(state, job, "gist found");
                 return;
             case 1:
-                // currently not handling this case
                 if (addPreviously && job <= lastSizeJobIndex * 0.8)
                 {
                     int repeated = 0;
@@ -345,18 +329,12 @@ private:
                             return;
                         }
                         tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
-                                           {
-                                            // std::thread([tag]() {
-                                            //     std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                                            //     tbb::task::resume(tag);
-                                            // }).detach();
-                                            STInstance->addDelayed(state, job,  tag);
-                                            // std::cout << "delayed" << std::endl;
-                                            // std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                                            //        tbb::task::resume(tag);
-                                               return; });
+                            {
+                                STInstance->addDelayed(state, job,  tag);
+                                return; 
+                            }
+                        );
                         logging(state, job, "restarted");
-                        // invariant a task is only resumed when the corresponding gist is added, or when the bound was updated therefore one can return if the bound has not updated since bound == upperBound || only on extended addPrev
                         if (makespan > upperBound || foundOptimal || cancel)
                         {
                             logging(state, job, "after not worth continuing");
@@ -367,7 +345,6 @@ private:
                     if (STInstance->exists(state, job) == 2)
                     {
                         logging(state, job, "after restard found");
-
                         return;
                     }
                 }
@@ -390,10 +367,14 @@ private:
 
         tbb::task_group tg;
         int endState = numMachines;
+        // index of assignments that are currently ignored by Rule 6 (same Ret entry than the previous job and can therefore be ignored)
         std::vector<int> repeat;
+
+        // index of assignments, that would lead to a gist that is already handled somewhere else
         std::vector<int> delayed;
+        // Rule 4 
         if (numMachines > lastRelevantJobIndex - job + 1)
-            endState = lastRelevantJobIndex - job + 1; // Rule 4 only usefull for more than 3 states otherwise rule 3 gets triggered
+            endState = lastRelevantJobIndex - job + 1;
 
         assert(endState <= numMachines);
         // base case
@@ -402,10 +383,8 @@ private:
         logging(state, job, "wait for tasks to finish");
         tg.wait();
         logging(state, job, "execute Delayed Tasks");
-
         executeDelayed(delayed, state, job, tg);
-
-        logging(state, job, "after recursion");
+        logging(state, job, "after Delayed Tasks");
         executeR6Delayed(repeat, state, job, tg);
         tg.wait();
 
@@ -425,7 +404,6 @@ private:
             { // Rule 6
                 auto next = new std::vector<int>(state);
                 (*next)[i] += jobDurations[job];
-                // std::sort(next.begin(), next.end());
                 resortAfterIncrement(*next, i);
                 logging(*next, job + 1, "Rule 6 from recursion");
                 tg.run([this, next, job]
@@ -433,7 +411,6 @@ private:
                        delete next; });
             }
         }
-        tg.wait();
     }
     inline void executeDelayed(std::vector<tbb::detail::d1::numa_node_id> &delayed, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, tbb::detail::d1::task_group &tg)
     {
@@ -447,9 +424,7 @@ private:
             {
                 auto next = new std::vector<int>(state);
                 (*next)[i] += jobDurations[job];
-                // std::sort(next.begin(), next.end());
                 resortAfterIncrement(*next, i);
-
                 auto ex = STInstance->exists(*next, job + 1);
                 if (ex == 0)
                 {
@@ -753,9 +728,8 @@ private:
 
         std::partial_sum(jobDurations.begin(), jobDurations.end(), sum.begin() + 1);
         int i = jobDurations.size() - 1;
-        // TODO think: do i need to update the lowerBound then aswell? no i dont think so
         while (i > 0 && sum[i] < numMachines * (lowerBound - jobDurations[i] + 1))
-        { // TODO think about that do i still need to add them in the end right?
+        { 
             i--;
         }
 
@@ -822,14 +796,7 @@ private:
             }
         }
     }
-    void remove(std::vector<std::vector<int>> vec, std::vector<int> target)
-    {
-        auto it = std::find(vec.begin(), vec.end(), target);
-        if (it != vec.end())
-        {
-            vec.erase(it);
-        }
-    }
+
     void resetLocals()
     {
         numMachines = 0;
@@ -853,10 +820,8 @@ private:
         STInstance = nullptr;
     }
     // basically insertion sort
-    void resortAfterIncrement(std::vector<int> &vec, size_t index)
+    inline void resortAfterIncrement(std::vector<int> &vec, size_t index)
     {
-        // logging(vec, 66, "before sort");
-
         assert(index < vec.size());
         int incrementedValue = vec[index];
         // since it was an increment the newPosIt can only be at the same index or after
@@ -867,7 +832,6 @@ private:
             return;
         }
         std::rotate(vec.begin() + index, vec.begin() + index + 1, vec.begin() + newPosIndex);
-        // logging(vec, 66, "after sort");
         assert(std::is_sorted(vec.begin(), vec.end()));
     }
 

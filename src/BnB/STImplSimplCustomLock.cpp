@@ -20,39 +20,6 @@
 
 class STImplSimplCustomLock : public ST
 {
-struct VectorHasher
-    {
-        inline void hash_combine(std::size_t &s, const tbb::detail::d1::numa_node_id &v) const
-        {
-            s ^= hashing::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
-        }
-        size_t hash(const std::vector<tbb::detail::d1::numa_node_id> &vec)
-        {
-            size_t h = 17;
-            for (auto entry : vec)
-            {
-                hash_combine(h, entry);
-            }
-            return h;
-            // since this is called very often and the vector size depends on the instance it should be possible to optimize that in a way vec.size() does not need to be called
-            // return murmur_hash64(vec);
-        }
-        size_t operator()(const std::vector<tbb::detail::d1::numa_node_id> &vec) const
-        {
-            size_t h = 17;
-            for (auto entry : vec)
-            {
-                hash_combine(h, entry);
-            }
-            return h;
-            // since this is called very often and the vector size depends on the instance it should be possible to optimize that in a way vec.size() does not need to be called
-            // return murmur_hash64(vec);
-        }
-        bool equal(const std::vector<int> &a, const std::vector<int> &b) const
-        {
-            return std::equal(a.begin(), a.end(), b.begin());
-        }
-    };
 public:
     // using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
 
@@ -63,12 +30,15 @@ public:
         referenceCounter = 0;
         clearFlag = false;
     }
+
     ~STImplSimplCustomLock()
     {
+        resumeAllDelayedTasks();
         if (maps != nullptr)
             delete maps;
     }
 
+    // Deprecated use ComputeGist2 instead
     std::vector<int> computeGist(const std::vector<int> &state, int job) override
     {
         // assume the state is sorted
@@ -86,23 +56,20 @@ public:
     {
         initializeThreadLocalVector(vec_size + 1);
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
-        // if ((state[vec_size - 1]+ offset) >= maximumRETIndex)
-        //     throw std::runtime_error("infeasible");
-        assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
+        assert((state.back() + offset) < maximumRETIndex);
         for (auto i = 0; i < vec_size; i++)
         {
             gist[i] = RET[job][state[i] + offset];
         }
-        gist[vec_size] = job;
+        gist[vec_size] = job; // TODO think about wether we really need the jobdepth here (can 2 partial assignments with a different depth have teh same gist and if so is that a problem?)
     }
 
     void addGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
-        if (clearFlag || skipThis(job))
+        if (clearFlag || (state[vec_size - 1] + offset) >= maximumRETIndex ||  skipThis(job))
             return;
-        if ((state[vec_size - 1] + offset) >= maximumRETIndex)
-            return;
+
         referenceCounter++;
         if (clearFlag)
         {
@@ -110,30 +77,20 @@ public:
             return;
         }
         computeGist2(state, job, threadLocalVector);
-        // resumeGist(threadLocalVector);
         maps->insert(threadLocalVector, true);
-        std::stringstream gis;
-        gis << "added gist" << " ";
-        for (auto vla : threadLocalVector)
-            gis << vla << ", ";
-        gis << std::endl;
-        std::cout << gis.str() << std::flush;
-        resumeGist(threadLocalVector);
-        // resumeAllDelayedTasks();
-        
+        logging(state,  job, "added Gist");
+        resumeGist(threadLocalVector);      
         referenceCounter--;
     }
 
     int exists(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize);
-        // if (offset != 40) return 0;
-        // problem clearflag und referenceCounter zwischendrin kann ein clear kommen !!!
-        if (clearFlag || skipThis(job))
-            return 0;
         assert(job >= 0 && job < jobSize);
-        if ((state[vec_size - 1] + offset) >= maximumRETIndex)
+
+        if (clearFlag || (state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
             return 0;
+
         referenceCounter++;
         if (clearFlag)
         {
@@ -145,7 +102,7 @@ public:
         referenceCounter--;
         return result;
     }
-    // TODO addprev must return a boolena for the out of bounds check
+
     void addPreviously(const std::vector<int> &state, int job) override
     {
         assert(job >= 0 && job < jobSize);
@@ -178,20 +135,20 @@ public:
             if (test++ > 1000000)
                 std::cout << "probably stuck in an endless loop" << std::endl;
             std::this_thread::yield();
-            // std::cout << referenceCounter.load() << std::endl;
         }
         maps->clear();
         this->offset = offset;
         resumeAllDelayedTasks();
         clearFlag = false;
     }
-    void prepareBoundUpdate()
+    void prepareBoundUpdate() override
     {
         clearFlag = true;
     }
+
     void clear() override
     {
-
+        resumeAllDelayedTasks();
         maps->clear();
     }
 
@@ -199,24 +156,17 @@ public:
     {
         delayedLock.lock();
         delayedMap.resumeAll();
-        // for (std::tuple<std::vector<int>, tbb::task::suspend_point> entry : delayedMap) {
-        //     tbb::task::resume(std::get<1>(entry));
-        // }
-        // delayedMap.clear();
         delayedLock.unlock();
-
     }
 
     void addDelayed(const std::vector<int> &state, int job, tbb::task::suspend_point tag) override
     {
         assert(job < jobSize && job >= 0);
-
-        // std::cout << "add delay "  << std::endl;
         delayedLock.lock();
         if (clearFlag)
         {
-            delayedLock.unlock();
             tbb::task::resume(tag);
+            delayedLock.unlock();
             return;
         }
         
@@ -225,52 +175,33 @@ public:
             tbb::task::resume(tag);
         } else {
             delayedMap.insert(threadLocalVector, tag);
-            // delayedMap.push_back(std::make_tuple(threadLocalVector, tag));
         }
+        // this should not be needed but just to be safe
         if (maps->find(threadLocalVector) != 1){
             delayedMap.resume(threadLocalVector);
         }
-        std::ostringstream oss;
-        oss << "check for the gists of delayed Tasks current gist ";
-        for (auto vla : threadLocalVector)
-                oss << vla << ", ";
-        oss <<  std::endl;
-        for (auto entry : delayedMap.getNonEmptyKeys()) {
-            for (auto vla : entry)
-                oss << vla << ", ";
-            oss << "exists coorekt: " <<  maps->find(entry) << std::endl;
-        }
-        std::cout << oss.str() << std::flush;
-        delayedLock.unlock();
+        logSuspendedTasks(threadLocalVector);
         logging(state, job, "endDelay");
+        delayedLock.unlock();
     }
 
 private:
     bool detailedLogging = false;
     IConcurrentHashMap *maps = nullptr;
-    bool useBitmaps = false;
-    // std::vector<std::tuple<std::vector<int>, tbb::task::suspend_point>>  delayedMap;
-    // std::unordered_map<std::vector<int>, std::vector<tbb::task::suspend_point>, VectorHasher> delayedMap;
+    bool useBitmaps = false; // currently not supported
     HashMapWrapper delayedMap;
     std::mutex delayedLock;
 
-    void resumeGist(std::vector<int> gist) {
-        delayedLock.lock();
-        delayedMap.resume(gist);
-        // auto const resume = delayedMap.find(gist);
-        // if (resume != delayedMap.end()) {
-        //     for (auto task : (std::get<1>(*resume))) {
-        //         tbb::task::resume(task);
-        //     }
-        // }
-        
-        // for (auto entry : delayedMap) {
-        //     if (std::get<0>(entry) == gist) {
-        //         tbb::task::resume(std::get<1>(entry));
-        //     }
-        // }
+    // custom shared lock
+    std::atomic<u_int32_t> referenceCounter;
+    bool clearFlag;
+
+    void logSuspendedTasks(const std::vector<int>& gist) {
+        if (!detailedLogging) {
+            return;
+        }
         std::ostringstream oss;
-        oss << "check for the gists of delayed Tasks current gist ";
+        oss << "check gists of currently suspended Tasks:";
         for (auto vla : gist)
                 oss << vla << ", ";
         oss <<  std::endl;
@@ -280,9 +211,14 @@ private:
             oss << "exists: " <<  maps->find(entry) << std::endl;
         }
         std::cout << oss.str() << std::flush;
-        delayedLock.unlock();
-
     }
+    void resumeGist(const std::vector<int>& gist) {
+        delayedLock.lock();
+        delayedMap.resume(gist);
+        logSuspendedTasks(gist);
+        delayedLock.unlock();
+    }
+    
     void initializeHashMap(int type)
     {
         if (maps != nullptr)
@@ -305,28 +241,13 @@ private:
             maps = new TBBHashMap();
         }
     }
-    // custom lock
-    std::atomic<u_int32_t> referenceCounter;
-    bool clearFlag;
-    double getMemoryUsagePercentage()
-    {
-        long totalPages = sysconf(_SC_PHYS_PAGES);
-        long availablePages = sysconf(_SC_AVPHYS_PAGES);
-        long pageSize = sysconf(_SC_PAGE_SIZE);
 
-        if (totalPages > 0)
-        {
-            long usedPages = totalPages - availablePages;
-            double usedMemory = static_cast<double>(usedPages * pageSize);
-            double totalMemory = static_cast<double>(totalPages * pageSize);
-            return (usedMemory / totalMemory) * 100.0;
-        }
-        return -1.0; // Fehlerfall
-    }
+    // experimental to not add every depth to the ST
     inline bool skipThis(int depth)
     {
         return false; // depth % 2 == 0;
     }
+
     template <typename T>
     void logging(const std::vector<int> &state, int job, T message = "")
     {
@@ -342,19 +263,6 @@ private:
         gis << " Job: " << job << "\n";
         std::cout << gis.str() << std::endl;
     }
-
-    void evictAll()
-    {
-        clearFlag = true;
-        while (referenceCounter.load() > 0)
-        {
-            // wait maybe yield etc
-        }
-        maps->clear();
-        this->offset = offset;
-        clearFlag = false;
-    }
-
 };
 
 #endif

@@ -11,7 +11,7 @@ class stdHashMap : public ISingleThreadedHashMap {
     using Key = std::vector<int>;
     using Value = bool;
 
-    std::unordered_map<Key, Value, VectorHasher> map_;
+    std::unordered_map<Key, Value, hashing::VectorHasher> map_;
 
 public:
     

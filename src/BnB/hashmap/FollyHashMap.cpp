@@ -1,13 +1,9 @@
-// FollyHashMap.h
-#pragma once
-
 #include "IConcurrentHashMap.h"
 #include <folly/concurrency/ConcurrentHashMap.h>
 #include <vector>
-#include <string>
 
 class FollyHashMap : public IConcurrentHashMap {
-    folly::ConcurrentHashMap<std::vector<int>, bool, VectorHasher> map_;
+    folly::ConcurrentHashMap<std::vector<int>, bool, hashing::VectorHasher> map_;
 
 public:
     void insert(const std::vector<int>& key, bool value) override {

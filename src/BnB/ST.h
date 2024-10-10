@@ -5,12 +5,11 @@
 #include <tbb/tbb.h>
 #include <cassert>
 #include "threadLocal/threadLocal.h"
-#include "hashing/hashFuntions.hpp"
+#include "hashing/hashing.hpp"
 
 class ST
 {
 public:
-    // Konstruktor mit Parameter int jobSize
     ST(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size) : jobSize(jobSize), offset(offset), RET(RET), vec_size(vec_size), maximumRETIndex(RET[0].size())
     {
     }
@@ -27,12 +26,10 @@ public:
     virtual void resumeAllDelayedTasks() = 0;
     virtual void clear() = 0;
     virtual void prepareBoundUpdate() = 0;
-    // ob das  funktioniert?
-    // static thread_local std::vector<int> threadLocalVector;
 
 protected:
-    int jobSize; // Member-Variable zum Speichern der jobSize
-    int offset;
+    int jobSize;
+    int offset; // no atomic because the bound Update is sequential
     const std::vector<std::vector<int>> &RET;
     std::size_t vec_size;
     int maximumRETIndex;

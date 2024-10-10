@@ -1,6 +1,3 @@
-// GrowtHashMap.h
-#pragma once
-
 #include "IConcurrentHashMap.h"
 #include <tbb/concurrent_hash_map.h>
 #include <vector>

@@ -7,7 +7,7 @@
 #include <vector>
 #include <iomanip>
 #include <future>
-
+// !!!!!!!!!!!!!!!!!!!! not maintained this is the initial Version that is just here because i might have left some comments with ideas about what to improve !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 // Constructor
 BnBSolver::BnBSolver(bool irrelevance = true, bool gist = true, bool fur = true)  {
     this->irrelevance = irrelevance;

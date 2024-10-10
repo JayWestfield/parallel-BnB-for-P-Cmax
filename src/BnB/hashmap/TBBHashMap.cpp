@@ -1,10 +1,6 @@
-// TBBHashMap.h
-#pragma once
-
 #include "IConcurrentHashMap.h"
 #include <tbb/concurrent_hash_map.h>
 #include <vector>
-#include <string>
 #include <iostream>
 
 
@@ -12,23 +8,17 @@ class TBBHashMap : public IConcurrentHashMap {
     using Key = std::vector<int>;
     using Value = bool;
 
-    tbb::concurrent_hash_map<Key, Value, VectorHasher> map_;
+    tbb::concurrent_hash_map<Key, Value, hashing::VectorHasher> map_;
 
 public:
     void insert(const Key& key, Value value) override {
-        tbb::concurrent_hash_map<Key, Value, VectorHasher>::accessor accessor;
+        tbb::concurrent_hash_map<Key, Value, hashing::VectorHasher>::accessor accessor;
         map_.insert(accessor, key);
         accessor->second |= value;
-        std::stringstream gis;
-        gis << "inserted gist" << " ";
-        for (auto vla : key)
-            gis << vla << ", ";
-        gis << std::endl;
-        std::cout << gis.str() << std::flush;
     }
 
     int find(const Key& key) override {
-        tbb::concurrent_hash_map<Key, Value, VectorHasher>::const_accessor accessor;
+        tbb::concurrent_hash_map<Key, Value, hashing::VectorHasher>::const_accessor accessor;
         if (map_.find(accessor, key)) {
             return accessor->second ? 2 : 1;
         }

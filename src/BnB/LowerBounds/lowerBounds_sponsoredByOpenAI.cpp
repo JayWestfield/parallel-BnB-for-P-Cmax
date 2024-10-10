@@ -7,6 +7,7 @@
 #include <atomic>
 #include "lowerBounds.h"
 
+// !!!! this was the first try but Chat Gpt provided a bad ( i am not even sure wether it is correct) implementation
 class lowerBounds_sponsoredByOpenAI : public LowerBound_base {
 public:
     // Constructor

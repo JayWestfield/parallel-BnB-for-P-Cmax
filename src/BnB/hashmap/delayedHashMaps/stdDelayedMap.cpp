@@ -9,7 +9,7 @@ class HashMapWrapper : public IDelayedmap {
 
 private:
     // Die zugrundeliegende Hashmap
-    std::unordered_map<std::vector<int>, std::vector<tbb::task::suspend_point>, VectorHasher> delayedMap;
+    std::unordered_map<std::vector<int>, std::vector<tbb::task::suspend_point>, hashing::VectorHasher> delayedMap;
 
 public:
     // Einfügen eines Schlüssels und eines Suspend Points

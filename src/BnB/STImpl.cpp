@@ -9,6 +9,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <unistd.h>
+// !!!!!!! this is not maintained, until the suspend works !!!!!!!!!
 struct VectorHasher
     {
         inline void hash_combine(std::size_t &s, const tbb::detail::d1::numa_node_id &v) const

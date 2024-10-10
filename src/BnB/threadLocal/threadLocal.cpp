@@ -4,6 +4,6 @@
 thread_local std::vector<int> threadLocalVector;
 void initializeThreadLocalVector(int size) {
     if (threadLocalVector.size() != size ) {
-        threadLocalVector.resize(size);
+        threadLocalVector.resize(size); // need accurate size because of the equal comparator in Vectorhasher
     }
 }
