@@ -186,7 +186,7 @@ public:
     }
 
 private:
-    bool detailedLogging = false;
+    bool detailedLogging = true;
     IConcurrentHashMap *maps = nullptr;
     bool useBitmaps = false; // currently not supported
     HashMapWrapper delayedMap;

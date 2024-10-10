@@ -101,8 +101,6 @@ public:
                 if (memoryUsage > 85)
                     {
                         std::cout << "Memory usage high: " << memoryUsage << "%. Calling evictAll. "  << ( (std::chrono::duration<double>)(std::chrono::high_resolution_clock::now() - start)).count()<< std::endl;
-                        // STInstance->evictAll();
-
                         std::unique_lock lock(boundLock);
                         STInstance->clear();
 
@@ -113,7 +111,6 @@ public:
                     std::unique_lock<std::mutex> condLock(mtx);
                     mycond.wait_for( condLock, std::chrono::milliseconds(500));
                 } 
-            std::cout << "end while" <<  foundOptimal << std::endl;
             return; 
         });
         tg.wait();
@@ -458,8 +455,7 @@ private:
                 auto ex = STInstance->exists(*next, job + 1);
                 if (ex == 0)
                 {
-                                            logging(*next, job + 1, "child from recursion");
-
+                    logging(*next, job + 1, "child from recursion");
                     tg.run([this, next, job]
                            { solvePartial(*next, job + 1); delete next; });
                     if (++count >= limitedTaskSpawning)
@@ -469,7 +465,7 @@ private:
                     }
                 }
                 else if (ex == 1)
-                { // of the former delayed tasks try a better order of solving
+                { 
                     delayed.push_back(i);
                     delete next;    
                 } else {
@@ -485,8 +481,7 @@ private:
             (*next)[i] += jobDurations[job];
             resortAfterIncrement(*next, i);
             // runWithPrev++;
-                                    logging(*next, job + 1, "child from recursion");
-
+            logging(*next, job + 1, "child from recursion");
             tg.run([this, next, job]
                    { solvePartial(*next, job + 1); delete next; });
             if (++count >= limitedTaskSpawning)
@@ -511,8 +506,6 @@ private:
             }
             auto next = new std::vector<int>(state);
             (*next)[i] += jobDurations[job];
-
-            // std::sort(next.begin(), next.end());
             resortAfterIncrement(*next, i);
 
             // filter delayed / solved assignments directly before spawning the tasks
@@ -581,14 +574,12 @@ private:
             {
                 auto next = new std::vector<int>(state);
                 assert(*next == state);
-                // when implemented carefully there is no copy needed (but we are not that far yet)
+                // might not need to copy here but carefully
                 (*next)[i] += jobDurations[job];
-                // std::sort(next.begin(), next.end());
                 resortAfterIncrement(*next, i);
 
                 solvePartial(*next, job + 1);
                 delete next;
-                // TODO check wether here is another ret lookup necessary
                 if (state[i] + jobDurations[job] <= upperBound && lookupRetFur(state[i], jobDurations[job], job))
                 {
                     if (gist)
@@ -633,7 +624,7 @@ private:
         if (i + off >= (int)RET[job].size())
             return false;
         assert(i + off < (int)RET[job].size() && initialUpperBound - j < (int)RET[job].size());
-        return RET[job][i + off] == RET[job][initialUpperBound - j]; // need to make sure that upperbound and offset are correct done with initialBound (suboptimal)
+        return RET[job][i + off] == RET[job][initialUpperBound - j];
     }
 
     /**
@@ -662,7 +653,7 @@ private:
         if (newBound == lowerBound)
         {
             foundOptimal = true;
-            STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag that should be more perfomant
+            STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag that should be more performant
         }
 
         if (logBound)
@@ -672,7 +663,7 @@ private:
             return;
         if (logBound)
             std::cout << "new Bound " << newBound << std::endl;
-        std::unique_lock lock(boundLock, std::try_to_lock); // this one does not appear often so no need for that
+        std::unique_lock lock(boundLock, std::try_to_lock); // this one does not appear often so no need to optimize that
         while (!lock.owns_lock())
         {
             std::this_thread::yield();
