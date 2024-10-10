@@ -18,7 +18,13 @@ public:
     void insert(const Key& key, Value value) override {
         tbb::concurrent_hash_map<Key, Value, VectorHasher>::accessor accessor;
         map_.insert(accessor, key);
-        accessor->second = value;
+        accessor->second |= value;
+        std::stringstream gis;
+        gis << "inserted gist" << " ";
+        for (auto vla : key)
+            gis << vla << ", ";
+        gis << std::endl;
+        std::cout << gis.str() << std::flush;
     }
 
     int find(const Key& key) override {

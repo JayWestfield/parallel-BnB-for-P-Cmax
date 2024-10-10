@@ -12,6 +12,7 @@
 #include <numeric>
 #include <tbb/tbb.h>
 #include <condition_variable>
+#include <thread>
 const int limitedTaskSpawning = 2000;
 class BnB_base_Impl : public BnBSolverBase
 {
@@ -92,10 +93,13 @@ public:
         std::condition_variable mycond;
         auto start = std::chrono::high_resolution_clock::now();
         std::mutex mtx;
+        // std::unique_lock<std::mutex> memLock(mtx);
         std::thread monitoringThread([&]()
                                      {
                     while ( !foundOptimal && !cancel)
                         {
+                        // std::cout << "trigger mem and resume " <<  foundOptimal << std::endl;
+                        // STInstance->resumeAllDelayedTasks();
                         if (getMemoryUsagePercentage() > 85)
                             {
                                 double memoryUsage = getMemoryUsagePercentage();
@@ -111,19 +115,23 @@ public:
 
                                 std::cout << "Memory usage after evictAll: " << memoryUsage << "%" << std::endl;
                             } 
+                            // std::this_thread::sleep_for(std::chrono::seconds(5));
                             std::unique_lock<std::mutex> condLock(mtx);
-                            if (mycond.wait_for( condLock,  std::chrono::milliseconds(500),  [&]() {  return condLock.owns_lock();} )) {
-                                return;
-                            }
+                            mycond.wait_for( condLock, std::chrono::milliseconds(500) );
+
+                            // std::unique_lock<std::mutex> condLock(mtx);
+                            // if (mycond.wait_for( condLock,  std::chrono::milliseconds(500),  [&]() {  return condLock.owns_lock();} )) {
+                            //     // return;
+                            // }
                         } 
+                        std::cout << "end while" <<  foundOptimal << std::endl;
                         return; });
         tg.wait();
-
+        // memLock.unlock();
         // std::cout << "info delayed: " << runWithPrev << "/" << allPrev << std::endl;
 
         // std::cout << "finito" << std::endl;
-        mycond.notify_one();
-        monitoringThread.join();
+
         timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
 
         if (cancel)
@@ -133,6 +141,9 @@ public:
         }
 
         foundOptimal = true;
+        std::cout << "end" << std::endl;
+        mycond.notify_all();
+        monitoringThread.join();
         tg_lower.wait();
 
         // upper Bound is the next best bound so + 1 is the best found bound
@@ -240,7 +251,7 @@ private:
     bool logNodes = false;
     bool logInitialBounds = false;
     bool logBound = false;
-    bool detailedLogging = false;
+    bool detailedLogging = true;
 
     int lastRelevantJobIndex;
 
@@ -335,11 +346,11 @@ private:
                         }
                         tbb::task::suspend([&](oneapi::tbb::task::suspend_point tag)
                                            {
-                                            std::thread([tag]() {
-                                                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                                                tbb::task::resume(tag);
-                                            }).detach();
-                                            // STInstance->addDelayed(state, job,  tag);
+                                            // std::thread([tag]() {
+                                            //     std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                                            //     tbb::task::resume(tag);
+                                            // }).detach();
+                                            STInstance->addDelayed(state, job,  tag);
                                             // std::cout << "delayed" << std::endl;
                                             // std::this_thread::sleep_for(std::chrono::milliseconds(10));
                                             //        tbb::task::resume(tag);
@@ -442,6 +453,7 @@ private:
                 auto ex = STInstance->exists(*next, job + 1);
                 if (ex == 0)
                 {
+
                     tg.run([this, next, job]
                            { solvePartial(*next, job + 1); delete next; });
                     if (++count >= limitedTaskSpawning)
@@ -471,6 +483,8 @@ private:
                 auto ex = STInstance->exists(*next, job + 1);
                 if (ex == 0)
                 {
+                                            logging(*next, job + 1, "child from recursion");
+
                     tg.run([this, next, job]
                            { solvePartial(*next, job + 1); delete next; });
                     if (++count >= limitedTaskSpawning)
@@ -496,6 +510,8 @@ private:
             (*next)[i] += jobDurations[job];
             resortAfterIncrement(*next, i);
             // runWithPrev++;
+                                    logging(*next, job + 1, "child from recursion");
+
             tg.run([this, next, job]
                    { solvePartial(*next, job + 1); delete next; });
             if (++count >= limitedTaskSpawning)
@@ -623,7 +639,7 @@ private:
             gis << vla << ", ";
         gis << " => ";
         for (auto vla : STInstance->computeGist(state, job))
-            gis << vla << " ";
+            gis << vla << ", ";
         gis << " Job: " << job;
         std::cout << gis.str() << std::endl;
     }
@@ -671,6 +687,7 @@ private:
         if (newBound == lowerBound)
         {
             foundOptimal = true;
+            STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag that should be more perfomant
         }
 
         if (logBound)

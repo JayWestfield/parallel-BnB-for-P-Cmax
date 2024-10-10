@@ -1,3 +1,4 @@
+#include <iostream>
 #include <unordered_map>
 #include <vector>
 #include <tbb/task.h>
@@ -14,6 +15,9 @@ public:
     // Einfügen eines Schlüssels und eines Suspend Points
     void insert(const std::vector<int>& key, tbb::task::suspend_point suspendPoint) override {
         delayedMap[key].push_back(suspendPoint);
+        // resume(key);
+                        // tbb::task::resume(suspendPoint);
+
     }
 
     // Resumieren der Suspend Points, die einem Schlüssel zugeordnet sind
@@ -29,6 +33,8 @@ public:
 
     // Resumieren aller Suspend Points und Leeren der Hashmap
     void resumeAll() override {
+        logAllTasks();
+
         for (auto& pair : delayedMap) {
             for (auto& sp : pair.second) {
                 tbb::task::resume(sp);
@@ -36,4 +42,27 @@ public:
         }
         delayedMap.clear();
     }
+    // Loggen aller Tasks in der delayedMap
+    void logAllTasks()  {
+        std::ostringstream oss;
+        for (const auto& pair : delayedMap) {
+            oss << "Key: [ ";
+            for (const auto& keyPart : pair.first) {
+                oss << keyPart << ", ";
+            }
+            oss << "] has " << pair.second.size() << " suspend points." << std::endl;
+        }
+        std::cout << oss.str();
+    }
+
+    std::vector<std::vector<int>> getNonEmptyKeys() const override {
+        std::vector<std::vector<int>> keys;
+        for (const auto& pair : delayedMap) {
+            if (!pair.second.empty()) {
+                keys.push_back(pair.first);
+            }
+        }
+        return keys;
+    }
+
 };

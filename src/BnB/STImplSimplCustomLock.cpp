@@ -2,6 +2,7 @@
 #define ST_IMPL_Simpl_Custom_lock_H
 
 #include "ST.h"
+#include <ostream>
 #include <tbb/tbb.h>
 #include <iostream>
 #include <bitset>
@@ -109,9 +110,17 @@ public:
             return;
         }
         computeGist2(state, job, threadLocalVector);
-        maps->insert(threadLocalVector, true);
         // resumeGist(threadLocalVector);
-        resumeAllDelayedTasks();
+        maps->insert(threadLocalVector, true);
+        std::stringstream gis;
+        gis << "added gist" << " ";
+        for (auto vla : threadLocalVector)
+            gis << vla << ", ";
+        gis << std::endl;
+        std::cout << gis.str() << std::flush;
+        resumeGist(threadLocalVector);
+        // resumeAllDelayedTasks();
+        
         referenceCounter--;
     }
 
@@ -218,6 +227,20 @@ public:
             delayedMap.insert(threadLocalVector, tag);
             // delayedMap.push_back(std::make_tuple(threadLocalVector, tag));
         }
+        if (maps->find(threadLocalVector) != 1){
+            delayedMap.resume(threadLocalVector);
+        }
+        std::ostringstream oss;
+        oss << "check for the gists of delayed Tasks current gist ";
+        for (auto vla : threadLocalVector)
+                oss << vla << ", ";
+        oss <<  std::endl;
+        for (auto entry : delayedMap.getNonEmptyKeys()) {
+            for (auto vla : entry)
+                oss << vla << ", ";
+            oss << "exists coorekt: " <<  maps->find(entry) << std::endl;
+        }
+        std::cout << oss.str() << std::flush;
         delayedLock.unlock();
         logging(state, job, "endDelay");
     }
@@ -246,6 +269,17 @@ private:
         //         tbb::task::resume(std::get<1>(entry));
         //     }
         // }
+        std::ostringstream oss;
+        oss << "check for the gists of delayed Tasks current gist ";
+        for (auto vla : gist)
+                oss << vla << ", ";
+        oss <<  std::endl;
+        for (auto entry : delayedMap.getNonEmptyKeys()) {
+            for (auto vla : entry)
+                oss << vla << ", ";
+            oss << "exists: " <<  maps->find(entry) << std::endl;
+        }
+        std::cout << oss.str() << std::flush;
         delayedLock.unlock();
 
     }
@@ -261,7 +295,7 @@ private:
         // case 1:
         //     maps = new FollyHashMap();
         //     break;
-        case 2:
+        // case 2:
             // maps = new GrowtHashMap();
             // break;
         // case 3 :
