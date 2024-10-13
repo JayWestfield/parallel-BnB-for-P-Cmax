@@ -6,6 +6,8 @@
 #include <tuple>
 #include <iostream>
 
+// simple not working example stores "gist" (param) and corresponding suspended points in the vector task tuples whit controlled access via shared_mutex mtx (is used like a normal mutex)
+// in this case after one resume the entry gets emptied (different than in delayed map but for this purpose should not make a difference)
 class TaskManager {
 public:
     using SuspendedTask = tbb::task::suspend_point;
