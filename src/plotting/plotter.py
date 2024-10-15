@@ -128,7 +128,7 @@ def plot_weak_scaling(ax, data):
                 for name, times in data
                 if times[0] >= threshold and times[i] != float('inf') and times[0] != float('inf') 
             ]
-            if filtered_speedups:
+            if filtered_speedups and len(filtered_speedups) > 20:
                 median_speedup = np.median(filtered_speedups)
                 speedups.append(median_speedup)
             else:
@@ -160,7 +160,7 @@ def plot_weak_scaling_with_uncertainty(ax, data):
                 for name, times in data
                 if times[0] >= threshold and times[i] != float('inf') and times[0] != float('inf') 
             ]
-            if filtered_speedups:
+            if filtered_speedups and len(filtered_speedups) > 20:
                 medians.append(np.median(filtered_speedups))
                 lower_quartiles.append(np.percentile(filtered_speedups, 25))
                 upper_quartiles.append(np.percentile(filtered_speedups, 75))
