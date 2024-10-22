@@ -4,7 +4,7 @@
 #include <vector>
 #include <tbb/tbb.h>
 #include <cassert>
-#include "threadLocal/threadLocal.h"
+#include "./threadLocal/threadLocal.h"
 #include "hashing/hashing.hpp"
 
 class ST
@@ -26,6 +26,7 @@ public:
     virtual void resumeAllDelayedTasks() = 0;
     virtual void clear() = 0;
     virtual void prepareBoundUpdate() = 0;
+    virtual void cancelExecution() = 0;
 
 protected:
     int jobSize;

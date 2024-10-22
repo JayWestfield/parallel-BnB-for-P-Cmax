@@ -4,7 +4,10 @@
 #include "STImpl.cpp"
 #include "STImplSimplCustomLock.cpp"
 #include "LowerBounds/lowerBounds_ret.cpp"
+#include <atomic>
 #include <chrono>
+#include <cstdlib>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include "BnB_base.h"
@@ -12,9 +15,13 @@
 #include <tbb/tbb.h>
 #include <condition_variable>
 #include <thread>
+#include "./customWorkStealing/TaskHolder.hpp"
+#include "threadLocal/threadLocal.h"
+
 const int limitedTaskSpawning = 2000;
-class BnB_base_Impl : public BnBSolverBase
+class BnB_base_custom_work_stealing : public BnBSolverBase
 {
+    class customTaskRunner;
 public:
 
     std::vector<std::chrono::duration<double>> timeFrames;
@@ -28,7 +35,14 @@ public:
      * @param addPreviously add the gist (with a flag) when starting to compute it
      * @param STtype specifies the STType
      */
-    BnB_base_Impl(bool irrelevance, bool fur, bool gist, bool addPreviously, int STtype, int maxAllowedParalellism = 6) : BnBSolverBase(irrelevance, fur, gist, addPreviously, STtype, maxAllowedParalellism) {}
+    BnB_base_custom_work_stealing(bool irrelevance, bool fur, bool gist, bool addPreviously, int STtype, int maxAllowedParalellism = 6) : BnBSolverBase(irrelevance, fur, gist, addPreviously, STtype, maxAllowedParalellism), workers(maxAllowedParalellism) {
+        workers.resize(maxAllowedParalellism);
+        std::cout << maxAllowedParalellism << std::endl; 
+        for (int i = 0; i < maxAllowedParalellism; i++) {
+            auto tas = std::make_unique<TaskHolder>();
+            workers[i] = std::move(tas);
+        }
+    }
     int solve(int numMachine, const std::vector<int> &jobDuration) override
     {
         reset();
@@ -67,8 +81,8 @@ public:
         if (irrelevance)
             lastRelevantJobIndex = computeIrrelevanceIndex(lowerBound);
 
-        tg_lower.run([this]
-                     { improveLowerBound(); });
+        // tg_lower.run([this]
+        //              { improveLowerBound(); });
         // RET
         offset = 1;
         fillRET();
@@ -89,8 +103,22 @@ public:
         // start Computing
         std::vector<int> initialState(numMachines, 0);
         auto start = std::chrono::high_resolution_clock::now();
-        tg.run([this, initialState]
-               { solvePartial(initialState, 0); });
+        std::vector<std::thread> threads(0);
+        threads.push_back(std::thread ([&]() { // todo here initialize size of threadLocalvector nad make it to an array
+            threadIndex = 0;
+            solvePartial(initialState, 0);
+            foundOptimal = true; // if we reach this we can signal to end computation
+        }));
+        for ( int i = 1; i < maxAllowedParalellism; i++) {
+            threads.push_back(std::thread ([&, i]() { // need to pass it especially as a reference otherwise it only takes the reference wich might be the next i because thread creation is async i assume
+                threadIndex = i; // todo here initialize size of threadLocalvector nad make it to an array
+                customTaskRunner tse(workers, *this);
+                while (!foundOptimal && !cancel) {
+                    tse.executeNextTask();  
+                }
+            }));
+        }
+
         std::condition_variable mycond;
         std::mutex mtx;
 
@@ -123,13 +151,16 @@ public:
                 } 
             return; 
         });
-        tg.wait();
+        threads[0].join();
 
         timeFrames.push_back((std::chrono::high_resolution_clock::now() - lastUpdate));
 
         if (cancel)
         {
             monitoringThread.join();
+            for(int i = 1; i < maxAllowedParalellism; i++) {
+                threads[i].join();
+            }
             tg_lower.wait();
             return 0;
         }
@@ -157,7 +188,9 @@ public:
 
         monitoringThread.join();
         tg_lower.wait();
-
+        for(int i = 1; i < maxAllowedParalellism; i++) {
+            threads[i].join();
+        }
         return upperBound + 1;
     }
 
@@ -244,6 +277,9 @@ private:
     // ST
     ST *STInstance = nullptr;
 
+    // workStealing
+    std::vector<std::unique_ptr<TaskHolder>> workers;
+
     // Logging
     bool logNodes = false;
     bool logInitialBounds = false;
@@ -275,7 +311,7 @@ private:
         if (foundOptimal || cancel){
             STInstance->addGist(state,  job);
             return;
-}
+        }
         int makespan = state[numMachines - 1];
 
         visitedNodes++;
@@ -375,7 +411,7 @@ private:
         }
         logging(state, job, "after Fur");
 
-        tbb::task_group tg;
+        customTaskRunner tg(workers, *this);
         int endState = numMachines;
         // index of assignments that are currently ignored by Rule 6 (same Ret entry than the previous job and can therefore be ignored)
         std::vector<int> repeat;
@@ -406,7 +442,7 @@ private:
         logging(state, job, "after add");
         return;
     }
-    inline void executeR6Delayed(const std::vector<tbb::detail::d1::numa_node_id> &repeat, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, tbb::detail::d1::task_group &tg)
+    inline void executeR6Delayed(const std::vector<tbb::detail::d1::numa_node_id> &repeat, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, customTaskRunner &tg)
     {
         for (int i : repeat)
         {
@@ -416,13 +452,11 @@ private:
                 (*next)[i] += jobDurations[job];
                 resortAfterIncrement(*next, i);
                 logging(*next, job + 1, "Rule 6 from recursion");
-                tg.run([this, next, job]
-                       { solvePartial(*next, job + 1);
-                       delete next; });
+                tg.run(next, job + 1);
             }
         }
     }
-    inline void executeDelayed(std::vector<tbb::detail::d1::numa_node_id> &delayed, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, tbb::detail::d1::task_group &tg)
+    inline void executeDelayed(std::vector<tbb::detail::d1::numa_node_id> &delayed, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, customTaskRunner &tg)
     {
         int count = 0;
         std::vector<tbb::detail::d1::numa_node_id> again;
@@ -439,8 +473,7 @@ private:
                 if (ex == 0)
                 {
 
-                    tg.run([this, next, job]
-                           { solvePartial(*next, job + 1); delete next; });
+                    tg.run(next, job + 1);
                     if (++count >= limitedTaskSpawning)
                     {
                         tg.wait();
@@ -469,8 +502,7 @@ private:
                 if (ex == 0)
                 {
                     logging(*next, job + 1, "child from recursion");
-                    tg.run([this, next, job]
-                           { solvePartial(*next, job + 1); delete next; });
+                    tg.run(next, job + 1);
                     if (++count >= limitedTaskSpawning)
                     {
                         tg.wait();
@@ -495,8 +527,7 @@ private:
             resortAfterIncrement(*next, i);
             // runWithPrev++;
             logging(*next, job + 1, "child from recursion");
-            tg.run([this, next, job]
-                   { solvePartial(*next, job + 1); delete next; });
+            tg.run(next, job + 1);
             if (++count >= limitedTaskSpawning)
             {
                 tg.wait();
@@ -505,7 +536,7 @@ private:
         }
         tg.wait();
     }
-    inline void executeBaseCase(const int endState, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, std::vector<tbb::detail::d1::numa_node_id> &repeat, tbb::detail::d1::task_group &tg, std::vector<tbb::detail::d1::numa_node_id> &delayed)
+    inline void executeBaseCase(const int endState, const std::vector<tbb::detail::d1::numa_node_id> &state, const int job, std::vector<tbb::detail::d1::numa_node_id> &repeat, customTaskRunner &tg, std::vector<tbb::detail::d1::numa_node_id> &delayed)
     {
         int count = 0;
         for (int i = 0; i < endState; i++)
@@ -531,8 +562,7 @@ private:
                     if (job > lastSizeJobIndex / 4)
                     {
                         logging(*next, job + 1, "child from recursion");
-                        tg.run([this, next, job]
-                               { solvePartial(*next, job + 1); delete next; });
+                        tg.run(next, job + 1);
                         if (++count >= limitedTaskSpawning)
                         {
                             tg.wait();
@@ -542,8 +572,7 @@ private:
                     else
                     {
                         logging(*next, job + 1, "child from recursion");
-                        tg.run([this, next, job]
-                               { solvePartial(*next, job + 1); delete next; });
+                        tg.run(next, job + 1);
                     }
 
                     break;
@@ -562,8 +591,7 @@ private:
                 if (job > lastSizeJobIndex / 4)
                 {
 
-                    tg.run([this, next, job]
-                           { solvePartial(*next, job + 1); delete next; });
+                    tg.run(next, job + 1);
                     if (++count >= limitedTaskSpawning)
                     {
                         tg.wait();
@@ -572,8 +600,7 @@ private:
                 }
                 else
                 {
-                    tg.run([this, next, job]
-                           { solvePartial(*next, job + 1); delete next; });
+                    tg.run(next, job + 1);
                 }
             }
         }
@@ -854,6 +881,44 @@ private:
             STInstance = new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET, numMachines, 0);
         }
     }
+    friend class customTaskRunner; 
+    class customTaskRunner {
+        public:
+            // todo ad suspend
+            customTaskRunner(std::vector<std::unique_ptr<TaskHolder>> &workers, BnB_base_custom_work_stealing& buddy): workers(workers), buddy(buddy){};
+        void run(std::vector<int> *state, int job) {
+            refCounter++;
+            workers[threadIndex]->addTask(std::make_unique<customTask>(state, job, refCounter));
+        }
+        void wait() {
+            while (refCounter > 0) {
+                executeNextTask(); // sonderfall mit gibt keine task mehr
+            }
+        }
+        void executeNextTask() {
+            auto toExecute = workers[threadIndex]->getNextTask();
+            int count = 0;
+            while (toExecute == nullptr) {
+                if (buddy.foundOptimal || buddy.cancel) return;
+                toExecute = workers[count++ % buddy.maxAllowedParalellism]->stealTasks(); // todo hier random wert nehmen TODO wie handle ich das ende wann weiß ich ob alle fertig sind?
+                if( refCounter == 0 && toExecute == nullptr) return;
+            } 
+            buddy.solvePartial(*toExecute->state, toExecute->job);
+            toExecute->parentCounter--;
+            delete toExecute->state;
+        }
+        void suspend(std::vector<int> *state, int job) {
+            // TODO add a structure for suspended tasks (in buddy) and add the corresponding task also add those tasks again onBound update 
+        }
+        private:
+        std::atomic<int> refCounter = 0;
+        std::vector<std::unique_ptr<TaskHolder>>& workers;
+        BnB_base_custom_work_stealing& buddy;
+
+    };
 };
+
+
+
 
 #endif

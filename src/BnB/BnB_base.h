@@ -14,7 +14,7 @@ public:
      * @param addPreviously add the gist (with a flag) when starting to compute it
      * @param STtype extended resumable tasks
     */
-    BnBSolverBase(bool irrelevance, bool fur, bool gist, bool  addPreviously, int STtype) : irrelevance(irrelevance), gist(gist), fur(fur), addPreviously(addPreviously), STtype(STtype) {}
+    BnBSolverBase(bool irrelevance, bool fur, bool gist, bool  addPreviously, int STtype, int maxAllowedParalellism = 6) : irrelevance(irrelevance), gist(gist), fur(fur), addPreviously(addPreviously), STtype(STtype), maxAllowedParalellism(maxAllowedParalellism) {}
 
     /**
      * @brief Solve P||C_max for the given Instance
@@ -70,6 +70,8 @@ protected:
     bool fur;
     bool addPreviously;
     int STtype;
+    int maxAllowedParalellism;
+
 
 };
 

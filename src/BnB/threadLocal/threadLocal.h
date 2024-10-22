@@ -4,5 +4,7 @@
 
 // Declare the thread_local variable
 extern thread_local std::vector<int> threadLocalVector;
+extern thread_local int threadIndex;
+
 void initializeThreadLocalVector(int size);
 #endif // THREADLOCALVECTOR_H

@@ -9,6 +9,7 @@
 #include <sstream>
 #include <cassert>
 #include <stdexcept>
+#include <thread>
 #include <unistd.h>
 #include <random>
 #include "./hashmap/IConcurrentHashMap.h"
@@ -17,7 +18,7 @@
 // #include "./hashmap/FollyHashMap.cpp"
 // #include "./hashmap/JunctionHashMap.cpp"
 // #include "./hashmap/GrowtHashMap.cpp"
-
+#include "./customSharedLock.hpp"
 class STImplSimplCustomLock : public ST
 {
 public:
@@ -27,8 +28,8 @@ public:
     {
         initializeThreadLocalVector(vec_size + 1);
         initializeHashMap(HashmapType);
-        referenceCounter = 0;
-        clearFlag = false;
+        // referenceCounter = 0;
+        // clearFlag = false;
     }
 
     ~STImplSimplCustomLock()
@@ -45,6 +46,7 @@ public:
         assert(job < jobSize && job >= 0 && std::is_sorted(state.begin(), state.end()));
         std::vector<int> gist(vec_size + 1, 0);
         assert((state.back() + offset) < maximumRETIndex); // TODO maybe need error Handling to check that
+        if ((state.back() + offset) >= maximumRETIndex ) return {};
         for (std::vector<int>::size_type i = 0; i < vec_size; i++)
         {
             gist[i] = RET[job][state[i] + offset];
@@ -67,15 +69,17 @@ public:
     void addGist(const std::vector<int> &state, int job) override
     {
         assert(job < jobSize && job >= 0);
-        if (clearFlag || (state[vec_size - 1] + offset) >= maximumRETIndex ||  skipThis(job))
+        if ((state[vec_size - 1] + offset) >= maximumRETIndex ||  skipThis(job))
             return;
 
-        referenceCounter++;
-        if (clearFlag)
-        {
-            referenceCounter--;
-            return;
-        }
+        // referenceCounter++;
+        // if (clearFlag)
+        // {
+        //     referenceCounter--;
+        //     return;
+        // }
+        CustomTrySharedLock lock(mtx);
+        if (!lock.owns_lock()) return;
         computeGist2(state, job, threadLocalVector);
         maps->insert(threadLocalVector, true);
         logging(state,  job, "added Gist");
@@ -88,15 +92,17 @@ public:
         assert(job < jobSize);
         assert(job >= 0 && job < jobSize);
 
-        if (clearFlag || (state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
+        if ((state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
             return 0;
+        
+        CustomTrySharedLock lock(mtx);
+        if (!lock.owns_lock()) return 0;
 
-        referenceCounter++;
-        if (clearFlag)
-        {
-            referenceCounter--;
-            return 0;
-        }
+        // referenceCounter++;
+        // if (clearFlag)
+        // {
+        //     referenceCounter--;
+        // }
         computeGist2(state, job, threadLocalVector);
         const int result = maps->find(threadLocalVector);
         referenceCounter--;
@@ -106,21 +112,22 @@ public:
     void addPreviously(const std::vector<int> &state, int job) override
     {
         assert(job >= 0 && job < jobSize);
-        if (clearFlag || skipThis(job))
+        if (skipThis(job))
             return;
         if ((state[vec_size - 1] + offset) >= maximumRETIndex)
             return;
-
-        referenceCounter++;
-        if (clearFlag)
-        {
-            referenceCounter--;
-            return;
-        }
+        CustomTrySharedLock lock(mtx);
+        if (!lock.owns_lock()) return;
+        // referenceCounter++;
+        // if (clearFlag)
+        // {
+        //     referenceCounter--;
+        //     return;
+        // }
         computeGist2(state, job, threadLocalVector);
         maps->insert(threadLocalVector, false);
         logging(state, job, "add Prev");
-        referenceCounter--;
+        // referenceCounter--;
     }
 
     // assert bound update is itself never called in parallel
@@ -128,22 +135,24 @@ public:
     {
         if (offset <= this->offset)
             return;
-        clearFlag = true;
-        int test = 0;
-        while (referenceCounter.load() > 0)
-        {
-            if (test++ > 1000000)
-                std::cout << "probably stuck in an endless loop" << std::endl;
-            std::this_thread::yield();
-        }
+        CustomUniqueLock lock(mtx);
+        // clearFlag = true;
+        // int test = 0;
+        // while (referenceCounter.load() > 0)
+        // {
+        //     if (test++ > 1000000)
+        //         std::cout << "probably stuck in an endless loop" << std::endl;
+        //     std::this_thread::yield();
+        // }
         maps->clear();
         this->offset = offset;
         resumeAllDelayedTasks();
-        clearFlag = false;
+        // clearFlag = false;
     }
     void prepareBoundUpdate() override
     {
-        clearFlag = true;
+        // clearFlag = true;
+        mtx.clearFlag = true;
     }
 
     void clear() override
@@ -186,7 +195,7 @@ public:
     }
 
 private:
-    bool detailedLogging = true;
+    bool detailedLogging = false;
     IConcurrentHashMap *maps = nullptr;
     bool useBitmaps = false; // currently not supported
     HashMapWrapper delayedMap;
@@ -195,7 +204,7 @@ private:
     // custom shared lock
     std::atomic<u_int32_t> referenceCounter;
     bool clearFlag;
-
+    CustomSharedMutex mtx;
     void logSuspendedTasks(const std::vector<int>& gist) {
         if (!detailedLogging) {
             return;
@@ -246,6 +255,17 @@ private:
     inline bool skipThis(int depth)
     {
         return false; // depth % 2 == 0;
+    }
+    void cancelExecution() override {
+        // clearFlag = true;
+        // while (referenceCounter.load() > 0)
+        // {
+        //     std::this_thread::yield();
+        // }
+        CustomUniqueLock lock(mtx);
+        delayedLock.lock();
+        delayedMap.cancelExecution();
+        delayedLock.unlock();
     }
 
     template <typename T>
