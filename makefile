@@ -58,8 +58,12 @@ plot:
 	python3 src/plotting/plotter.py ./results/customLock_fixed.txt plots/test6.png
 	code plots/test6.png
 localplot:  
-	python3 src/plotting/plotter.py o.txt plots/local2.png
-	code plots/local2.png
+	python3 src/plotting/plotter.py o2.txt plots/local.png
+	code plots/local.png
+
+localplot2:  
+	python3 src/plotting/compare_executions.py ./o.txt  ./o2.txt plots/localcompare2.png
+	code plots/localcompare2.png
 plot2:
 	python3 src/plotting/compare_executions.py ./results/customLock_fixed.txt  ./results/improveLowerBounds.txt plots/easySuspend.png
 	code plots/compare3.png
