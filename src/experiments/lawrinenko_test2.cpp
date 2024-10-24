@@ -1,17 +1,15 @@
 #include <iostream>
 // #include "./../BnB/BnB_base.cpp"
-#include "./../BnB/BnB_base.cpp"
 
 #include <fstream>
 #include <sstream>
 #include <chrono>
 #include <tbb/tbb.h>
 #include <future>
-#include "./../BnB/BnB.h"
 #include <string>
 #include "./readData/readData.h"
 #include <sys/wait.h>
-
+#include "../customBnB/customBnB_base.hpp"
 int main(int argc, char *argv[])
 {
     Parser readData;
@@ -87,7 +85,7 @@ int main(int argc, char *argv[])
                 std::future<void> canceler;
                 int result = 0;
                 // BnB_base_Impl solver(true, true, true, true, 3, numThreads);
-                BnB_base_Impl solver(true, true, true, true, 3, numThreads);
+                BnB_base_custom_work_stealing_iterative solver(true, true, true, true, 3, numThreads);
                 bool timerExpired = false;
                 canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx, &timerExpired, &timeout]()
                                       {
