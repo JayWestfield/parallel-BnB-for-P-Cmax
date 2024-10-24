@@ -163,42 +163,42 @@ public:
 
     void resumeAllDelayedTasks() override
     {
-        delayedLock.lock();
-        delayedMap.resumeAll();
-        delayedLock.unlock();
+        // delayedLock.lock();
+        // delayedMap.resumeAll();
+        // delayedLock.unlock();
     }
 
     void addDelayed(const std::vector<int> &state, int job, tbb::task::suspend_point tag) override
     {
-        assert(job < jobSize && job >= 0);
-        delayedLock.lock();
-        if (clearFlag)
-        {
-            tbb::task::resume(tag);
-            delayedLock.unlock();
-            return;
-        }
+        // assert(job < jobSize && job >= 0);
+        // delayedLock.lock();
+        // if (clearFlag)
+        // {
+        //     tbb::task::resume(tag);
+        //     delayedLock.unlock();
+        //     return;
+        // }
         
-        computeGist2(state, job, threadLocalVector);
-        if (maps->find(threadLocalVector) != 1){
-            tbb::task::resume(tag);
-        } else {
-            delayedMap.insert(threadLocalVector, tag);
-        }
-        // this should not be needed but just to be safe
-        if (maps->find(threadLocalVector) != 1){
-            delayedMap.resume(threadLocalVector);
-        }
-        logSuspendedTasks(threadLocalVector);
-        logging(state, job, "endDelay");
-        delayedLock.unlock();
+        // computeGist2(state, job, threadLocalVector);
+        // if (maps->find(threadLocalVector) != 1){
+        //     tbb::task::resume(tag);
+        // } else {
+        //     delayedMap.insert(threadLocalVector, tag);
+        // }
+        // // this should not be needed but just to be safe
+        // // if (maps->find(threadLocalVector) != 1){
+        // //     delayedMap.resume(threadLocalVector);
+        // // }
+        // logSuspendedTasks(threadLocalVector);
+        // logging(state, job, "endDelay");
+        // delayedLock.unlock();
     }
 
 private:
     bool detailedLogging = false;
     IConcurrentHashMap *maps = nullptr;
     bool useBitmaps = false; // currently not supported
-    HashMapWrapper delayedMap;
+    // HashMapWrapper delayedMap;
     std::mutex delayedLock;
 
     // custom shared lock
@@ -206,26 +206,26 @@ private:
     bool clearFlag;
     CustomSharedMutex mtx;
     void logSuspendedTasks(const std::vector<int>& gist) {
-        if (!detailedLogging) {
-            return;
-        }
-        std::ostringstream oss;
-        oss << "check gists of currently suspended Tasks:";
-        for (auto vla : gist)
-                oss << vla << ", ";
-        oss <<  std::endl;
-        for (auto entry : delayedMap.getNonEmptyKeys()) {
-            for (auto vla : entry)
-                oss << vla << ", ";
-            oss << "exists: " <<  maps->find(entry) << std::endl;
-        }
-        std::cout << oss.str() << std::flush;
+        // if (!detailedLogging) {
+        //     return;
+        // }
+        // std::ostringstream oss;
+        // oss << "check gists of currently suspended Tasks:";
+        // for (auto vla : gist)
+        //         oss << vla << ", ";
+        // oss <<  std::endl;
+        // for (auto entry : delayedMap.getNonEmptyKeys()) {
+        //     for (auto vla : entry)
+        //         oss << vla << ", ";
+        //     oss << "exists: " <<  maps->find(entry) << std::endl;
+        // }
+        // std::cout << oss.str() << std::flush;
     }
     void resumeGist(const std::vector<int>& gist) {
-        delayedLock.lock();
-        delayedMap.resume(gist);
-        logSuspendedTasks(gist);
-        delayedLock.unlock();
+        // delayedLock.lock();
+        // delayedMap.resume(gist);
+        // logSuspendedTasks(gist);
+        // delayedLock.unlock();
     }
     
     void initializeHashMap(int type)
@@ -263,9 +263,9 @@ private:
         //     std::this_thread::yield();
         // }
         CustomUniqueLock lock(mtx);
-        delayedLock.lock();
-        delayedMap.cancelExecution();
-        delayedLock.unlock();
+        // delayedLock.lock();
+        // delayedMap.cancelExecution();
+        // delayedLock.unlock();
     }
 
     template <typename T>

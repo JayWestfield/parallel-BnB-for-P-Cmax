@@ -10,14 +10,17 @@ class HashMapWrapper : public IDelayedmap {
 private:
     // Die zugrundeliegende Hashmap
     std::unordered_map<std::vector<int>, std::vector<tbb::task::suspend_point>, hashing::VectorHasher> delayedMap;
+    bool disabled = false;
 
 public:
     // Einfügen eines Schlüssels und eines Suspend Points
     void insert(const std::vector<int>& key, tbb::task::suspend_point suspendPoint) override {
-        delayedMap[key].push_back(suspendPoint);
-        // resume(key);
-                        // tbb::task::resume(suspendPoint);
-
+        if (disabled) {
+            tbb::task::resume(suspendPoint);
+        }
+        else {
+            delayedMap[key].push_back(suspendPoint);
+        }
     }
 
     // Resumieren der Suspend Points, die einem Schlüssel zugeordnet sind
@@ -33,7 +36,7 @@ public:
 
     // Resumieren aller Suspend Points und Leeren der Hashmap
     void resumeAll() override {
-        logAllTasks();
+        // logAllTasks();
 
         for (auto& pair : delayedMap) {
             for (auto& sp : pair.second) {
@@ -63,6 +66,12 @@ public:
             }
         }
         return keys;
+    }
+
+    void cancelExecution() override {
+        disabled = true;
+        resumeAll();
+        logAllTasks();
     }
 
 };
