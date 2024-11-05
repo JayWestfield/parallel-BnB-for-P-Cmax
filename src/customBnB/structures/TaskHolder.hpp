@@ -1,6 +1,7 @@
 #ifndef CustomTaskGroup_impl
 #define CustomTaskGroup_impl
 #include "CustomTask.hpp"
+#include "ITaskHolder.h"
 #include <list>
 #include <memory>
 #include <mutex>
@@ -10,7 +11,7 @@
 // lock for the steal Tasks and provide some mechanism to dive the Task Holder
 // into two parts one that can be stolen and one that is exclusive to the
 // running thread
-class TaskHolder {
+class TaskHolder  : public ITaskHolder {
 public:
   TaskHolder() : stealMutex(), work() {}
   // TODO stealTasks should return an array of elements / array of pointers

@@ -6,6 +6,7 @@
 #include "CustomTaskGroup.hpp"
 #include "ST/STImplSimplCustomLock.cpp"
 #include "structures/CustomTask.hpp"
+#include "structures/FastRandom.hpp"
 #include "structures/SuspendedTaskHolder.hpp"
 #include "structures/TaskHolder.hpp"
 #include "threadLocal/threadLocal.h"
@@ -17,10 +18,8 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
-#include <tbb/tbb.h>
 #include <thread>
 #include <vector>
-
 const int limitedTaskSpawning = 2000;
 class BnB_base_custom_work_stealing_iterative : public BnBSolverBase {
 
@@ -42,11 +41,13 @@ public:
       : BnBSolverBase(irrelevance, fur, gist, addPreviously, STtype,
                       maxAllowedParalellism),
         workers(maxAllowedParalellism) {
-    workers.resize(maxAllowedParalellism);
+    workers.resize(maxAllowedParalellism + 1);
     for (int i = 0; i < maxAllowedParalellism; i++) {
       auto tas = std::make_unique<TaskHolder>();
       workers[i] = std::move(tas);
     }
+    workers[maxAllowedParalellism] = std::make_unique<SuspendedTaskHolder>();
+    
   }
   int solve(int numMachine, const std::vector<int> &jobDuration) override {
     reset();
@@ -54,31 +55,24 @@ public:
     // reset all private variables
     numMachines = numMachine;
     jobDurations = jobDuration;
-    tbb::task_group tg;
 
     // assume sorted
     assert(std::is_sorted(jobDurations.begin(), jobDurations.end(),
                           std::greater<int>()));
     offset = 1;
-    tbb::task_group firstbounds;
-    firstbounds.run([&] {
-      initialLowerBound = trivialLowerBound();
-      lowerBound = initialLowerBound;
-    });
 
-    firstbounds.run([&] {
-      // initialize bounds (trivial nothing fancy here)
-      initialUpperBound = lPTUpperBound();
-      upperBound = initialUpperBound - 1;
-    });
+    initialLowerBound = trivialLowerBound();
+    lowerBound = initialLowerBound;
 
-    firstbounds.wait();
+    // initialize bounds (trivial nothing fancy here)
+    initialUpperBound = lPTUpperBound();
+    upperBound = initialUpperBound - 1;
+
     if (initialUpperBound == lowerBound) {
       hardness = Difficulty::trivial;
       return initialUpperBound;
     }
 
-    tbb::task_group tg_lower;
 
     // irrelevance
     lastRelevantJobIndex = jobDurations.size() - 1;
@@ -117,12 +111,15 @@ public:
           while (!foundOptimal && !cancel) {
             auto toExecute = workers[threadIndex]->getNextTask();
             int count = 0;
-            while (toExecute == nullptr && count < workers.size()) {
-              toExecute = workers[count++ % workers.size()]->stealTasks();
-              // todo hier random wert nehmen TODO wie handle
+            while (toExecute == nullptr && count++ < 5) {
+              const auto stealFrom =
+                  rand.nextInRange(maxAllowedParalellism - 1);
+              toExecute = workers[stealFrom]->stealTasks();
             }
-            if (toExecute == nullptr) {
-              toExecute = suspendedResumedTasks.stealTasks();
+            while (toExecute == nullptr && count++ < 10) {
+              const auto stealFrom =
+                  rand.nextInRange(maxAllowedParalellism);
+              toExecute = workers[stealFrom]->stealTasks();
             }
             if (toExecute == nullptr)
               continue;
@@ -140,12 +137,13 @@ public:
         while (!foundOptimal && !cancel) {
           auto toExecute = workers[threadIndex]->getNextTask();
           int count = 0;
-          while (toExecute == nullptr && count < workers.size()) {
-            toExecute = workers[count++ % workers.size()]->stealTasks();
-            // todo hier random wert nehmen TODO wie handle
+          while (toExecute == nullptr && count++ < 5) {
+            toExecute = workers[rand.nextInRange(maxAllowedParalellism - 1)]
+                            ->stealTasks();
           }
-          if (toExecute == nullptr) {
-            toExecute = suspendedResumedTasks.stealTasks();
+          while (toExecute == nullptr && count++ < 5) {
+            toExecute =
+                workers[rand.nextInRange(maxAllowedParalellism)]->stealTasks();
           }
           if (toExecute == nullptr)
             continue;
@@ -201,7 +199,7 @@ public:
       for (int i = 1; i < maxAllowedParalellism; i++) {
         threads[i].join();
       }
-      tg_lower.wait();
+      // tg_lower.wait();
       return 0;
     }
 
@@ -221,7 +219,7 @@ public:
     }
 
     monitoringThread.join();
-    tg_lower.wait();
+    // tg_lower.wait();
     for (int i = 1; i < maxAllowedParalellism; i++) {
       threads[i].join();
     }
@@ -287,6 +285,8 @@ public:
   }
 
 private:
+  // random
+  FastRandom rand = FastRandom(12345);
   // Problem instance
   int numMachines;
   std::vector<int> jobDurations;
@@ -306,14 +306,15 @@ private:
   ST_custom *STInstance = nullptr;
 
   // workStealing
-  std::vector<std::shared_ptr<TaskHolder>> workers;
-  SuspendedTaskHolder suspendedResumedTasks;
+  std::vector<std::shared_ptr<ITaskHolder>> workers;
 
   // Logging
   bool logNodes = false;
   bool logInitialBounds = false;
   bool logBound = false;
   bool detailedLogging = false;
+
+
 
   int lastRelevantJobIndex;
 
@@ -814,14 +815,14 @@ private:
     //     STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET,
     //     numMachines); break;
     case 2:
-      STInstance =
-          new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET,
-                                    numMachines, suspendedResumedTasks, 2);
+      STInstance = new STImplSimplCustomLock(
+          lastRelevantJobIndex + 1, offset, RET, numMachines,
+          *workers[maxAllowedParalellism], 2);
       break;
     default:
-      STInstance =
-          new STImplSimplCustomLock(lastRelevantJobIndex + 1, offset, RET,
-                                    numMachines, suspendedResumedTasks, 0);
+      STInstance = new STImplSimplCustomLock(
+          lastRelevantJobIndex + 1, offset, RET, numMachines,
+          *workers[maxAllowedParalellism], 0);
     }
   }
   friend class CustomTaskGroup;

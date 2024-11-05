@@ -42,3 +42,6 @@ parallel_solver
 profiling_results/*
 callgrind*
 heaptrack*
+
+results/*
+plots/*

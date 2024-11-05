@@ -8,7 +8,7 @@
 class CustomTaskGroup: public std::enable_shared_from_this<CustomTaskGroup> {
 public:
   // todo ad suspend
-  CustomTaskGroup(TaskHolder &taskHolder, std::shared_ptr<CustomTask> creator)
+  CustomTaskGroup(ITaskHolder &taskHolder, std::shared_ptr<CustomTask> creator)
       : taskHolder(taskHolder), creator(creator){};
   void run(std::vector<int> &state, int job) {
     refCounter++;
@@ -22,15 +22,22 @@ public:
   }
 
   void unregisterChild() {
-    refCounter--;
-    if (refCounter == 0) { // be carefull with the race condition better do
-    // it with a compare exchange strong otherwise the task might get adde twice which would not only lead to performance issues but to a real bug
+    int old_value = refCounter.load();
+    int new_value;
+    do {
+        new_value = old_value - 1;
+    } while (!refCounter.compare_exchange_weak(old_value, new_value));
+    if (new_value == 0) {
       taskHolder.addTask(creator);
     }
+    // refCounter--;
+    // if (refCounter == 0) { // be carefull with the race condition better do
+    // // it with a compare exchange strong otherwise the task might get adde twice which would not only lead to performance issues but to a real bug
+    // }
   }
 
 private:
   std::atomic<int> refCounter = 0;
-  TaskHolder &taskHolder;
+  ITaskHolder &taskHolder;
   std::shared_ptr<CustomTask> creator;
 };

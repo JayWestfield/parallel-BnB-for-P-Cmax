@@ -1,6 +1,7 @@
 #ifndef SuspendedTaskHolder_impl
 #define SuspendedTaskHolder_impl
 #include "CustomTask.hpp"
+#include "TaskHolder.hpp"
 #include <list>
 #include <mutex>
 //erstmal einfaches suspend und dann scheun ob das geht
@@ -8,7 +9,8 @@
 // wobei ich ein bulk insert unterstützen will busk insert  wenn das eine liste ist kann ich die einfach anhängen fertig
 // wenn ich die suspended tasks aber wirklich in der ST speichere dann lieber das ganze file kopieren um benchmark mit der alten version vergelichen zu können
 // für St dann mit segmented versuchen
-class SuspendedTaskHolder {
+// currently just a copy from taskHolder
+class SuspendedTaskHolder : public ITaskHolder {
 public:
   SuspendedTaskHolder() : stealMutex(){}
   // TODO stealTasks should return an array of elements / array of pointers
