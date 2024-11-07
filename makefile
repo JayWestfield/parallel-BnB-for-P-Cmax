@@ -15,7 +15,7 @@ SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/expe
 PROFILE_SRC =  src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp src/BnB/BnB_base_custom_work_stealing.cpp -ltcmalloc_and_profiler -lprofiler
 PROFILE_DST = dst/profiler 
 
-BASEFILES2 = src/customBnB/customBnB_base.hpp src/experiments/readData/readData.cpp src/customBnB/threadLocal/threadLocal.cpp 
+BASEFILES2 = src/customBnB/customBnB_base.hpp src/experiments/readData/readData.cpp src/customBnB/threadLocal/threadLocal.cpp
 TARGETEXP2 = dst/experiment2
 SOURCESEXP2 = src/experiments/lawrinenko_test2.cpp 
 CUSTOMFiles = src/customBnB/customBnB_base.hpp src/experiments/readData/readData.cpp src/customBnB/threadLocal/threadLocal.cpp src/experiments/Profiler.cpp -ltcmalloc_and_profiler -lprofiler
@@ -55,10 +55,10 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py ./results/customLock_fixed.txt plots/test6.png
-	code plots/test6.png
+	python3 src/plotting/plotter.py ./results/slurm-9123.out plots/feigenbaumIterativeV1.png
+	code plots/feigenbaumIterativeV1.png
 localplot:  
-	python3 src/plotting/plotter.py o2.txt plots/local.png
+	python3 src/plotting/plotter.py o.txt plots/local.png
 	code plots/local.png
 
 localplot2:  
@@ -85,6 +85,7 @@ viewProfile:
 clean:
 	rm -f $(TARGET)
 	rm -f $(TARGETEXP)
+	rm -f $(TARGETEXP2)
 	rm -f $(FILTERALL)
 	rm -f $(PROFILE_DST)
 	rm -f $(CUSTOMDst)

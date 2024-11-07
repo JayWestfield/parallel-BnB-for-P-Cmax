@@ -12,10 +12,10 @@ private:
                      hashing::VectorHasher>
       delayedMap;
   bool disabled = false;
-  SuspendedTaskHolder &suspendedTasks;
+  ITaskHolder &suspendedTasks;
 
 public:
-  HashMapWrapper(SuspendedTaskHolder &suspendedTasks)
+  HashMapWrapper(ITaskHolder &suspendedTasks)
       : suspendedTasks(suspendedTasks) {}
   // Einfügen eines Schlüssels und eines Suspend Points
   void insert(const std::vector<int> &key,

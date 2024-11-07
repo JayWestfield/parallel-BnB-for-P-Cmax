@@ -1,5 +1,6 @@
 #include <atomic>
 #include <thread>
+#pragma once
 struct CustomSharedMutex {
     std::atomic<int> referenceCounter = 0;
     std::atomic<bool> clearFlag = false;

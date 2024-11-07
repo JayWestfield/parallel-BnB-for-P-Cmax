@@ -22,7 +22,7 @@ class STImplSimplCustomLock : public ST_custom
 public:
     // using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool, VectorHasher>;
 
-    STImplSimplCustomLock(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size, SuspendedTaskHolder &suspendedTasks, int HashmapType) : ST_custom(jobSize, offset, RET, vec_size), suspendedTasks(suspendedTasks), delayedMap(suspendedTasks)
+    STImplSimplCustomLock(int jobSize, int offset, const std::vector<std::vector<int>> &RET, std::size_t vec_size, ITaskHolder &suspendedTasks, int HashmapType) : ST_custom(jobSize, offset, RET, vec_size), suspendedTasks(suspendedTasks), delayedMap(suspendedTasks)
     {
         initializeHashMap(HashmapType);
         // referenceCounter = 0;
@@ -76,6 +76,8 @@ public:
         // }
         CustomTrySharedLock lock(mtx);
         if (!lock.owns_lock()) return;
+        if ((state[vec_size - 1] + offset) >= maximumRETIndex ||  skipThis(job))
+            return;
         computeGist2(state, job, threadLocalVector);
         maps->insert(threadLocalVector, true);
         logging(state,  job, "added Gist");
@@ -93,7 +95,8 @@ public:
         
         CustomTrySharedLock lock(mtx);
         if (!lock.owns_lock()) return 0;
-
+        if ((state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
+            return 0;
         // referenceCounter++;
         // if (clearFlag)
         // {
@@ -114,6 +117,8 @@ public:
             return;
         CustomTrySharedLock lock(mtx);
         if (!lock.owns_lock()) return;
+        if ((state[vec_size - 1] + offset) >= maximumRETIndex)
+            return;
         // referenceCounter++;
         // if (clearFlag)
         // {
@@ -170,7 +175,8 @@ public:
         auto job = task->job;
         assert(job < jobSize && job >= 0);
         delayedLock.lock();
-        if (clearFlag)
+        CustomTrySharedLock lock(mtx);
+        if (clearFlag || !lock.owns_lock())
         {
             suspendedTasks.addTask(std::move(task));
             delayedLock.unlock();
@@ -198,7 +204,7 @@ private:
     bool useBitmaps = false; // currently not supported
     HashMapWrapper delayedMap;
     std::mutex delayedLock;
-    SuspendedTaskHolder &suspendedTasks;
+    ITaskHolder &suspendedTasks;
     // custom shared lock
     std::atomic<u_int32_t> referenceCounter;
     bool clearFlag;

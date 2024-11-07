@@ -5,6 +5,9 @@
 #include "../BnB/LowerBounds/lowerBounds_ret.cpp"
 #include "CustomTaskGroup.hpp"
 #include "ST/STImplSimplCustomLock.cpp"
+#include "ST/combineGistAndDelayed/ST_combined.hpp"
+
+#include "ST/combineGistAndDelayed/hashmap/hashing/hashing.hpp"
 #include "structures/CustomTask.hpp"
 #include "structures/FastRandom.hpp"
 #include "structures/SuspendedTaskHolder.hpp"
@@ -21,6 +24,7 @@
 #include <thread>
 #include <vector>
 const int limitedTaskSpawning = 2000;
+extern int gistLength;
 class BnB_base_custom_work_stealing_iterative : public BnBSolverBase {
 
 public:
@@ -47,7 +51,6 @@ public:
       workers[i] = std::move(tas);
     }
     workers[maxAllowedParalellism] = std::make_unique<SuspendedTaskHolder>();
-    
   }
   int solve(int numMachine, const std::vector<int> &jobDuration) override {
     reset();
@@ -55,7 +58,7 @@ public:
     // reset all private variables
     numMachines = numMachine;
     jobDurations = jobDuration;
-
+    gistLength = numMachine + 1;
     // assume sorted
     assert(std::is_sorted(jobDurations.begin(), jobDurations.end(),
                           std::greater<int>()));
@@ -72,7 +75,6 @@ public:
       hardness = Difficulty::trivial;
       return initialUpperBound;
     }
-
 
     // irrelevance
     lastRelevantJobIndex = jobDurations.size() - 1;
@@ -117,8 +119,7 @@ public:
               toExecute = workers[stealFrom]->stealTasks();
             }
             while (toExecute == nullptr && count++ < 10) {
-              const auto stealFrom =
-                  rand.nextInRange(maxAllowedParalellism);
+              const auto stealFrom = rand.nextInRange(maxAllowedParalellism);
               toExecute = workers[stealFrom]->stealTasks();
             }
             if (toExecute == nullptr)
@@ -314,8 +315,6 @@ private:
   bool logBound = false;
   bool detailedLogging = false;
 
-
-
   int lastRelevantJobIndex;
 
   // solve Subinstances
@@ -413,7 +412,10 @@ private:
           finishGistless(parentGroup);
           return;
         case 1:
-          if (addPreviously && job <= lastSizeJobIndex * 0.8) {
+          if (addPreviously &&
+              job <= lastSizeJobIndex *
+                         0.8) { // TODO check but that should be usefull (maybe
+                                // not for 20% but a fixed number)
             int repeated = 0;
             while (STInstance->exists(state, job) == 1 && repeated++ < 1) {
               logging(state, job, "suspend");
@@ -818,6 +820,11 @@ private:
       STInstance = new STImplSimplCustomLock(
           lastRelevantJobIndex + 1, offset, RET, numMachines,
           *workers[maxAllowedParalellism], 2);
+      break;
+    case 5:
+      STInstance = new ST_combined(lastRelevantJobIndex + 1, offset, RET,
+                                   numMachines, *workers[maxAllowedParalellism],
+                                   0, maxAllowedParalellism);
       break;
     default:
       STInstance = new STImplSimplCustomLock(
