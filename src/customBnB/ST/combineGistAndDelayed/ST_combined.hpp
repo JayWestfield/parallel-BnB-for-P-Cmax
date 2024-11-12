@@ -186,7 +186,7 @@ public:
   }
 
 private:
-  bool detailedLogging = true;
+  bool detailedLogging = false;
   IConcurrentHashMapCombined *maps = nullptr;
   bool useBitmaps = false; // currently not supported
   std::mutex delayedLock;
