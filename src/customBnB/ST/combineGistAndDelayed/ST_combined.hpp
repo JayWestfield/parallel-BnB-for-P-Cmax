@@ -29,7 +29,7 @@ public:
         suspendedTasks(suspendedTasks) {
     initializeHashMap(HashmapType);
     for (int i = 0; i < maxAllowedParallelism; i++) {
-      Gist_storage.push_back(std::make_unique<SegmentedStack<>>());
+      Gist_storage.push_back(std::make_unique<GistStorage<>>());
     }
     // referenceCounter = 0;
     // clearFlag = false;
@@ -77,10 +77,10 @@ public:
       auto current = next;
       // resume delayed tasks
       while (next != reinterpret_cast<DelayedTasksList *>(-1)) {
-        current = next;
+        suspendedTasks.addTask(std::move(next->value));
         next = next->next;
-        suspendedTasks.addTask(current->value);
-        delete current;
+        // logging()
+        // delete current; TODO unique pointers for simplicity
       }
     }
   }
@@ -159,9 +159,13 @@ public:
 
   void resumeAllDelayedTasks() override {
     for (int i = 0; i < Gist_storage.size(); i++) {
-      for (auto entry : *Gist_storage[i]) {
-        resumeTaskList(entry.taskList);
-      }
+      // for (auto entry : *Gist_storage[i]) {
+      //   resumeTaskList(entry.taskList);
+      // }
+      // for (auto it = (*Gist_storage[i]).begin(); it != (*Gist_storage[i]).end();
+      //      ++it) {
+      //   resumeTaskList((*it).taskList);
+      // }
     }
   }
 
@@ -182,7 +186,7 @@ public:
   }
 
 private:
-  bool detailedLogging = false;
+  bool detailedLogging = true;
   IConcurrentHashMapCombined *maps = nullptr;
   bool useBitmaps = false; // currently not supported
   std::mutex delayedLock;
@@ -192,7 +196,7 @@ private:
   CustomSharedMutex mtx;
 
   // ST
-  std::vector<std::unique_ptr<SegmentedStack<>>> Gist_storage;
+  std::vector<std::unique_ptr<GistStorage<>>> Gist_storage;
 
   void initializeHashMap(int type) {
     if (maps != nullptr)
@@ -219,9 +223,7 @@ private:
   inline bool skipThis(int depth) {
     return false; // depth % 2 == 0;
   }
-  void cancelExecution() override {
-    clearFlag = true;
-  }
+  void cancelExecution() override { clearFlag = true; }
 
   template <typename T>
   void logging(const std::vector<int> &state, int job, T message = "") {

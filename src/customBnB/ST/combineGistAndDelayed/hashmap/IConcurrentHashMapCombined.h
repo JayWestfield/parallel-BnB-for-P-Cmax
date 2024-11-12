@@ -8,14 +8,13 @@
 #include <cassert>
 #include <tbb/tbb.h>
 #include "../../../structures/DelayedTasksList.hpp"
-#include "../../../structures/STEntry.hpp"
-#include "../../../structures/SegmentedStack.hpp"
+#include "../../../structures/GistStorage.hpp"
 #include "../../../threadLocal/threadLocal.h"
 
 class IConcurrentHashMapCombined
 {
 public:
-    IConcurrentHashMapCombined(std::vector<std::unique_ptr<SegmentedStack<>>>& Gist_storage): Gist_storage(Gist_storage){};
+    IConcurrentHashMapCombined(std::vector<std::unique_ptr<GistStorage<>>>& Gist_storage): Gist_storage(Gist_storage){};
 
     virtual ~IConcurrentHashMapCombined() = default;
     
@@ -23,14 +22,14 @@ public:
     virtual int find(int *key) = 0;
     virtual void clear() = 0;
     virtual bool tryAddDelayed(std::shared_ptr<CustomTask> &task, int *gist) = 0;
-    STEntry *createSTEntry(int *gist, bool finished) {
-        return Gist_storage[threadIndex]->push(gist, finished);
+    int *createGistEntry(int *gist) {
+        return Gist_storage[threadIndex]->push(gist);
     }
-    void deleteSTEntry() {
+    void deleteGistEntry() {
         Gist_storage[threadIndex]->pop();
     }
     private:
-    std::vector<std::unique_ptr<SegmentedStack<>>>& Gist_storage;
+    std::vector<std::unique_ptr<GistStorage<>>>& Gist_storage;
 };
 
 #endif
