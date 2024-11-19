@@ -1,7 +1,10 @@
 #include "structures/TaskHolder.hpp"
 #include <atomic>
+#include <cassert>
+#include <iostream>
 #include <memory>
 #include <vector>
+#include <sstream>
 
 // note since this task group should persist when a task is canceled it should
 // be created with a shared pointer
@@ -9,7 +12,7 @@ class CustomTaskGroup : public std::enable_shared_from_this<CustomTaskGroup> {
 public:
   // todo ad suspend
   CustomTaskGroup(ITaskHolder &taskHolder, std::shared_ptr<CustomTask> creator)
-      : taskHolder(taskHolder), creator(creator){};
+      : taskHolder(taskHolder), creator(creator), isWaiting(false){};
   void run(std::vector<int> &state, int job) {
     refCounter++;
     taskHolder.addTask(
@@ -19,7 +22,19 @@ public:
                               // unregisterChild is responsible for adding the
                               // task again if it is ready
     creator->continueAt = continueAt;
-    return refCounter > 0;
+    assert(isWaiting == false);
+    // invariant ref counter is not incremented while in this method (but might be decremented)
+    if (refCounter > 0) {
+      isWaiting = true;
+      // race condition with the unregister child
+      // 2 gegenseitige 
+      if (refCounter == 0 && isWaiting) {
+        isWaiting = false;
+        return false;
+      }
+      return true;
+    }
+    return false;
   }
 
   void unregisterChild() {
@@ -29,7 +44,13 @@ public:
       old_value = refCounter.load();
       new_value = old_value - 1;
     } while (!refCounter.compare_exchange_weak(old_value, new_value));
-    if (new_value == 0) {
+
+    assert(new_value >= 0);
+
+    if (new_value == 0 && isWaiting) {
+      // Race conditions with the wait method
+      // TODO FIX error the task might not have been paused and if it has not been paused then the add task duplicates it !!!!!!!!!!!
+      isWaiting = false;
       taskHolder.addTask(creator);
     }
     // refCounter--;
@@ -43,4 +64,5 @@ private:
   std::atomic<int> refCounter = 0;
   ITaskHolder &taskHolder;
   std::shared_ptr<CustomTask> creator;
+  std::atomic<bool> isWaiting = false;
 };
