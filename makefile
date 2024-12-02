@@ -33,7 +33,7 @@ custom: $(CUSTOMDst)
 	kcachegrind ./profiling_results/transformed_gperf.out
 
 server: $(ServerDst)
-	vtune -collect hotspots -result-dir vtune_results -- ./$(ServerDst) $(filter-out custom,$(MAKECMDGOALS))
+	vtune -collect hotspots -result-dir vtune_results -- ./$(ServerDst) $(filter-out server,$(MAKECMDGOALS))
 # Define the rule to build the target executable
 $(TARGET): $(SOURCES)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES) $(LDFLAGS)
