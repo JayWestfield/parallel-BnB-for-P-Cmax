@@ -1,6 +1,6 @@
 # Define compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb   -g -ggdb  -DNDEBUG -funroll-loops -O3 # -Igrowt  #-I/usr/include/folly #-I/usr/include/junction -I -Ifolly/folly -Iturf -Ijunction
+CXXFLAGS = -std=c++17 -Wall -I/usr/include/tbb   -g -ggdb -DNDEBUG -funroll-loops -O3 # -Igrowt  #-I/usr/include/folly #-I/usr/include/junction -I -Ifolly/folly -Iturf -Ijunction
 LDFLAGS = -ltbb #-lfolly
 
 # Define the source and target files
@@ -20,15 +20,20 @@ TARGETEXP2 = dst/experiment2
 SOURCESEXP2 = src/experiments/lawrinenko_test2.cpp 
 CUSTOMFiles = src/customBnB/customBnB_base.hpp src/experiments/readData/readData.cpp src/customBnB/threadLocal/threadLocal.cpp src/experiments/Profiler.cpp -ltcmalloc_and_profiler -lprofiler
 CUSTOMDst = dst/custom
+ServerFiles = src/customBnB/customBnB_base.hpp src/experiments/readData/readData.cpp src/customBnB/threadLocal/threadLocal.cpp src/experiments/ProfilerServer.cpp
+ServerDst = dst/server
 $(CUSTOMDst): $(CUSTOMFiles) 
 	$(CXX) $(CXXFLAGS) -o $(CUSTOMDst)  $(CUSTOMFiles) $(LDFLAGS)
-
+$(ServerDst): $(ServerFiles) 
+	$(CXX) $(CXXFLAGS) -o $(ServerDst)  $(ServerFiles) $(LDFLAGS)
 custom: $(CUSTOMDst)
 	rm -f ./profiling_results/profile_*.prof
 	@./$(CUSTOMDst) $(filter-out custom,$(MAKECMDGOALS))
 	google-pprof --callgrind ./dst/custom ./profiling_results/profile_*.prof > ./profiling_results/transformed_gperf.out
 	kcachegrind ./profiling_results/transformed_gperf.out
 
+server: $(ServerDst)
+	vtune -collect hotspots -result-dir vtune_results -- ./$(ServerDst) $(filter-out custom,$(MAKECMDGOALS))
 # Define the rule to build the target executable
 $(TARGET): $(SOURCES)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES) $(LDFLAGS)
@@ -55,8 +60,13 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py ./results/slurm-9123.out plots/feigenbaumIterativeV1.png
-	code plots/feigenbaumIterativeV1.png
+	python3 src/plotting/plotter.py ./results/slurm-13596.out plots/tes.png
+	code plots/tes.png
+
+plot2:
+	python3 src/plotting/compare_executions.py ./results/slurm-9217.out  ./results/slurm-12361.out  plots/compareIterativeWithCombined.png
+	code plots/compareIterativeWithCombined.png
+
 localplot:  
 	python3 src/plotting/plotter.py o.txt plots/local.png
 	code plots/local.png
@@ -64,10 +74,6 @@ localplot:
 localplot2:  
 	python3 src/plotting/compare_executions.py ./o.txt  ./o2.txt plots/localcompare2.png
 	code plots/localcompare2.png
-plot2:
-	python3 src/plotting/compare_executions.py ./results/customLock_fixed.txt  ./results/improveLowerBounds.txt plots/easySuspend.png
-	code plots/compare3.png
-
 $(PROFILE_DST): $(PROFILE_SRC) $(BASEFILES)
 	$(CXX) $(CXXFLAGS) -o $(PROFILE_DST) $(PROFILE_SRC) $(BASEFILES) $(LDFLAGS)
 
