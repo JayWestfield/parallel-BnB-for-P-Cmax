@@ -182,6 +182,11 @@ public:
             delayedLock.unlock();
             return;
         }
+        if ((state[vec_size - 1] + offset) >= maximumRETIndex )
+        {
+            // TODO instead of restarting just unregister this child from parent
+            suspendedTasks.addTask(std::move(task));
+        }
         
         computeGist2(state, job, threadLocalVector);
         if (maps->find(threadLocalVector) != 1){

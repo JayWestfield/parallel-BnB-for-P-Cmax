@@ -53,7 +53,7 @@ int STVersion = 3;
       instances_to_solve.push_back(optimal.first);
   }
 
-  bool ownProcess = true;
+  bool ownProcess = false;
   for (auto instanceName : instances_to_solve) {
     int numJobs, numMachines;
     std::vector<int> jobDurations;
@@ -82,7 +82,7 @@ int STVersion = 3;
         std::future<void> canceler;
         int result = 0;
         // BnB_base_Impl solver(true, true, true, true, 3, numThreads);
-        BnB_base_custom_work_stealing_iterative solver(true, true, true, false,
+        BnB_base_custom_work_stealing_iterative solver(true, true, true, true,
                                                        STVersion, numThreads);
         bool timerExpired = false;
         canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,

@@ -124,6 +124,7 @@ public:
             }
             if (toExecute == nullptr)
               continue;
+            logging(toExecute->state, toExecute->job, "continue work on");
             solvePartial(toExecute);
           }
         }));
@@ -142,12 +143,13 @@ public:
             toExecute = workers[rand.nextInRange(maxAllowedParalellism - 1)]
                             ->stealTasks();
           }
-          while (toExecute == nullptr && count++ < 5) {
+          while (toExecute == nullptr && count++ < 10) {
             toExecute =
                 workers[rand.nextInRange(maxAllowedParalellism)]->stealTasks();
           }
           if (toExecute == nullptr)
             continue;
+          logging(toExecute->state, toExecute->job, "continue work on");
           solvePartial(toExecute);
         }
       }));
@@ -158,7 +160,6 @@ public:
 
     std::thread monitoringThread([&]() {
       int lastVisitedNodes = visitedNodes;
-      int count = 0;
       while (!foundOptimal && !cancel) {
         // if (lastVisitedNodes == visitedNodes) {
         //     STInstance->resumeAllDelayedTasks();
@@ -417,29 +418,29 @@ private:
                          0.8) { // TODO check but that should be usefull (maybe
                                 // not for 20% but a fixed number)
             int repeated = 0;
-            while (STInstance->exists(state, job) == 1 && repeated++ < 1) {
-              logging(state, job, "suspend");
-              if (makespan > upperBound || foundOptimal || cancel) {
-                logging(state, job, "after not worth continuing");
-                finishGistless(parentGroup);
-                return;
-              }
-              STInstance->addDelayed(std::move(task));
-              earlyReturn();
-              return;
-              logging(state, job, "restarted");
-              if (makespan > upperBound || foundOptimal || cancel) {
-                logging(state, job, "after not worth continuing");
-                finishGistless(parentGroup);
-                return;
-              }
-            }
+            // while (STInstance->exists(state, job) == 1 && repeated++ < 1) {
+            logging(state, job, "suspend");
+            //   if (makespan > upperBound || foundOptimal || cancel) {
+            //     logging(state, job, "after not worth continuing");
+            //     finishGistless(parentGroup);
+            //     return;
+            //   }
+            STInstance->addDelayed(task);
+            earlyReturn();
+            return;
+            // logging(state, job, "restarted");
+            // if (makespan > upperBound || foundOptimal || cancel) {
+            //   logging(state, job, "after not worth continuing");
+            //   finishGistless(parentGroup);
+            //   return;
+            // }
+            // }
 
-            if (STInstance->exists(state, job) == 2) {
-              logging(state, job, "after restard found");
-              finishGistless(parentGroup);
-              return;
-            }
+            // if (STInstance->exists(state, job) == 2) {
+            //   logging(state, job, "after restard found");
+            //   finishGistless(parentGroup);
+            //   return;
+            // }
           }
           break;
         default:
@@ -462,18 +463,23 @@ private:
           } else {
             start = loopIndex - 1;
           }
+          loopIndex = -1;
         }
         for (int i = start; i >= 0; i--) {
           if (state[i] + jobDurations[job] <= upperBound &&
               lookupRetFur(state[i], jobDurations[job], job)) {
+            auto local = state;
+            local[i] += jobDurations[job];
             threadLocalStateVector = state;
             assert(threadLocalStateVector == state);
             // might not need to copy here but carefully
             threadLocalStateVector[i] += jobDurations[job];
-            resortAfterIncrement(threadLocalStateVector, i);
+            resortAfterIncrement(local, i);
             loopIndex = i;
-            tg.run(threadLocalStateVector, job + 1); // TODO here is a problem
+            logging(local, job + 1, "FurChild");
+            tg.run(local, job + 1); // TODO here is a problem
             if (tg.wait(4)) {
+              logging(state, job, "wait for fur child");
               earlyReturn();
               return;
             }
@@ -508,6 +514,7 @@ private:
       logging(state, job, "executeR6");
       executeR6Delayed(r6, state, job, tg);
       if (tg.wait(10)) {
+        logging(state, job, "wait for R6 to finish");
         earlyReturn();
         return;
       }
@@ -565,6 +572,8 @@ private:
         case 1:
           // delete next;
           // delayed.push_back(i); //  TODO handle suspended tasks
+          logging(threadLocalStateVector, job + 1,
+                  "child from recursion (most liekly delyed)");
           tg.run(threadLocalStateVector,
                  job + 1); // todo theoretically it can instantly added as a
                            // suspended task
@@ -588,9 +597,9 @@ private:
     gis << message << " ";
     for (auto vla : state)
       gis << vla << ", ";
-    gis << " => ";
-    for (auto vla : STInstance->computeGist(state, job))
-      gis << vla << ", ";
+    // gis << " => ";
+    // for (auto vla : STInstance->computeGist(state, job))
+    //   gis << vla << ", ";
     gis << " Job: " << job;
     std::cout << gis.str() << std::endl;
   }
@@ -634,7 +643,8 @@ private:
     assert(newBound >= lowerBound);
     if (newBound == lowerBound) {
       foundOptimal = true;
-      STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag
+      // STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag 
+      // not necessary with custom tasks
                                            // that should be more performant
     }
 

@@ -8,7 +8,7 @@ public:
     segments.push_back(std::make_unique<std::array<STEntry, SegmentSize>>());
   }
 
-  STEntry *push(int *gist, bool finished) {
+  STEntry *GistStoragepush(int *gist, bool finished) {
     if (current_index == SegmentSize) {
       segments.push_back(std::make_unique<std::array<STEntry, SegmentSize>>());
       current_index = 0;

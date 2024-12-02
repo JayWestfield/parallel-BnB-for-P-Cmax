@@ -36,6 +36,7 @@ public:
   }
 
   ~ST_combined() {
+    CustomUniqueLock lock(mtx);
     resumeAllDelayedTasks();
     if (maps != nullptr)
       delete maps;
@@ -77,7 +78,8 @@ public:
       auto current = next;
       // resume delayed tasks
       while (next != reinterpret_cast<DelayedTasksList *>(-1)) {
-        suspendedTasks.addTask(std::move(next->value));
+        logging(next->value->state, next->value->job, "runnable");
+        suspendedTasks.addTask(next->value);
         next = next->next;
         // logging()
         // delete current; TODO unique pointers for simplicity
@@ -145,19 +147,25 @@ public:
     if (offset <= this->offset)
       return;
     CustomUniqueLock lock(mtx);
-    maps->clear();
     this->offset = offset;
     resumeAllDelayedTasks();
+
+    maps->clear();
   }
   void prepareBoundUpdate() override { mtx.clearFlag = true; }
 
   void clear() override {
+    CustomUniqueLock lock(mtx);
     resumeAllDelayedTasks();
     Gist_storage.clear();
     maps->clear();
   }
 
   void resumeAllDelayedTasks() override {
+    assert(mtx.clearFlag == true);
+    for (auto list :     maps->getDelayed()) {
+      resumeTaskList(list);
+    }
     for (int i = 0; i < Gist_storage.size(); i++) {
       // for (auto entry : *Gist_storage[i]) {
       //   resumeTaskList(entry.taskList);
@@ -174,14 +182,16 @@ public:
     auto job = task->job;
     assert(job < jobSize && job >= 0);
     CustomTrySharedLock lock(mtx);
-    if (clearFlag || !lock.owns_lock()) {
-      suspendedTasks.addTask(std::move(task));
+    if (clearFlag || !lock.owns_lock() || (task->state.back() + offset) >= maximumRETIndex) {
+      logging(task->state, task->job, "no no delay");
+      suspendedTasks.addTask(task);
       delayedLock.unlock();
       return;
     }
     computeGist2(state, job, threadLocalVector);
     if (!maps->tryAddDelayed(task, threadLocalVector.data())) {
-      suspendedTasks.addTask(std::move(task));
+        logging(task->state, task->job, "no no delay");
+      suspendedTasks.addTask(task);
     }
   }
 
@@ -234,9 +244,6 @@ private:
     for (auto vla : state)
       gis << vla << ", ";
     gis << " => ";
-    for (auto vla : computeGist(state, job))
-      gis << vla << " ";
-    gis << " Job: " << job << "\n";
     std::cout << gis.str() << std::endl;
   }
 };

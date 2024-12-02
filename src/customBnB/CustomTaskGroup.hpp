@@ -3,8 +3,9 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
-#include <vector>
 #include <sstream>
+#include <tuple>
+#include <vector>
 
 // note since this task group should persist when a task is canceled it should
 // be created with a shared pointer
@@ -12,57 +13,46 @@ class CustomTaskGroup : public std::enable_shared_from_this<CustomTaskGroup> {
 public:
   // todo ad suspend
   CustomTaskGroup(ITaskHolder &taskHolder, std::shared_ptr<CustomTask> creator)
-      : taskHolder(taskHolder), creator(creator), isWaiting(false){};
+      : taskHolder(taskHolder), creator(creator){};
   void run(std::vector<int> &state, int job) {
-    refCounter++;
-    taskHolder.addTask(
-        std::make_shared<CustomTask>(state, job, shared_from_this()));
+    this->runnableChildren.push_back(std::make_tuple(state, job));
+    this->help.push_back(std::make_tuple(state, job));
+
+    totalChildren++;
   }
   bool wait(int continueAt) { // has to return in code if wait is true
                               // unregisterChild is responsible for adding the
                               // task again if it is ready
     creator->continueAt = continueAt;
-    assert(isWaiting == false);
-    // invariant ref counter is not incremented while in this method (but might be decremented)
-    if (refCounter > 0) {
-      isWaiting = true;
-      // race condition with the unregister child
-      // 2 gegenseitige 
-      if (refCounter == 0 && isWaiting) {
-        isWaiting = false;
-        return false;
-      }
-      return true;
+    bool hasChildren = finishedChildren != totalChildren;
+    assert(totalChildren == finishedChildren + runnableChildren.size());
+    for (auto child : runnableChildren) {
+      taskHolder.addTask(std::make_shared<CustomTask>(
+          std::get<0>(child), std::get<1>(child), shared_from_this()));
     }
-    return false;
+    runnableChildren.clear();
+    return hasChildren;
   }
 
   void unregisterChild() {
-    int old_value;
-    int new_value;
-    do {
-      old_value = refCounter.load();
-      new_value = old_value - 1;
-    } while (!refCounter.compare_exchange_weak(old_value, new_value));
+    int new_value = ++finishedChildren;
 
-    assert(new_value >= 0);
+    assert(new_value <= totalChildren);
 
-    if (new_value == 0 && isWaiting) {
+    if (new_value == totalChildren) {
       // Race conditions with the wait method
-      // TODO FIX error the task might not have been paused and if it has not been paused then the add task duplicates it !!!!!!!!!!!
-      isWaiting = false;
+      // TODO FIX error the task might not have been paused and if it has not
+      // been paused then the add task duplicates it !!!!!!!!!!!
       taskHolder.addTask(creator);
     }
-    // refCounter--;
-    // if (refCounter == 0) { // be carefull with the race condition better do
-    // // it with a compare exchange strong otherwise the task might get adde
-    // twice which would not only lead to performance issues but to a real bug
-    // }
   }
 
 private:
-  std::atomic<int> refCounter = 0;
+  std::atomic<int> finishedChildren = 0;
+  std::atomic<int> totalChildren = 0;
+  std::vector<std::tuple<std::vector<int>, int>> runnableChildren;
+  std::vector<std::tuple<std::vector<int>, int>> help;
+
   ITaskHolder &taskHolder;
   std::shared_ptr<CustomTask> creator;
-  std::atomic<bool> isWaiting = false;
 };
