@@ -1,2 +1,2 @@
 #!/bin/sh
-./dst/experiment2 8 20
+./dst/experiment2 8 20 3
