@@ -28,6 +28,7 @@ public:
     void deleteGistEntry() {
         Gist_storage[threadIndex]->pop();
     }
+    virtual std::vector<DelayedTasksList *> getDelayed() = 0;
     private:
     std::vector<std::unique_ptr<GistStorage<>>>& Gist_storage;
 };

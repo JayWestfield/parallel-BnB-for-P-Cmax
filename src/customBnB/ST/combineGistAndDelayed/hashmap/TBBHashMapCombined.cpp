@@ -17,8 +17,7 @@ class TBBHashMapCombined : public IConcurrentHashMapCombined {
   tbb::concurrent_hash_map<Key, Value, hashingCombined::VectorHasher> map_;
 
 public:
-  TBBHashMapCombined(
-      std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage)
+  TBBHashMapCombined(std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage)
       : IConcurrentHashMapCombined(Gist_storage){};
   DelayedTasksList *insert(Key key, bool value) override {
     tbb::concurrent_hash_map<Key, Value,
@@ -27,7 +26,8 @@ public:
 
     const bool isNew = map_.insert(accessor, newEntry);
     if (isNew) {
-      accessor->second = value ? nullptr : reinterpret_cast<DelayedTasksList *>(-1);
+      accessor->second =
+          value ? nullptr : reinterpret_cast<DelayedTasksList *>(-1);
       return value ? nullptr : reinterpret_cast<DelayedTasksList *>(-1);
     } else {
       deleteGistEntry();
@@ -60,21 +60,42 @@ public:
       auto st = accessor->second;
       auto list = accessor->second;
       // check for nullptr
-      if (!accessor->second)
+      if (accessor->second == nullptr) {
+        // std::stringstream gis;
+        // for (auto vla : task->state)
+        //   gis << vla << ", ";
+        // gis << "delay failed already finished";
+        // std::cout << gis.str() << std::endl;
         return false;
-      //   std::stringstream gis;
-      // gis << accessor->second->taskList << " ";
-      accessor->second =
-          new DelayedTasksList(task, accessor->second);
+      }
+      // std::stringstream gis;
+      // gis << accessor->second << " ";
+      // accessor->second = new DelayedTasksList(task, accessor->second);
       // gis << "paused" << " ";
       // for (auto vla : task->state)
       //   gis << vla << ", ";
-      // gis << " Job: " << task->job << accessor->second->taskList->next <<  "\n";
+      // gis << " Job: " << task->job << accessor->second << " "
+      //     << accessor->second->next << "\n";
       // std::cout << gis.str() << std::endl;
       // std::cout << "delayed" << std::endl;
       return true;
-    } else
-      return false;
+    } else{
+    // std::stringstream gis;
+    //     for (auto vla : task->state)
+    //       gis << vla << ", ";
+    //     gis << "delay failed not found";
+    //     std::cout << gis.str() << std::endl;
+      return false;}
+  }
+  std::vector<DelayedTasksList *> getDelayed() override {
+    std::vector<DelayedTasksList *> delayedLists;
+    for (auto entry : map_) {
+      if (entry.second != nullptr &&
+          entry.second != reinterpret_cast<DelayedTasksList *>(-1)) {
+        delayedLists.push_back(entry.second);
+      }
+    }
+    return delayedLists;
   }
   void clear() override { map_.clear(); }
 };
