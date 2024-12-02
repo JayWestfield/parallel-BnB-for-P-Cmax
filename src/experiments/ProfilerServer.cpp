@@ -8,7 +8,6 @@
 #include <tbb/tbb.h>
 #include <string>
 #include "./readData/readData.h"
-#include <valgrind/callgrind.h>
 
 int main(int argc, char *argv[])
 {
