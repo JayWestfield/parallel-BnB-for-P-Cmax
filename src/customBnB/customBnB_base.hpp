@@ -16,6 +16,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdlib>
 #include <memory>
 #include <numeric>
@@ -790,6 +791,8 @@ private:
     }
     STInstance = nullptr;
   }
+
+  // maybe do a resort while increment? because we need to rewrite the vector anyway therefore might do it together
   // basically insertion sort
   inline void resortAfterIncrement(std::vector<int> &vec, size_t index) {
     assert(index < vec.size());
@@ -798,6 +801,7 @@ private:
     // after
     auto newPosIt =
         std::upper_bound(vec.begin() + index, vec.end(), incrementedValue);
+        assert(gistLength == vec.size() + 1);
     size_t newPosIndex = std::distance(vec.begin(), newPosIt);
     if (newPosIndex == index) {
       return;
