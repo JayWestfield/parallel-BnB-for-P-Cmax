@@ -53,7 +53,7 @@ int STVersion = 3;
       instances_to_solve.push_back(optimal.first);
   }
 
-  bool ownProcess = false;
+  bool ownProcess = true;
   for (auto instanceName : instances_to_solve) {
     int numJobs, numMachines;
     std::vector<int> jobDurations;
