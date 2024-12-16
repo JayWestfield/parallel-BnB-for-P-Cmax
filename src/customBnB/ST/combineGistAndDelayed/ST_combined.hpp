@@ -5,6 +5,7 @@
 #include "hashmap/IConcurrentHashMapCombined.h"
 #include "hashmap/TBBHashMapCombined.cpp"
 #include <cassert>
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <ostream>
@@ -64,7 +65,7 @@ public:
     assert(job < jobSize && job >= 0 &&
            std::is_sorted(state.begin(), state.end()));
     assert((state.back() + offset) < maximumRETIndex);
-    for (auto i = 0; i < vec_size; i++) {
+    for (size_t i = 0; i < static_cast<size_t>(vec_size); i++) {
       gist[i] = RET[job][state[i] + offset];
     }
     gist[vec_size] =
@@ -81,9 +82,9 @@ public:
         logging(next->value->state, next->value->job, "runnable");
         suspendedTasks.addTask(next->value);
         next = next->next;
-        // logging()
-        // delete current; TODO unique pointers for simplicity
       }
+      if (next != nullptr && next != reinterpret_cast<DelayedTasksList *>(-1))
+        delete current;
     }
   }
   void addGist(const std::vector<int> &state, int job) override {
@@ -149,7 +150,9 @@ public:
     CustomUniqueLock lock(mtx);
     this->offset = offset;
     resumeAllDelayedTasks();
-
+    for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
+      Gist_storage[i]->clear();
+    }
     maps->clear();
   }
   void prepareBoundUpdate() override { mtx.clearFlag = true; }
@@ -157,23 +160,17 @@ public:
   void clear() override {
     CustomUniqueLock lock(mtx);
     resumeAllDelayedTasks();
-    Gist_storage.clear();
+    // Gist_storage.clear();
+    for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
+      Gist_storage[i]->clear();
+    }
     maps->clear();
   }
 
   void resumeAllDelayedTasks() override {
     assert(mtx.clearFlag == true);
-    for (auto list :     maps->getDelayed()) {
+    for (auto list : maps->getDelayed()) {
       resumeTaskList(list);
-    }
-    for (int i = 0; i < Gist_storage.size(); i++) {
-      // for (auto entry : *Gist_storage[i]) {
-      //   resumeTaskList(entry.taskList);
-      // }
-      // for (auto it = (*Gist_storage[i]).begin(); it != (*Gist_storage[i]).end();
-      //      ++it) {
-      //   resumeTaskList((*it).taskList);
-      // }
     }
   }
 
@@ -182,7 +179,8 @@ public:
     auto job = task->job;
     assert(job < jobSize && job >= 0);
     CustomTrySharedLock lock(mtx);
-    if (clearFlag || !lock.owns_lock() || (task->state.back() + offset) >= maximumRETIndex) {
+    if (clearFlag || !lock.owns_lock() ||
+        (task->state.back() + offset) >= maximumRETIndex) {
       logging(task->state, task->job, "no no delay");
       suspendedTasks.addTask(task);
       delayedLock.unlock();
@@ -190,7 +188,7 @@ public:
     }
     computeGist2(state, job, threadLocalVector);
     if (!maps->tryAddDelayed(task, threadLocalVector.data())) {
-        logging(task->state, task->job, "no no delay");
+      logging(task->state, task->job, "no no delay");
       suspendedTasks.addTask(task);
     }
   }

@@ -25,7 +25,7 @@ public:
                               // task again if it is ready
     creator->continueAt = continueAt;
     bool hasChildren = finishedChildren != totalChildren;
-    assert(totalChildren == finishedChildren + runnableChildren.size());
+    assert(static_cast<size_t>(totalChildren) == finishedChildren + runnableChildren.size());
     for (auto child : runnableChildren) {
       taskHolder.addTask(std::make_shared<CustomTask>(
           std::get<0>(child), std::get<1>(child), shared_from_this()));

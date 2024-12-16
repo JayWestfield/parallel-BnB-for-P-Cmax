@@ -47,44 +47,22 @@ public:
     tbb::concurrent_hash_map<
         Key, Value, hashingCombined::VectorHasher>::const_accessor accessor;
     if (map_.find(accessor, key)) {
-      // std::cout << accessor->first << " vs " << key << std::endl;
       return accessor->second == nullptr ? 2 : 1;
     }
     return 0;
   }
   bool tryAddDelayed(std::shared_ptr<CustomTask> &task, int *key) override {
-    // std::cout << "try pause" << std::endl;
     tbb::concurrent_hash_map<Key, Value,
                              hashingCombined::VectorHasher>::accessor accessor;
     if (map_.find(accessor, key)) {
-      auto st = accessor->second;
-      auto list = accessor->second;
+
       // check for nullptr
       if (accessor->second == nullptr) {
-        // std::stringstream gis;
-        // for (auto vla : task->state)
-        //   gis << vla << ", ";
-        // gis << "delay failed already finished";
-        // std::cout << gis.str() << std::endl;
         return false;
       }
-      // std::stringstream gis;
-      // gis << accessor->second << " ";
-      // accessor->second = new DelayedTasksList(task, accessor->second);
-      // gis << "paused" << " ";
-      // for (auto vla : task->state)
-      //   gis << vla << ", ";
-      // gis << " Job: " << task->job << accessor->second << " "
-      //     << accessor->second->next << "\n";
-      // std::cout << gis.str() << std::endl;
-      // std::cout << "delayed" << std::endl;
+      accessor->second = new DelayedTasksList(task, accessor->second);
       return true;
     } else{
-    // std::stringstream gis;
-    //     for (auto vla : task->state)
-    //       gis << vla << ", ";
-    //     gis << "delay failed not found";
-    //     std::cout << gis.str() << std::endl;
       return false;}
   }
   std::vector<DelayedTasksList *> getDelayed() override {

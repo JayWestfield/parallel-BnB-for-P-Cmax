@@ -130,7 +130,7 @@ public:
         }));
     for (int i = 1; i < maxAllowedParalellism; i++) {
       threads.push_back(std::thread([&, i]() {
-        // need to pass it especially as a reference otherwise it
+        // need to pass it especially as a value otherwise it
         // only takes the reference wich might be the next i
         // because thread creation is async i assume
         threadIndex = i;
@@ -159,16 +159,16 @@ public:
     std::mutex mtx;
 
     std::thread monitoringThread([&]() {
-      int lastVisitedNodes = visitedNodes;
+      // lastVisited Nodes was added as a workaround for getting stuck (pausing jobs but somehow not restarting them [should be fixed now])
+      // int lastVisitedNodes = visitedNodes;
       while (!foundOptimal && !cancel) {
         // if (lastVisitedNodes == visitedNodes) {
         //     STInstance->resumeAllDelayedTasks();
         //     if (count++ > 3 ) addPreviously = false;
         // }
 
-        lastVisitedNodes = visitedNodes;
-        // std::cout << "trigger mem and resume " <<  foundOptimal << std::endl;
-        // STInstance->resumeAllDelayedTasks();
+        // lastVisitedNodes = visitedNodes;
+
         double memoryUsage = getMemoryUsagePercentage();
         if (memoryUsage > 85) {
           std::cout << "Memory usage high: " << memoryUsage
@@ -417,7 +417,7 @@ private:
               job <= lastSizeJobIndex *
                          0.8) { // TODO check but that should be usefull (maybe
                                 // not for 20% but a fixed number)
-            int repeated = 0;
+            // int repeated = 0;
             // while (STInstance->exists(state, job) == 1 && repeated++ < 1) {
             logging(state, job, "suspend");
             //   if (makespan > upperBound || foundOptimal || cancel) {
@@ -555,9 +555,9 @@ private:
         continue;
       }
       threadLocalStateVector = state;
-      assert(threadLocalStateVector.size() == numMachines);
+      assert(threadLocalStateVector.size() == static_cast<size_t>(numMachines));
       threadLocalStateVector[i] += jobDurations[job];
-      assert(threadLocalStateVector.size() == numMachines);
+      assert(threadLocalStateVector.size() == static_cast<size_t>(numMachines));
 
       resortAfterIncrement(threadLocalStateVector, i);
 

@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cstddef>
 #include <iostream>
 // #include "./../BnB/BnB_base.cpp"
 
@@ -16,7 +18,7 @@ int main(int argc, char *argv[]) {
   int timeout = 1;
   if (argc >= 3)
     timeout = std::stoi(argv[2]);
-int STVersion = 3;
+  int STVersion = 3;
   if (argc >= 4)
     STVersion = std::stoi(argv[3]);
   std::string basePath = "benchmarks";
@@ -115,9 +117,14 @@ int STVersion = 3;
                     << " caceled?" << solver.cancel;
         else {
           std::string times = "{";
-          for (auto time : solver.timeFrames) {
-            times += std::to_string(time.count()) + ";";
+          // only print the last 5 bounds (makes it easier to read)
+          for (std::size_t i = std::max<int>(solver.timeFrames.size() - 5, 0);
+               i < solver.timeFrames.size(); ++i) {
+            times += std::to_string(solver.timeFrames[i].count()) + ";";
           }
+          // for (auto time : solver.timeFrames) {
+          //   times += std::to_string(time.count()) + ";";
+          // }
           times.pop_back();
           times.append("}");
           std::cout << " ("

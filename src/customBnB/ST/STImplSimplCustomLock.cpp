@@ -6,6 +6,7 @@
 #include "hashmap/TBBHashMap.cpp"
 #include "hashmap/delayedHashMaps/stdDelayedMap.cpp"
 #include <cassert>
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <ostream>
@@ -61,7 +62,7 @@ public:
     assert(job < jobSize && job >= 0 &&
            std::is_sorted(state.begin(), state.end()));
     assert((state.back() + offset) < maximumRETIndex);
-    for (auto i = 0; i < vec_size; i++) {
+    for (size_t i = 0; i < vec_size; i++) {
       gist[i] = RET[job][state[i] + offset];
     }
     gist[vec_size] =
@@ -209,9 +210,10 @@ private:
   bool detailedLogging = false;
   IConcurrentHashMap *maps = nullptr;
   bool useBitmaps = false; // currently not supported
-  HashMapWrapper delayedMap;
   std::mutex delayedLock;
   ITaskHolder &suspendedTasks;
+  HashMapWrapper delayedMap;
+
   // custom shared lock
   std::atomic<u_int32_t> referenceCounter;
   bool clearFlag;

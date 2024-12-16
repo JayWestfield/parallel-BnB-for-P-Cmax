@@ -18,8 +18,9 @@ public:
       current_index = 0;
     }
     int *begin = &((*segments.back())[current_index]);
-    // copy the initial gist TODO it might be more efficient to directly create that in there but that is bad for decoupling the hashmap from the stclass
-    for (size_t  i = 0; i < gistLength; i++) {
+    // copy the initial gist TODO it might be more efficient to directly create
+    // that in there but that is bad for decoupling the hashmap from the stclass
+    for (size_t i = 0; i < static_cast<size_t>(gistLength); i++) {
       (*segments.back())[current_index++] = *(gist + i);
     }
     return begin;
@@ -34,9 +35,10 @@ public:
     segments.clear();
     segments.push_back(std::make_unique<std::array<int, SegmentSize>>());
   }
-  // might not need to be iterable only if the hashtable is not iterable or if we have no collection of all the delayed task (again a segmented stack?)
-// is an index for segments better that to use .back ?
+  // might not need to be iterable only if the hashtable is not iterable or if
+  // we have no collection of all the delayed task (again a segmented stack?)
+  // is an index for segments better that to use .back ?
 private:
-  std::vector<std::unique_ptr<std::array<int, SegmentSize>>> segments;
   std::size_t current_index;
+  std::vector<std::unique_ptr<std::array<int, SegmentSize>>> segments;
 };
