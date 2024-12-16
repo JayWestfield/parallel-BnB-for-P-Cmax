@@ -1,9 +1,17 @@
+#include "../threadLocal/threadLocal.h"
 #include <atomic>
+#include <cstddef>
 #include <thread>
+#include <vector>
 #pragma once
 struct CustomSharedMutex {
-  std::atomic<int> referenceCounter = 0;
+  std::vector<std::atomic<int>> referenceCounter;
   std::atomic<bool> clearFlag = false;
+  CustomSharedMutex(int maxThreads): referenceCounter(maxThreads) {
+    for (int i = 0; i < maxThreads; ++i) {
+      referenceCounter[i].store(0, std::memory_order_relaxed);
+    }
+  }
 };
 
 class CustomTrySharedLock {
@@ -11,16 +19,16 @@ public:
   inline CustomTrySharedLock(CustomSharedMutex &mtx) : mtx(mtx) {
     if (mtx.clearFlag.load(std::memory_order_relaxed))
       return;
-    mtx.referenceCounter.fetch_add(1, std::memory_order_relaxed);
+    mtx.referenceCounter[threadIndex].store(1, std::memory_order_relaxed);
     if (mtx.clearFlag.load(std::memory_order_relaxed)) {
-      mtx.referenceCounter.fetch_sub(1, std::memory_order_relaxed);
+      mtx.referenceCounter[threadIndex].store(0, std::memory_order_relaxed);
       return;
     }
     holdsLock = true;
   }
   inline ~CustomTrySharedLock() {
     if (holdsLock)
-      mtx.referenceCounter.fetch_sub(1, std::memory_order_relaxed);
+      mtx.referenceCounter[threadIndex].store(0, std::memory_order_relaxed);
   }
   inline bool owns_lock() { return holdsLock; }
 
@@ -36,8 +44,18 @@ class CustomUniqueLock {
 public:
   inline CustomUniqueLock(CustomSharedMutex &mtx) : mtx(mtx) {
     mtx.clearFlag = true;
-    while (mtx.referenceCounter.load(std::memory_order_relaxed) > 0) {
+    bool running = false;
+    for (std::size_t i = 0; i < mtx.referenceCounter.size(); i++) {
+      running |= static_cast<bool>(
+          mtx.referenceCounter[i].load(std::memory_order_relaxed));
+    }
+    while (running) {
       std::this_thread::yield();
+      running = false;
+      for (std::size_t i = 0; i < mtx.referenceCounter.size(); i++) {
+        running |= static_cast<bool>(
+            mtx.referenceCounter[i].load(std::memory_order_relaxed));
+      }
     }
   }
   inline ~CustomUniqueLock() { mtx.clearFlag = false; }

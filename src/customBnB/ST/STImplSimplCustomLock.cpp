@@ -26,9 +26,9 @@ public:
   STImplSimplCustomLock(int jobSize, int offset,
                         const std::vector<std::vector<int>> &RET,
                         std::size_t vec_size, ITaskHolder &suspendedTasks,
-                        int HashmapType)
+                        int HashmapType, int maxAllowedParallelism)
       : ST_custom(jobSize, offset, RET, vec_size),
-        suspendedTasks(suspendedTasks), delayedMap(suspendedTasks) {
+        suspendedTasks(suspendedTasks), delayedMap(suspendedTasks), mtx(maxAllowedParallelism) {
     initializeHashMap(HashmapType);
     // referenceCounter = 0;
     // clearFlag = false;

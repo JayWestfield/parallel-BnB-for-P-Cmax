@@ -833,7 +833,7 @@ private:
     case 2:
       STInstance = new STImplSimplCustomLock(
           lastRelevantJobIndex + 1, offset, RET, numMachines,
-          *workers[maxAllowedParalellism], 2);
+          *workers[maxAllowedParalellism], 2, maxAllowedParalellism);
       break;
     case 5:
       STInstance = new ST_combined(lastRelevantJobIndex + 1, offset, RET,
@@ -843,7 +843,7 @@ private:
     default:
       STInstance = new STImplSimplCustomLock(
           lastRelevantJobIndex + 1, offset, RET, numMachines,
-          *workers[maxAllowedParalellism], 0);
+          *workers[maxAllowedParalellism], 0, maxAllowedParalellism);
     }
   }
   friend class CustomTaskGroup;

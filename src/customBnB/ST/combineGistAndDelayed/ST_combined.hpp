@@ -27,7 +27,7 @@ public:
               std::size_t vec_size, ITaskHolder &suspendedTasks,
               int HashmapType, int maxAllowedParallelism)
       : ST_custom(jobSize, offset, RET, vec_size),
-        suspendedTasks(suspendedTasks) {
+        suspendedTasks(suspendedTasks), mtx(maxAllowedParallelism) {
     initializeHashMap(HashmapType);
     for (int i = 0; i < maxAllowedParallelism; i++) {
       Gist_storage.push_back(std::make_unique<GistStorage<>>());
