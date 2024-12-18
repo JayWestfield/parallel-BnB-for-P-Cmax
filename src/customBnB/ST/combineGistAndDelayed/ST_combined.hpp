@@ -4,13 +4,17 @@
 #include "../ST_custom.h"
 #include "hashmap/IConcurrentHashMapCombined.h"
 #include "hashmap/TBBHashMapCombined.cpp"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <ostream>
 #include <sstream>
 #include <unistd.h>
+#include <utility>
+#include <vector>
 // #include "./hashmap/FollyHashMap.cpp"
 // #include "./hashmap/JunctionHashMap.cpp"
 // #include "./hashmap/GrowtHashMap.cpp"
@@ -74,13 +78,49 @@ public:
              // and if so is that a problem?)
   }
 
+  void computeGist3(const std::vector<int> &state, int job,
+                    std::vector<int> &gist) {
+    assert(job < jobSize && job >= 0 &&
+           std::is_sorted(state.begin(), state.end()));
+    assert((state.back() + offset) < maximumRETIndex);
+    int maxAllowedOffset = maximumRETIndex;
+    // manual unrolling or pragma from open mp? use gist length instead of
+    // vecsize ?
+    for (size_t i = 0; i < static_cast<size_t>(vec_size); i++) {
+      gist[i] = RET[job][state[i] + offset];
+      maxAllowedOffset =
+          std::min(maxAllowedOffset, findMaxOffset(state[i] + offset, job));
+    }
+    gist[vec_size] =
+        job; // TODO think about wether we really need the jobdepth here (can 2
+             // partial assignments with a different depth have teh same gist
+             // and if so is that a problem?)
+    gist[vec_size + 1] = maxAllowedOffset + offset;
+  }
+  // TODO that might not be efficient for bigger offsets might use a binary
+  // search or try not every but every second entry etc
+  inline int findMaxOffset(const int val, const int job) {
+    auto entry = RET[job][val];
+    auto compare = RET[job][val];
+    std::size_t offset = 0;
+    // maybe it is better to do it as a oneliner?
+    while (entry == compare) {
+      compare = RET[job][val + offset++];
+    }
+    // std::cout << offset - 1 << std::endl;
+    return offset - 1;
+
+  }
+  inline void resumeTask(DelayedTasksList *next) {
+    logging(next->value->state, next->value->job, "runnable");
+    suspendedTasks.addTask(next->value);
+  }
   inline void resumeTaskList(DelayedTasksList *next) {
     if (next != nullptr) {
       auto current = next;
       // resume delayed tasks
       while (next != reinterpret_cast<DelayedTasksList *>(-1)) {
-        logging(next->value->state, next->value->job, "runnable");
-        suspendedTasks.addTask(next->value);
+        resumeTask(next);
         next = next->next;
       }
       if (next != nullptr && next != reinterpret_cast<DelayedTasksList *>(-1))
@@ -103,7 +143,7 @@ public:
       return;
     if ((state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
       return;
-    computeGist2(state, job, threadLocalVector);
+    computeGist3(state, job, threadLocalVector);
     auto next = maps->insert(threadLocalVector.data(), true);
     resumeTaskList(next);
     logging(state, job, "added Gist");
@@ -138,23 +178,75 @@ public:
       return;
     if ((state[vec_size - 1] + offset) >= maximumRETIndex)
       return;
-    computeGist2(state, job, threadLocalVector);
+    computeGist3(state, job, threadLocalVector);
     maps->insert(threadLocalVector.data(), false);
     logging(state, job, "add Prev");
   }
+  auto getReinsertedGistsAndResumeOthers() {
+    std::vector<std::pair<std::vector<int>, DelayedTasksList *>>
+        gistsToReinsert;
 
+    auto rest = maps->getNonEmptyGists(offset);
+    for (auto resume : rest.second) {
+      resumeTaskList(resume);
+    }
+    for (auto list : rest.first) {
+      auto job = list.first[gistLength - 1];
+      assert(job <= jobSize);
+      DelayedTasksList *newList = reinterpret_cast<DelayedTasksList *>(-1);
+      DelayedTasksList *iterator = list.second;
+      while (iterator != reinterpret_cast<DelayedTasksList *>(-1)) {
+        DelayedTasksList *current = iterator;
+        iterator = iterator->next;
+        // keep it in case the gist is still accurate
+        if (current->value->state.back() + offset >= maximumRETIndex) {
+          // TODO instantly terminate instead of restarting
+          suspendedTasks.addTask(current->value);
+          current->next = reinterpret_cast<DelayedTasksList *>(-1);
+          delete current;
+          continue;
+        }
+        computeGist2(current->value->state, job, threadLocalVector);
+        if (std::equal(list.first, list.first + gistLength,
+                       threadLocalVector.data())) {
+          current->next = newList;
+          newList = current;
+        } else {
+          resumeTask(current);
+          current->next = reinterpret_cast<DelayedTasksList *>(-1);
+          delete current;
+        }
+      }
+      std::vector<int> gistWrapped(gistLength + 2);
+      for (int i = 0; i < gistLength + 2; ++i) {
+        gistWrapped[i] = list.first[i];
+      }
+      gistsToReinsert.push_back(std::make_pair(gistWrapped, newList));
+    }
+    return gistsToReinsert;
+  }
+  void
+  reinsertGists(std::vector<std::pair<std::vector<int>, DelayedTasksList *>>
+                    gistsToReinsert) {
+    for (auto gist : gistsToReinsert) {
+      maps->reinsertGist(gist.first.data(), gist.second);
+    }
+  }
   // assert bound update is itself never called in parallel
   void boundUpdate(int offset) override {
     if (offset <= this->offset)
       return;
     CustomUniqueLock lock(mtx);
     this->offset = offset;
-    resumeAllDelayedTasks();
+    auto gistsToReinsert = getReinsertedGistsAndResumeOthers();
+    // resumeAllDelayedTasks();
     for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
       Gist_storage[i]->clear();
     }
     maps->clear();
+    reinsertGists(gistsToReinsert);
   }
+
   void prepareBoundUpdate() override { mtx.clearFlag = true; }
 
   void clear() override {
@@ -186,7 +278,7 @@ public:
       delayedLock.unlock();
       return;
     }
-    computeGist2(state, job, threadLocalVector);
+    computeGist3(state, job, threadLocalVector);
     if (!maps->tryAddDelayed(task, threadLocalVector.data())) {
       logging(task->state, task->job, "no no delay");
       suspendedTasks.addTask(task);

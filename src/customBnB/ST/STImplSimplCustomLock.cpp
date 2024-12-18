@@ -18,6 +18,7 @@
 // #include "./hashmap/GrowtHashMap.cpp"
 #include "../structures/SuspendedTaskHolder.hpp"
 #include "customSharedLock.hpp"
+// Deprecated !!!!!!!!!!!!!!!!
 class STImplSimplCustomLock : public ST_custom {
 public:
   // using HashMap = tbb::concurrent_hash_map<std::vector<int>, bool,

@@ -5,6 +5,7 @@
 #include <vector>
 #pragma once
 extern int gistLength;
+extern int wrappedGistLength;
 
 template <std::size_t SegmentSize = 1024> class GistStorage {
 public:
@@ -13,21 +14,22 @@ public:
   }
 
   int *push(int *gist) {
-    if (current_index >= SegmentSize - gistLength) {
+    if (current_index >= SegmentSize - wrappedGistLength) {
       segments.push_back(std::make_unique<std::array<int, SegmentSize>>());
       current_index = 0;
     }
     int *begin = &((*segments.back())[current_index]);
     // copy the initial gist TODO it might be more efficient to directly create
     // that in there but that is bad for decoupling the hashmap from the stclass
-    for (size_t i = 0; i < static_cast<size_t>(gistLength); i++) {
+    // TODO rather use a memfill or sth like that
+    for (size_t i = 0; i < static_cast<size_t>(wrappedGistLength); i++) {
       (*segments.back())[current_index++] = *(gist + i);
     }
     return begin;
   }
   void pop() {
     assert(current_index != 0);
-    current_index -= gistLength;
+    current_index -= wrappedGistLength;
   }
 
   void clear() {

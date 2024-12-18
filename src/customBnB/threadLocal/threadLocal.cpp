@@ -7,7 +7,7 @@ thread_local std::vector<int> threadLocalStateVector;
 thread_local int threadIndex;
 
 void initializeThreadLocalVector(int size) {
-  threadLocalVector.resize(size + 1); // need accurate size because of the equal
+  threadLocalVector.resize(size + 2); // need accurate size because of the equal
                                   // comparator in Vectorhasher
   threadLocalStateVector.resize(size);
 }

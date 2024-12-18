@@ -26,6 +26,8 @@
 #include <vector>
 const int limitedTaskSpawning = 2000;
 extern int gistLength;
+extern int wrappedGistLength;
+
 class BnB_base_custom_work_stealing_iterative : public BnBSolverBase {
 
 public:
@@ -60,6 +62,8 @@ public:
     numMachines = numMachine;
     jobDurations = jobDuration;
     gistLength = numMachine + 1;
+    // this includes the extra info on when the gist changes
+    wrappedGistLength = numMachine + 2;
     // assume sorted
     assert(std::is_sorted(jobDurations.begin(), jobDurations.end(),
                           std::greater<int>()));
