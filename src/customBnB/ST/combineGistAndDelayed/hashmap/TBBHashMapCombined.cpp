@@ -88,24 +88,25 @@ public:
   // cannot filter the gist here, because we do not have access to the compute
   // gist necessary to chekc wether the delayed tast
   // first describes entries that might be reinserted
-  std::pair<std::vector<std::pair<int *, DelayedTasksList *>>,
-            std::vector<DelayedTasksList *>>
-  getNonEmptyGists(const int newOffset) override {
-    std::pair<std::vector<std::pair<int *, DelayedTasksList *>>,
-              std::vector<DelayedTasksList *>>
+  void
+  getNonEmptyGists(tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>
+                       &maybeReinsert,
+                   tbb::concurrent_queue<DelayedTasksList *> &restart,
+                   const int newOffset) override {
+    std::pair<tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>,
+              tbb::concurrent_queue<DelayedTasksList *>>
         nonEmpty;
     for (auto entry : map_) {
       if (entry.second != nullptr &&
           entry.second != reinterpret_cast<DelayedTasksList *>(-1)) {
         // check the max offset
         if (entry.first[gistLength] >= newOffset) {
-          nonEmpty.first.push_back(entry);
+          maybeReinsert.push(entry);
         } else {
-          nonEmpty.second.push_back(entry.second);
+          restart.push(entry.second);
         }
       }
     }
-    return nonEmpty;
   }
 
   void clear() override { map_.clear(); }

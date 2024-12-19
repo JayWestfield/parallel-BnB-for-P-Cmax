@@ -29,9 +29,11 @@ public:
   }
   void deleteGistEntry() { Gist_storage[threadIndex]->pop(); }
   virtual std::vector<DelayedTasksList *> getDelayed() = 0;
-  virtual std::pair<std::vector<std::pair<int *, DelayedTasksList *>>,
-                    std::vector<DelayedTasksList *>>
-  getNonEmptyGists(const int newOffset) = 0;
+  virtual void
+  getNonEmptyGists(tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>
+                       &maybeReinsert,
+                   tbb::concurrent_queue<DelayedTasksList *> &restart,
+                   const int newOffset) = 0;
 
 private:
   std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage;

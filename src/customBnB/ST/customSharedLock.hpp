@@ -26,6 +26,17 @@ public:
     }
     holdsLock = true;
   }
+  bool inline tryLock() {
+    if (mtx.clearFlag.load(std::memory_order_relaxed))
+      return false;
+    mtx.referenceCounter[threadIndex].store(1, std::memory_order_relaxed);
+    if (mtx.clearFlag.load(std::memory_order_relaxed)) {
+      mtx.referenceCounter[threadIndex].store(0, std::memory_order_relaxed);
+      return false;
+    }
+    holdsLock = true;
+    return true;
+  }
   inline ~CustomTrySharedLock() {
     if (holdsLock)
       mtx.referenceCounter[threadIndex].store(0, std::memory_order_relaxed);

@@ -114,7 +114,8 @@ public:
                             // nad make it to an array
           threadIndex = 0;
           initializeThreadLocalVector(numMachines);
-          solvePartial(std::make_shared<CustomTask>(initialState, 0));
+          auto firstTask = std::make_shared<CustomTask>(initialState, 0);
+          solvePartial(firstTask);
           while (!foundOptimal && !cancel) {
             auto toExecute = workers[threadIndex]->getNextTask();
             int count = 0;
@@ -805,7 +806,7 @@ private:
     // after
     auto newPosIt =
         std::upper_bound(vec.begin() + index, vec.end(), incrementedValue);
-        assert(gistLength == vec.size() + 1);
+        assert(static_cast<std::size_t>(gistLength) == vec.size() + 1);
     size_t newPosIndex = std::distance(vec.begin(), newPosIt);
     if (newPosIndex == index) {
       return;

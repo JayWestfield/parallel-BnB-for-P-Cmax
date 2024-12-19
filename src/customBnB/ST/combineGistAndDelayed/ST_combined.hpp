@@ -5,6 +5,7 @@
 #include "hashmap/IConcurrentHashMapCombined.h"
 #include "hashmap/TBBHashMapCombined.cpp"
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cstddef>
 #include <iostream>
@@ -12,6 +13,7 @@
 #include <memory>
 #include <ostream>
 #include <sstream>
+#include <thread>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -77,40 +79,71 @@ public:
              // partial assignments with a different depth have teh same gist
              // and if so is that a problem?)
   }
+  int findMaxOffset(const int val, const int job, const int currentOffset) {
+    const auto entry = RET[job][val + offset];
+    std::size_t newMaxOffset =
+        std::min(currentOffset, maximumRETIndex - val - offset - 1);
+    auto compare = RET[job][val + offset + newMaxOffset];
 
+    // maybe it is better to do it as a oneliner?
+    while (entry != compare) {
+      newMaxOffset--;
+      compare = RET[job][val + offset + newMaxOffset];
+    }
+    assert(entry == compare);
+    // std::cout << offset - 1 << std::endl;
+    assert(newMaxOffset >= 0);
+    assert(currentOffset >= newMaxOffset);
+    return newMaxOffset;
+  }
   void computeGist3(const std::vector<int> &state, int job,
                     std::vector<int> &gist) {
     assert(job < jobSize && job >= 0 &&
            std::is_sorted(state.begin(), state.end()));
     assert((state.back() + offset) < maximumRETIndex);
-    int maxAllowedOffset = maximumRETIndex;
+    int maxAllowedOffset = 0;
     // manual unrolling or pragma from open mp? use gist length instead of
     // vecsize ?
-    for (size_t i = 0; i < static_cast<size_t>(vec_size); i++) {
+    gist[0] = RET[job][state[0] + offset];
+    {
+      auto compare = RET[job][state[0] + offset];
+      while (RET[job][state[0] + offset + ++maxAllowedOffset] == compare) {
+      };
+      maxAllowedOffset--;
+      assert(maxAllowedOffset >= 0);
+    }
+
+    for (size_t i = 1; i < static_cast<size_t>(vec_size); i++) {
       gist[i] = RET[job][state[i] + offset];
-      maxAllowedOffset =
-          std::min(maxAllowedOffset, findMaxOffset(state[i] + offset, job));
+      auto maybenew = findMaxOffset(state[i], job, maxAllowedOffset);
+      assert(maxAllowedOffset >= maybenew);
+      maybenew = findMaxOffset(state[i], job, maxAllowedOffset);
+      assert(maybenew >= 0);
+      assert(gist[i] == RET[job][state[i] + offset + maybenew]);
+
+      maxAllowedOffset = std::min(maxAllowedOffset, maybenew);
+      assert(maxAllowedOffset >= 0);
+      assert(gist[i] == RET[job][state[i] + offset + maxAllowedOffset]);
     }
     gist[vec_size] =
         job; // TODO think about wether we really need the jobdepth here (can 2
              // partial assignments with a different depth have teh same gist
              // and if so is that a problem?)
     gist[vec_size + 1] = maxAllowedOffset + offset;
+
+    std::vector<int> gist2(wrappedGistLength);
+    for (size_t i = 0; i < static_cast<size_t>(vec_size); i++) {
+      gist2[i] = RET[job][state[i] + offset + maxAllowedOffset];
+    }
+    gist2[vec_size] = job;
+    gist2[vec_size + 1] = maxAllowedOffset + offset;
+    assert(std::equal(gist.data(), gist.data() + gistLength, gist2.data()));
   }
   // TODO that might not be efficient for bigger offsets might use a binary
-  // search or try not every but every second entry etc
-  inline int findMaxOffset(const int val, const int job) {
-    auto entry = RET[job][val];
-    auto compare = RET[job][val];
-    std::size_t offset = 0;
-    // maybe it is better to do it as a oneliner?
-    while (entry == compare) {
-      compare = RET[job][val + offset++];
-    }
-    // std::cout << offset - 1 << std::endl;
-    return offset - 1;
+  // search
+  // TODO also think about the dif between compare and entry can be used as a
+  // step width !!!!! search or try not every but every second entry etc
 
-  }
   inline void resumeTask(DelayedTasksList *next) {
     logging(next->value->state, next->value->job, "runnable");
     suspendedTasks.addTask(next->value);
@@ -123,7 +156,8 @@ public:
         resumeTask(next);
         next = next->next;
       }
-      if (next != nullptr && next != reinterpret_cast<DelayedTasksList *>(-1))
+      if (current != nullptr &&
+          current != reinterpret_cast<DelayedTasksList *>(-1))
         delete current;
     }
   }
@@ -139,8 +173,12 @@ public:
     //     return;
     // }
     CustomTrySharedLock lock(mtx);
-    if (!lock.owns_lock())
-      return;
+    if (!lock.owns_lock()) {
+      work();
+      while (!lock.tryLock()) {
+        work();
+      }
+    }
     if ((state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
       return;
     computeGist3(state, job, threadLocalVector);
@@ -157,8 +195,13 @@ public:
       return 0;
 
     CustomTrySharedLock lock(mtx);
-    if (!lock.owns_lock())
-      return 0;
+    // TODO maybe the existence check can jsut return 0?
+    if (!lock.owns_lock()) {
+      work();
+      while (!lock.tryLock()) {
+        work();
+      }
+    }
     if ((state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
       return 0;
 
@@ -174,57 +217,19 @@ public:
     if ((state[vec_size - 1] + offset) >= maximumRETIndex)
       return;
     CustomTrySharedLock lock(mtx);
-    if (!lock.owns_lock())
-      return;
+    if (!lock.owns_lock()) {
+      work();
+      while (!lock.tryLock()) {
+        work();
+      }
+    }
     if ((state[vec_size - 1] + offset) >= maximumRETIndex)
       return;
     computeGist3(state, job, threadLocalVector);
     maps->insert(threadLocalVector.data(), false);
     logging(state, job, "add Prev");
   }
-  auto getReinsertedGistsAndResumeOthers() {
-    std::vector<std::pair<std::vector<int>, DelayedTasksList *>>
-        gistsToReinsert;
 
-    auto rest = maps->getNonEmptyGists(offset);
-    for (auto resume : rest.second) {
-      resumeTaskList(resume);
-    }
-    for (auto list : rest.first) {
-      auto job = list.first[gistLength - 1];
-      assert(job <= jobSize);
-      DelayedTasksList *newList = reinterpret_cast<DelayedTasksList *>(-1);
-      DelayedTasksList *iterator = list.second;
-      while (iterator != reinterpret_cast<DelayedTasksList *>(-1)) {
-        DelayedTasksList *current = iterator;
-        iterator = iterator->next;
-        // keep it in case the gist is still accurate
-        if (current->value->state.back() + offset >= maximumRETIndex) {
-          // TODO instantly terminate instead of restarting
-          suspendedTasks.addTask(current->value);
-          current->next = reinterpret_cast<DelayedTasksList *>(-1);
-          delete current;
-          continue;
-        }
-        computeGist2(current->value->state, job, threadLocalVector);
-        if (std::equal(list.first, list.first + gistLength,
-                       threadLocalVector.data())) {
-          current->next = newList;
-          newList = current;
-        } else {
-          resumeTask(current);
-          current->next = reinterpret_cast<DelayedTasksList *>(-1);
-          delete current;
-        }
-      }
-      std::vector<int> gistWrapped(gistLength + 2);
-      for (int i = 0; i < gistLength + 2; ++i) {
-        gistWrapped[i] = list.first[i];
-      }
-      gistsToReinsert.push_back(std::make_pair(gistWrapped, newList));
-    }
-    return gistsToReinsert;
-  }
   void
   reinsertGists(std::vector<std::pair<std::vector<int>, DelayedTasksList *>>
                     gistsToReinsert) {
@@ -237,16 +242,62 @@ public:
     if (offset <= this->offset)
       return;
     CustomUniqueLock lock(mtx);
+    if (offset <= this->offset)
+      return;
     this->offset = offset;
-    auto gistsToReinsert = getReinsertedGistsAndResumeOthers();
+    assert(maybeReinsert.empty());
+    assert(restart.empty());
+
+    // TODO check we do not want a copy here
+    maps->getNonEmptyGists(maybeReinsert, restart, offset);
     // resumeAllDelayedTasks();
+    while (!maybeReinsert.empty() || !restart.empty()) {
+      workOnMaybeReinsert();
+      workOnResume();
+    }
+    // wait for other threads
+    while (threadsWorking.load(std::memory_order_acquire) > 0)
+      std::this_thread::yield();
+    assert(maybeReinsert.empty());
+    assert(restart.empty());
     for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
       Gist_storage[i]->clear();
     }
     maps->clear();
-    reinsertGists(gistsToReinsert);
+    stepToWork.store(1, std::memory_order_relaxed);
+    while (!reinsert.empty()) {
+      workOnReinsert();
+    }
+    // wait for other threads (to avoid a race condition with add ing a gist
+    // that should resume some tasks that are yet to be reinserted)
+    while (threadsWorking > 0)
+      std::this_thread::yield();
+    stepToWork.store(0, std::memory_order_relaxed);
+    assert(reinsert.empty());
+    clearFlag = false;
   }
-
+  void work() {
+    while (mtx.clearFlag) {
+      if (stepToWork.load(std::memory_order_relaxed) == 0) {
+        if (!maybeReinsert.empty()) {
+          threadsWorking.fetch_add(1, std::memory_order_relaxed);
+          workOnMaybeReinsert();
+          threadsWorking.fetch_sub(1, std::memory_order_relaxed);
+        }
+        if (!restart.empty()) {
+          threadsWorking.fetch_add(1, std::memory_order_relaxed);
+          workOnResume();
+          threadsWorking.fetch_sub(1, std::memory_order_relaxed);
+        }
+      } else {
+        if (!reinsert.empty()) {
+          threadsWorking.fetch_add(1, std::memory_order_relaxed);
+          workOnReinsert();
+          threadsWorking.fetch_sub(1, std::memory_order_relaxed);
+        }
+      }
+    }
+  }
   void prepareBoundUpdate() override { mtx.clearFlag = true; }
 
   void clear() override {
@@ -271,8 +322,13 @@ public:
     auto job = task->job;
     assert(job < jobSize && job >= 0);
     CustomTrySharedLock lock(mtx);
-    if (clearFlag || !lock.owns_lock() ||
-        (task->state.back() + offset) >= maximumRETIndex) {
+    if (!lock.owns_lock()) {
+      work();
+      while (!lock.tryLock()) {
+        work();
+      }
+    }
+    if (clearFlag || (task->state.back() + offset) >= maximumRETIndex) {
       logging(task->state, task->job, "no no delay");
       suspendedTasks.addTask(task);
       delayedLock.unlock();
@@ -284,6 +340,64 @@ public:
       suspendedTasks.addTask(task);
     }
   }
+  void workOnMaybeReinsert() {
+    if (maybeReinsert.empty())
+      return;
+
+    std::pair<int *, DelayedTasksList *> work;
+    while (maybeReinsert.try_pop(work)) {
+      const auto job = work.first[gistLength - 1];
+      assert(job <= jobSize);
+      DelayedTasksList *newList = reinterpret_cast<DelayedTasksList *>(-1);
+      DelayedTasksList *iterator = work.second;
+      std::vector<int> gistWrapped(wrappedGistLength);
+      for (int i = 0; i < wrappedGistLength; ++i) {
+        gistWrapped[i] = work.first[i];
+      }
+      while (iterator != reinterpret_cast<DelayedTasksList *>(-1)) {
+        DelayedTasksList *current = iterator;
+        iterator = iterator->next;
+        // keep it in case the gist is still accurate
+        if (current->value->state.back() + offset >= maximumRETIndex) {
+          // TODO instantly terminate instead of restarting
+          resumeTask(current);
+          current->next = reinterpret_cast<DelayedTasksList *>(-1);
+          delete current;
+          continue;
+        }
+        computeGist2(current->value->state, job, threadLocalVector);
+        // equal could be shorter by one last one is the job
+        if (std::equal(work.first, work.first + gistLength,
+                       threadLocalVector.data())) {
+          current->next = newList;
+          newList = current;
+        } else {
+          resumeTask(current);
+          current->next = reinterpret_cast<DelayedTasksList *>(-1);
+          delete current;
+        }
+      }
+
+      reinsert.push(std::make_pair(gistWrapped, newList));
+    }
+  }
+  void workOnResume() {
+    if (restart.empty())
+      return;
+    DelayedTasksList *work;
+    while (restart.try_pop(work)) {
+      resumeTaskList(work);
+    }
+  }
+  void workOnReinsert() {
+    if (reinsert.empty())
+      return;
+    std::pair<std::vector<int>, DelayedTasksList *> work;
+    while (reinsert.try_pop(work)) {
+      // resumeTaskList(work.second);
+      maps->reinsertGist(work.first.data(), work.second);
+    }
+  }
 
 private:
   bool detailedLogging = false;
@@ -291,9 +405,17 @@ private:
   bool useBitmaps = false; // currently not supported
   std::mutex delayedLock;
   ITaskHolder &suspendedTasks;
-
-  bool clearFlag;
+  std::atomic<bool> clearFlag = false;
   CustomSharedMutex mtx;
+
+  // migration
+  std::atomic<int> threadsWorking = 0;
+  std::atomic<int> stepToWork = 0;
+
+  tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>> maybeReinsert;
+  tbb::concurrent_queue<DelayedTasksList *> restart;
+  tbb::concurrent_queue<std::pair<std::vector<int>, DelayedTasksList *>>
+      reinsert;
 
   // ST
   std::vector<std::unique_ptr<GistStorage<>>> Gist_storage;
