@@ -1,3 +1,4 @@
+#pragma once
 #include "structures/TaskHolder.hpp"
 #include <atomic>
 #include <cassert>

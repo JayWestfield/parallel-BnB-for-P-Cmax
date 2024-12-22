@@ -1,7 +1,9 @@
 #ifndef ST_combined_H
 #define ST_combined_H
 
+#include "../../CustomTaskGroup.hpp"
 #include "../ST_custom.h"
+
 #include "hashmap/IConcurrentHashMapCombined.h"
 #include "hashmap/TBBHashMapCombined.cpp"
 #include <algorithm>
@@ -117,7 +119,6 @@ public:
       gist[i] = RET[job][state[i] + offset];
       auto maybenew = findMaxOffset(state[i], job, maxAllowedOffset);
       assert(maxAllowedOffset >= maybenew);
-      maybenew = findMaxOffset(state[i], job, maxAllowedOffset);
       assert(maybenew >= 0);
       assert(gist[i] == RET[job][state[i] + offset + maybenew]);
 
@@ -147,6 +148,23 @@ public:
   inline void resumeTask(DelayedTasksList *next) {
     logging(next->value->state, next->value->job, "runnable");
     suspendedTasks.addTask(next->value);
+  }
+  inline void cancelTask(DelayedTasksList *next) {
+    logging(next->value->state, next->value->job, "cancel");
+    next->value->parentGroup->unregisterChild();
+  }
+  inline void cancelTaskList(DelayedTasksList *next) {
+    if (next != nullptr) {
+      auto current = next;
+      // calcel delayed tasks
+      while (next != reinterpret_cast<DelayedTasksList *>(-1)) {
+        cancelTask(next);
+        next = next->next;
+      }
+      if (current != nullptr &&
+          current != reinterpret_cast<DelayedTasksList *>(-1))
+        delete current;
+    }
   }
   inline void resumeTaskList(DelayedTasksList *next) {
     if (next != nullptr) {
@@ -183,7 +201,8 @@ public:
       return;
     computeGist3(state, job, threadLocalVector);
     auto next = maps->insert(threadLocalVector.data(), true);
-    resumeTaskList(next);
+    // resumeTaskList(next);
+    cancelTaskList(next);
     logging(state, job, "added Gist");
   }
 
@@ -360,7 +379,7 @@ public:
         // keep it in case the gist is still accurate
         if (current->value->state.back() + offset >= maximumRETIndex) {
           // TODO instantly terminate instead of restarting
-          resumeTask(current);
+          cancelTask(current);
           current->next = reinterpret_cast<DelayedTasksList *>(-1);
           delete current;
           continue;
