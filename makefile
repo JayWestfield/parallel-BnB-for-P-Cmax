@@ -10,7 +10,7 @@ TARGET = dst/parallel_solver
 SOURCESEXP = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/lawrinenko_test.cpp 
 TARGETEXP = dst/experiment
 FILTERALL = dst/runAllFast
-SOURCESALL = src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/test_to_filter_benchmark.cpp
+SOURCESALL = src/experiments/test_to_filter_benchmark.cpp src/customBnB/customBnB_base.hpp src/experiments/readData/readData.cpp src/customBnB/threadLocal/threadLocal.cpp
 
 PROFILE_SRC =  src/BnB/STImpl.cpp src/BnB/BnB_base.cpp src/BnB/BnB_base.h src/experiments/Profiler.cpp src/BnB/BnB_base_custom_work_stealing.cpp -ltcmalloc_and_profiler -lprofiler
 PROFILE_DST = dst/profiler 
@@ -60,11 +60,11 @@ debugger:
 	bash ./src/debugging/debugger.sh $(TARGET)
 
 plot:  
-	python3 src/plotting/plotter.py ./results/slurm-13596.out plots/tes.png
+	python3 src/plotting/plotter.py ./results/slurm-14408.out plots/tes.png
 	code plots/tes.png
 
 plot2:
-	python3 src/plotting/compare_executions.py ./results/slurm-9217.out  ./results/slurm-12361.out  plots/compareIterativeWithCombined.png
+	python3 src/plotting/compare_executions.py ./results/slurm-14408.out  ./results/slurm-14660.out  plots/compareIterativeWithCombined.png
 	code plots/compareIterativeWithCombined.png
 
 localplot:  
