@@ -177,19 +177,19 @@ public:
 
         double memoryUsage = getMemoryUsagePercentage();
         if (memoryUsage > 85) {
-          std::cout << "Memory usage high: " << memoryUsage
-                    << "%. Calling evictAll. "
-                    << ((std::chrono::duration<
-                            double>)(std::chrono::high_resolution_clock::now() -
-                                     start))
-                           .count()
-                    << std::endl;
+          // std::cout << "Memory usage high: " << memoryUsage
+          //           << "%. Calling evictAll. "
+          //           << ((std::chrono::duration<
+          //                   double>)(std::chrono::high_resolution_clock::now() -
+          //                            start))
+          //                  .count()
+          //           << std::endl;
           std::unique_lock lock(boundLock);
           STInstance->clear();
 
-          memoryUsage = getMemoryUsagePercentage();
-          std::cout << "Memory usage after evictAll: " << memoryUsage << "%"
-                    << std::endl;
+          // memoryUsage = getMemoryUsagePercentage();
+          // std::cout << "Memory usage after evictAll: " << memoryUsage << "%"
+          //           << std::endl;
         }
         // interuptable wait
         std::unique_lock<std::mutex> condLock(mtx);
@@ -365,7 +365,7 @@ private:
       }
       int makespan = state[numMachines - 1];
 
-      visitedNodes++;
+      visitedNodes.fetch_add(1, std::memory_order_relaxed);
       if (logNodes && visitedNodes % 1000000 == 0) {
         std::cout << "visited nodes: " << visitedNodes
                   << " current Bound: " << upperBound << " " << job
