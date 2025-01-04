@@ -103,8 +103,8 @@ int main(int argc, char *argv[]) {
       // instanceName.find("n80-") != std::string::npos ||
       // instanceName.find("n90-") != std::string::npos) continue; if
       // (instanceName.find(contains) == std::string::npos) continue;
-      // if(instanceName !=
-      // "p_cmax-class7-n220-m80-mu880-sigma220-seed30445.txt") continue;
+      // if (instanceName != "p_cmax-class7-n40-m20-mu160-sigma40-seed5221.txt")
+      //   continue;
 
       std::cout << instanceName << std::flush;
       BnB_base_custom_work_stealing_iterative solver(true, true, true, true, 5,
@@ -123,6 +123,8 @@ int main(int argc, char *argv[]) {
           solver.cancelExecution();
         }
       });
+
+      std::sort(jobDurations.begin(), jobDurations.end(), std::greater<int>());
       auto start = std::chrono::high_resolution_clock::now();
       result = solver.solve(numMachines, jobDurations);
       auto end = std::chrono::high_resolution_clock::now();
