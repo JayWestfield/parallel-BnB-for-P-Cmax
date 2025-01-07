@@ -45,3 +45,5 @@ heaptrack*
 
 results/*
 plots/*
+
+build/*

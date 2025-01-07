@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
   if (argc >= 6)
     benchmark = argv[5];
   std::string path_to_selection_of_instances =
-      "src/experiments/filtered_instances_without1.txt";
+      "src/experiments/filtered_instances_new_without1.txt";
   if (argc >= 7)
     path_to_selection_of_instances = argv[6];
   std::unordered_map<std::string, int> optimalSolutions;
