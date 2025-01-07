@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../../../structures/DelayedTasksList.hpp"
 
 #include "IConcurrentHashMapCombined.h"
@@ -8,7 +10,6 @@
 #include <ostream>
 #include <tbb/concurrent_hash_map.h>
 #include <vector>
-#pragma once
 // TODO the value should only be the delayed lsit not thw whole stEntry
 class TBBHashMapCombined : public IConcurrentHashMapCombined {
   using Key = int *;

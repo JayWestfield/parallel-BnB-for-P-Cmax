@@ -45,5 +45,33 @@ struct VectorHasher {
     return std::equal(a, a + gistLength, b);
   }
 };
+
+struct VectorHasherCast {
+  using Key = int *;
+  using StoreKey = long long unsigned int; 
+  inline void hash_combine(std::size_t &s, const int &v) const {
+    s ^= hashingCombined::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+  }
+  size_t hash(StoreKey a) {
+    size_t h = 17;
+    for (int i = 0; i < gistLength; i++) {
+      hash_combine(h, reinterpret_cast<Key>(a)[i]);
+    }
+    return h;
+  }
+  size_t operator()(StoreKey a) const {
+    size_t h = 17;
+    for (int i = 0; i < gistLength; i++) {
+      hash_combine(h, reinterpret_cast<Key>(a)[i]);
+    }
+    return h;
+  }
+  bool operator()(const StoreKey lhs, const StoreKey rhs) const {
+    return std::equal(reinterpret_cast<Key>(lhs), reinterpret_cast<Key>(lhs) + gistLength, reinterpret_cast<Key>(rhs));
+  }
+  inline bool equal(StoreKey a, StoreKey b) const {
+    return std::equal(reinterpret_cast<Key>(a), reinterpret_cast<Key>(a) + gistLength, reinterpret_cast<Key>(b));
+  }
+};
 }; // namespace hashingCombined
 #endif

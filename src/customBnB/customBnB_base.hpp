@@ -836,9 +836,9 @@ private:
     //     STInstance = new STImpl(lastRelevantJobIndex + 1, offset, RET,
     //     numMachines); break;
     case 2:
-      STInstance = new STImplSimplCustomLock(
-          lastRelevantJobIndex + 1, offset, RET, numMachines,
-          *workers[maxAllowedParalellism], 2, maxAllowedParalellism);
+      STInstance = new ST_combined(lastRelevantJobIndex + 1, offset, RET,
+                                   numMachines, *workers[maxAllowedParalellism],
+                                   2, maxAllowedParalellism);
       break;
     case 5:
       STInstance = new ST_combined(lastRelevantJobIndex + 1, offset, RET,

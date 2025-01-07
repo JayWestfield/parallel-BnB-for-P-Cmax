@@ -6,6 +6,8 @@
 
 #include "hashmap/IConcurrentHashMapCombined.h"
 #include "hashmap/TBBHashMapCombined.cpp"
+#include "hashmap/GrowtHashMap.cpp"
+
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -449,9 +451,9 @@ private:
     // case 1:
     //     maps = new FollyHashMap();
     //     break;
-    // case 2:
-    // maps = new GrowtHashMap();
-    // break;
+    case 2:
+      maps = new GrowtHashMap(Gist_storage);
+      break;
     // case 3 :
     //     maps = new JunctionHashMap();
     //     break;

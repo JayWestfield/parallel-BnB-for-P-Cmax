@@ -18,7 +18,7 @@ public:
       : Gist_storage(Gist_storage){};
 
   virtual ~IConcurrentHashMapCombined() = default;
-
+  // insert with bool is a relic and should be redone with 2 methods addGist and addPrev or sth liuke that
   virtual DelayedTasksList *insert(int *gist, bool value) = 0;
   virtual void reinsertGist(int *gist, DelayedTasksList *delayed) = 0;
   virtual int find(int *key) = 0;
