@@ -1,2 +1,2 @@
 #!/bin/sh
-./dst/experiment2 8 20 5
+./out/build/release/parallelBnBForPCmax 16 20 5

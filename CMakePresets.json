@@ -1,63 +1,106 @@
 {
-  "version": 3,
-  "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 19,
-    "patch": 0
-  },
-  "configurePresets": [
-    {
-      "name": "default",
-      "hidden": true,
-      "generator": "Ninja"
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 19,
+        "patch": 0
     },
-    {
-      "name": "release",
-      "inherits": "default",
-      "description": "Release build with optimizations",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_FLAGS": "-O3 -DNDEBUG -funroll-loops"
-      }
-    },
-    {
-      "name": "debug",
-      "inherits": "default",
-      "description": "Debug build with debug symbols",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_FLAGS": "-g"
-      }
-    },
-    {
-      "name": "ubsan",
-      "inherits": "default",
-      "description": "Build with Undefined Behavior Sanitizer",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_FLAGS": "-fsanitize=undefined",
-        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=undefined"
-      }
-    },
-    {
-      "name": "asan",
-      "inherits": "default",
-      "description": "Build with Address Sanitizer",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_FLAGS": "-fsanitize=address",
-        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address"
-      }
-    },
-    {
-      "name": "tsan",
-      "inherits": "default",
-      "description": "Build with Thread Sanitizer",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_FLAGS": "-fsanitize=thread",
-        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread"
-      }
-    }
-  ]
+    "configurePresets": [
+        {
+            "name": "default",
+            "hidden": true,
+            "generator": "Ninja"
+        },
+        {
+            "name": "release",
+            "inherits": "default",
+            "description": "Release build with optimizations",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS": "-O3 -DNDEBUG -funroll-loops"
+            }
+        },
+        {
+            "name": "debug",
+            "inherits": "default",
+            "description": "Debug build with debug symbols",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-g"
+            }
+        },
+        {
+            "name": "ubsan",
+            "inherits": "default",
+            "description": "Build with Undefined Behavior Sanitizer",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_CXX_FLAGS": "-fsanitize=undefined",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=undefined"
+            }
+        },
+        {
+            "name": "asan",
+            "inherits": "default",
+            "description": "Build with Address Sanitizer",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_CXX_FLAGS": "-fsanitize=address",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address"
+            }
+        },
+        {
+            "name": "tsan",
+            "inherits": "default",
+            "description": "Build with Thread Sanitizer",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_CXX_FLAGS": "-fsanitize=thread",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread"
+            }
+        },
+        {
+            "name": "Custom configure preset",
+            "displayName": "Custom configure preset",
+            "description": "Sets Ninja generator, build and install directory",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "release-build",
+            "configurePreset": "release",
+            "description": "Build using the release preset",
+            "hidden": false
+        },
+        {
+            "name": "debug-build",
+            "configurePreset": "debug",
+            "description": "Build using the debug preset",
+            "hidden": false
+        },
+        {
+            "name": "ubsan-build",
+            "configurePreset": "ubsan",
+            "description": "Build using the ubsan preset",
+            "hidden": false
+        },
+        {
+            "name": "asan-build",
+            "configurePreset": "asan",
+            "description": "Build using the asan preset",
+            "hidden": false
+        },
+        {
+            "name": "tsan-build",
+            "configurePreset": "tsan",
+            "description": "Build using the tsan preset",
+            "hidden": false
+        }
+    ]
 }
