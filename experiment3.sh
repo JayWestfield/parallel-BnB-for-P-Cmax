@@ -1,2 +1,2 @@
 #!/bin/sh
-./out/build/release/parallelBnBForPCmax 16 20 5
+.//build/parallelBnBForPCmax 16 20 5
