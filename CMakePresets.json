@@ -8,8 +8,27 @@
     "configurePresets": [
         {
             "name": "default",
-            "hidden": true,
-            "generator": "Ninja"
+            "displayName": "Default Development",
+            "binaryDir": "build",
+            "environment": {
+                "COMMON_WARNINGS": "-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Wnon-virtual-dtor",
+                "DEV_ERROR_WARNINGS": "-Wduplicated-branches -Wduplicated-cond -Wlogical-op -Wold-style-cast -Wuseless-cast -Wcast-align -Wnull-dereference -Wunreachable-code -Wundef -Wformat=2",
+                "SUGGESTION_WARNINGS": "-Wnoexcept -Wsuggest-override -Wmissing-noreturn",
+                "PERFORMANCE_WARNINGS": "-Wdouble-promotion -Wunsafe-loop-optimizations -Wdisabled-optimization",
+                "WARNINGS": "$env{COMMON_WARNINGS} $env{DEV_ERROR_WARNINGS} $env{SUGGESTION_WARNINGS} $env{PERFORMANCE_WARNINGS}",
+                "DEV_OPTIONS": "-gdwarf-3 -g3 -O3 -march=native -flto=auto -fuse-linker-plugin -fno-fat-lto-objects"
+            },
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-fdiagnostics-color=always -fdiagnostics-show-template-tree $env{DEV_OPTIONS} $env{WARNINGS}",
+                "CMAKE_CXX_SCAN_FOR_MODULES": false
+            },
+            "warnings": {
+                "dev": true,
+                "deprecated": true,
+                "uninitialized": true
+            }
         },
         {
             "name": "release",
