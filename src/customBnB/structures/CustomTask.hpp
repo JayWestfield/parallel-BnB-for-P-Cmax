@@ -5,7 +5,8 @@
 // den gist check vlt trotzdem machen um taskerzeugung zu minimieren ( ist auch
 // wieder eine speicherallokation) int der sagt wo wait aufgerufen wurde, repeat
 // vector of ints ()
-// TODO future might replace vectors with custom fixed size vectors precompiled for different lengths with templates
+// TODO future might replace vectors with custom fixed size vectors precompiled
+// for different lengths with templates
 #ifndef CustomTask_impl
 #define CustomTask_impl
 
@@ -14,8 +15,8 @@
 class CustomTaskGroup;
 struct CustomTask {
   CustomTask(std::vector<int> state, int job,
-             std::shared_ptr<CustomTaskGroup> parentGroup = nullptr, int continueAt = 0,
-             std::vector<int> r6 = {}, int loopIndex = -1)
+             std::shared_ptr<CustomTaskGroup> parentGroup = nullptr,
+             int continueAt = 0, std::vector<int> r6 = {}, int loopIndex = -1)
       : state(state), job(job), parentGroup(parentGroup),
         continueAt(continueAt), r6(r6), loopIndex(loopIndex) {}
   std::vector<int> state;
@@ -25,4 +26,5 @@ struct CustomTask {
   std::vector<int> r6;
   int loopIndex;
 };
+
 #endif

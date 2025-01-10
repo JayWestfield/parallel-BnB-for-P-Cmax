@@ -4,9 +4,9 @@
 #include "../../CustomTaskGroup.hpp"
 #include "../ST_custom.h"
 
+#include "hashmap/GrowtHashMap.cpp"
 #include "hashmap/IConcurrentHashMapCombined.h"
 #include "hashmap/TBBHashMapCombined.cpp"
-#include "hashmap/GrowtHashMap.cpp"
 
 #include <algorithm>
 #include <atomic>
@@ -350,14 +350,15 @@ public:
       }
     }
     if (clearFlag || (task->state.back() + offset) >= maximumRETIndex) {
-      logging(task->state, task->job, "no no delay");
+      // TODO on second case cancle task
+      logging(task->state, task->job, "no no delay1");
       suspendedTasks.addTask(task);
       delayedLock.unlock();
       return;
     }
     computeGist3(state, job, threadLocalVector);
     if (!maps->tryAddDelayed(task, threadLocalVector.data())) {
-      logging(task->state, task->job, "no no delay");
+      logging(task->state, task->job, "no no delay2");
       suspendedTasks.addTask(task);
     }
   }
@@ -393,6 +394,8 @@ public:
           current->next = newList;
           newList = current;
         } else {
+          logging(current->value->state, current->value->job,
+                  "WorkonMaybeReinsert");
           resumeTask(current);
           current->next = reinterpret_cast<DelayedTasksList *>(-1);
           delete current;
@@ -407,6 +410,7 @@ public:
       return;
     DelayedTasksList *work;
     while (restart.try_pop(work)) {
+      logging(work->value->state, work->value->job, "workOnResume");
       resumeTaskList(work);
     }
   }
@@ -476,8 +480,10 @@ private:
     gis << message << " ";
     for (auto vla : state)
       gis << vla << ", ";
-    gis << " => ";
-    std::cout << gis.str() << std::endl;
+    // gis << " => "  << std::endl;
+    gis << " Job: " << job << std::endl;
+
+    std::cout << gis.str();
   }
 };
 

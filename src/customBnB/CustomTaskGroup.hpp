@@ -17,7 +17,7 @@ public:
       : taskHolder(taskHolder), creator(creator){};
   void run(std::vector<int> &state, int job) {
     this->runnableChildren.push_back(std::make_tuple(state, job));
-    this->help.push_back(std::make_tuple(state, job));
+    // this->help.push_back(std::make_tuple(state, job));
 
     totalChildren++;
   }
@@ -36,6 +36,7 @@ public:
   }
 
   void unregisterChild() {
+    // TODO use fetch add
     int new_value = ++finishedChildren;
 
     assert(new_value <= totalChildren);
@@ -52,7 +53,7 @@ private:
   std::atomic<int> finishedChildren = 0;
   std::atomic<int> totalChildren = 0;
   std::vector<std::tuple<std::vector<int>, int>> runnableChildren;
-  std::vector<std::tuple<std::vector<int>, int>> help;
+  // std::vector<std::tuple<std::vector<int>, int>> help;
 
   ITaskHolder &taskHolder;
   std::shared_ptr<CustomTask> creator;

@@ -4,7 +4,7 @@
 #include "../BnB/BnB_base.h"
 #include "../BnB/LowerBounds/lowerBounds_ret.cpp"
 #include "CustomTaskGroup.hpp"
-#include "ST/STImplSimplCustomLock.cpp"
+// #include "ST/STImplSimplCustomLock.cpp"
 #include "ST/combineGistAndDelayed/ST_combined.hpp"
 
 #include "ST/combineGistAndDelayed/hashmap/hashing/hashing.hpp"
@@ -124,12 +124,16 @@ public:
                   rand.nextInRange(maxAllowedParalellism - 1);
               toExecute = workers[stealFrom]->stealTasks();
             }
-            while (toExecute == nullptr && count++ < 10) {
+            while (toExecute == nullptr && count++ < 1000) {
               const auto stealFrom = rand.nextInRange(maxAllowedParalellism);
               toExecute = workers[stealFrom]->stealTasks();
             }
-            if (toExecute == nullptr)
+            if (toExecute == nullptr) {
+              // backup case if no task is available if the hastable works fine then we should not have to do this
+              // std::unique_lock lock(boundLock);
+              // STInstance->clear();
               continue;
+            }
             logging(toExecute->state, toExecute->job, "continue work on");
             solvePartial(toExecute);
           }
@@ -165,8 +169,9 @@ public:
     std::mutex mtx;
 
     std::thread monitoringThread([&]() {
-      // lastVisited Nodes was added as a workaround for getting stuck (pausing jobs but somehow not restarting them [should be fixed now])
-      // int lastVisitedNodes = visitedNodes;
+      // lastVisited Nodes was added as a workaround for getting stuck (pausing
+      // jobs but somehow not restarting them [should be fixed now]) int
+      // lastVisitedNodes = visitedNodes;
       while (!foundOptimal && !cancel) {
         // if (lastVisitedNodes == visitedNodes) {
         //     STInstance->resumeAllDelayedTasks();
@@ -606,8 +611,8 @@ private:
     // gis << " => ";
     // for (auto vla : STInstance->computeGist(state, job))
     //   gis << vla << ", ";
-    gis << " Job: " << job;
-    std::cout << gis.str() << std::endl;
+    gis << " Job: " << job << std::endl;
+    std::cout << gis.str();
   }
 
   inline bool lookupRet(int i, int j, int job) {
@@ -649,9 +654,9 @@ private:
     assert(newBound >= lowerBound);
     if (newBound == lowerBound) {
       foundOptimal = true;
-      // STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag 
+      // STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag
       // not necessary with custom tasks
-                                           // that should be more performant
+      // that should be more performant
     }
 
     if (logBound)
@@ -797,8 +802,8 @@ private:
     STInstance = nullptr;
   }
 
-  // maybe do a resort while increment? because we need to rewrite the vector anyway therefore might do it together
-  // basically insertion sort
+  // maybe do a resort while increment? because we need to rewrite the vector
+  // anyway therefore might do it together basically insertion sort
   inline void resortAfterIncrement(std::vector<int> &vec, size_t index) {
     assert(index < vec.size());
     int incrementedValue = vec[index];
@@ -806,7 +811,7 @@ private:
     // after
     auto newPosIt =
         std::upper_bound(vec.begin() + index, vec.end(), incrementedValue);
-        assert(static_cast<std::size_t>(gistLength) == vec.size() + 1);
+    assert(static_cast<std::size_t>(gistLength) == vec.size() + 1);
     size_t newPosIndex = std::distance(vec.begin(), newPosIt);
     if (newPosIndex == index) {
       return;
@@ -846,9 +851,9 @@ private:
                                    0, maxAllowedParalellism);
       break;
     default:
-      STInstance = new STImplSimplCustomLock(
-          lastRelevantJobIndex + 1, offset, RET, numMachines,
-          *workers[maxAllowedParalellism], 0, maxAllowedParalellism);
+      STInstance = new ST_combined(lastRelevantJobIndex + 1, offset, RET,
+                                   numMachines, *workers[maxAllowedParalellism],
+                                   0, maxAllowedParalellism);
     }
   }
   friend class CustomTaskGroup;

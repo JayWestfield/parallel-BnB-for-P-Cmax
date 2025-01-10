@@ -24,7 +24,7 @@ struct VectorHasher {
   inline void hash_combine(std::size_t &s, const int &v) const {
     s ^= hashingCombined::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
   }
-  size_t hash(int *a) {
+  size_t hash(int *a) const {
     size_t h = 17;
     for (int i = 0; i < gistLength; i++) {
       hash_combine(h, a[i]);
@@ -48,7 +48,7 @@ struct VectorHasher {
 
 struct VectorHasherCast {
   using Key = int *;
-  using StoreKey = long long unsigned int; 
+  using StoreKey = uint64_t; 
   inline void hash_combine(std::size_t &s, const int &v) const {
     s ^= hashingCombined::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
   }
