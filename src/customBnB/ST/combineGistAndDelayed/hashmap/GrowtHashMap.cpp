@@ -258,7 +258,7 @@ public:
   }
 
   void clear() override {
-    map_ = HashMap(5000);
+    map_ = HashMap(200000);
     assert(map_.get_handle().begin() == map_.get_handle().end());
   }
 
