@@ -64,7 +64,7 @@ public:
   }
 
   // Bitweise Operatoren
-  constexpr CustomUint64 operator&(const uint64_t &other) const {
+  constexpr inline CustomUint64 operator&(const uint64_t &other) const {
     return CustomUint64(value & other);
   }
 

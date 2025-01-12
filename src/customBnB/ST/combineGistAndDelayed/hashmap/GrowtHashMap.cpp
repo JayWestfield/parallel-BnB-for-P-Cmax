@@ -9,6 +9,7 @@
 
 // #include "hash_table_mods.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <iostream>
@@ -113,6 +114,7 @@ class GrowtHashMap : public IConcurrentHashMapCombined {
     using junction_compatible = std::true_type;
   };
   HashMap map_;
+  uint64_t size = 0;
   inline StoreKey castStoreKey(Key key) const {
     return reinterpret_cast<TempConversionValue>(key);
   }
@@ -218,13 +220,15 @@ public:
                        &maybeReinsert,
                    tbb::concurrent_queue<DelayedTasksList *> &restart,
                    const int newOffset) override {
+    size = 0;
     std::pair<tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>,
               tbb::concurrent_queue<DelayedTasksList *>>
         nonEmpty;
     // std::queue<std::pair<int *, DelayedTasksList *>> found;
     auto handle = map_.get_handle();
     auto it = handle.begin();
-    while (it != handle.end()) {
+    for (; it != handle.end(); ++it) {
+      size++;
       auto entry = *it;
       if (static_cast<Value>(entry.second) != nullptr &&
           static_cast<Value>(entry.second) !=
@@ -245,8 +249,31 @@ public:
           restart.push(value);
         }
       }
-      ++it;
     }
+    // while (it != handle.end()) {
+    //   size++;
+    //   auto entry = *it;
+    //   if (static_cast<Value>(entry.second) != nullptr &&
+    //       static_cast<Value>(entry.second) !=
+    //           reinterpret_cast<StoreValue>(-1)) {
+    //     auto value = reinterpret_cast<DelayedTasksList *>(
+    //         static_cast<StoreValue>(static_cast<Value>(entry.second)));
+    //     // check the max offset
+    //     // found.push(std::make_pair(
+    //     //     reinterpret_cast<Key>(static_cast<StoreKey>(entry.first).value),
+    //     //     value));
+    //     if (reinterpret_cast<Key>(
+    //             static_cast<StoreKey>(entry.first).value)[gistLength] >=
+    //         newOffset) {
+    //       maybeReinsert.push(std::make_pair(
+    //           reinterpret_cast<Key>(static_cast<StoreKey>(entry.first).value),
+    //           value));
+    //     } else {
+    //       restart.push(value);
+    //     }
+    //   }
+    //   ++it;
+    // }
     // std::cout << found.size() << std::endl;
     // std::unordered_map<int *, DelayedTasksList *> foundMap;
     // for (int i = 0; i < found.size(); ++i) {
@@ -258,7 +285,7 @@ public:
   }
 
   void clear() override {
-    map_ = HashMap(200000);
+    map_ = HashMap(std::max(2 * size, static_cast<uint64_t>(2000000)));
     assert(map_.get_handle().begin() == map_.get_handle().end());
   }
 

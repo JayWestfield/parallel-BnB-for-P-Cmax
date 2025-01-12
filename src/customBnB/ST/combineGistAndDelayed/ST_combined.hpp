@@ -85,8 +85,7 @@ public:
   }
   int findMaxOffset(const int val, const int job, const int currentOffset) {
     const auto entry = RET[job][val + offset];
-    std::size_t newMaxOffset =
-        std::min(currentOffset, maximumRETIndex - val - offset - 1);
+    std::size_t newMaxOffset = currentOffset;
     auto compare = RET[job][val + offset + newMaxOffset];
 
     // maybe it is better to do it as a oneliner?
@@ -116,7 +115,9 @@ public:
       maxAllowedOffset--;
       assert(maxAllowedOffset >= 0);
     }
-
+    maxAllowedOffset = std::min(maxAllowedOffset,
+                                maximumRETIndex - state[vec_size - 1] - offset - 1);
+    assert(maxAllowedOffset >= 0);
     for (size_t i = 1; i < static_cast<size_t>(vec_size); i++) {
       gist[i] = RET[job][state[i] + offset];
       auto maybenew = findMaxOffset(state[i], job, maxAllowedOffset);
