@@ -6,6 +6,7 @@
 #include <cassert>
 #include "../threadLocal/threadLocal.h"
 #include "../structures/CustomTask.hpp"
+#include "customBnB/ST/customSharedLock.hpp"
 #include "hashmap/hashing/hashing.hpp"
 
 class ST_custom
@@ -28,7 +29,8 @@ public:
     virtual void clear() = 0;
     virtual void prepareBoundUpdate() = 0;
     virtual void cancelExecution() = 0;
-
+    virtual void helpWhileLock(std::unique_lock<std::mutex> &lock) = 0;
+    virtual void work() = 0;
 protected:
     int jobSize;
     int offset; // no atomic because the bound Update is sequential

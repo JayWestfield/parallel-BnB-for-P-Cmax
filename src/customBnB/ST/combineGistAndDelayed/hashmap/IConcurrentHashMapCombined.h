@@ -18,7 +18,8 @@ public:
       : Gist_storage(Gist_storage){};
 
   virtual ~IConcurrentHashMapCombined() = default;
-  // insert with bool is a relic and should be redone with 2 methods addGist and addPrev or sth liuke that
+  // insert with bool is a relic and should be redone with 2 methods addGist and
+  // addPrev or sth liuke that
   virtual DelayedTasksList *insert(int *gist, bool value) = 0;
   virtual void reinsertGist(int *gist, DelayedTasksList *delayed) = 0;
   virtual int find(int *key) = 0;
@@ -34,8 +35,11 @@ public:
                        &maybeReinsert,
                    tbb::concurrent_queue<DelayedTasksList *> &restart,
                    const int newOffset) = 0;
+  virtual void iterateThreadOwnGists( int offset,
+      tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>> &maybeReinsert,
+      tbb::concurrent_queue<DelayedTasksList *> &restart) = 0;
 
-private:
+// private:
   std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage;
 };
 

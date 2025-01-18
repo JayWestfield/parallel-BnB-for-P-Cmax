@@ -4,6 +4,8 @@
 #include "../../CustomTaskGroup.hpp"
 #include "../ST_custom.h"
 
+#include "customBnB/globalValues.cpp"
+#include "customBnB/threadLocal/threadLocal.h"
 #include "hashmap/GrowtHashMap.cpp"
 #include "hashmap/IConcurrentHashMapCombined.h"
 #include "hashmap/TBBHashMapCombined.cpp"
@@ -15,6 +17,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <ostream>
 #include <sstream>
 #include <thread>
@@ -37,11 +40,11 @@ public:
               std::size_t vec_size, ITaskHolder &suspendedTasks,
               int HashmapType, int maxAllowedParallelism)
       : ST_custom(jobSize, offset, RET, vec_size),
-        suspendedTasks(suspendedTasks), mtx(maxAllowedParallelism) {
-    initializeHashMap(HashmapType);
+        suspendedTasks(suspendedTasks), mtx(maxAllowedParallelism), selfIterated(maxAllowedParallelism) {
     for (int i = 0; i < maxAllowedParallelism; i++) {
       Gist_storage.push_back(std::make_unique<GistStorage<>>());
     }
+    initializeHashMap(HashmapType);
     // referenceCounter = 0;
     // clearFlag = false;
   }
@@ -115,8 +118,8 @@ public:
       maxAllowedOffset--;
       assert(maxAllowedOffset >= 0);
     }
-    maxAllowedOffset = std::min(maxAllowedOffset,
-                                maximumRETIndex - state[vec_size - 1] - offset - 1);
+    maxAllowedOffset = std::min(
+        maxAllowedOffset, maximumRETIndex - state[vec_size - 1] - offset - 1);
     assert(maxAllowedOffset >= 0);
     for (size_t i = 1; i < static_cast<size_t>(vec_size); i++) {
       gist[i] = RET[job][state[i] + offset];
@@ -195,10 +198,7 @@ public:
     // }
     CustomTrySharedLock lock(mtx);
     if (!lock.owns_lock()) {
-      work();
-      while (!lock.tryLock()) {
-        work();
-      }
+      helpWhileLocked(lock);
     }
     if ((state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
       return;
@@ -219,10 +219,7 @@ public:
     CustomTrySharedLock lock(mtx);
     // TODO maybe the existence check can jsut return 0?
     if (!lock.owns_lock()) {
-      work();
-      while (!lock.tryLock()) {
-        work();
-      }
+      helpWhileLocked(lock);
     }
     if ((state[vec_size - 1] + offset) >= maximumRETIndex || skipThis(job))
       return 0;
@@ -231,7 +228,17 @@ public:
     const int result = maps->find(threadLocalVector.data());
     return result;
   }
-
+  void helpWhileLocked(CustomTrySharedLock lock) {
+    while (!lock.tryLock()) {
+      work();
+    }
+  }
+  void helpWhileLock(std::unique_lock<std::mutex> &lock) override {
+    bool notIterated = true;
+    while (!lock.try_lock()) {
+      work();
+    }
+  }
   void addPreviously(const std::vector<int> &state, int job) override {
     assert(job >= 0 && job < jobSize);
     if (skipThis(job))
@@ -240,10 +247,7 @@ public:
       return;
     CustomTrySharedLock lock(mtx);
     if (!lock.owns_lock()) {
-      work();
-      while (!lock.tryLock()) {
-        work();
-      }
+      helpWhileLocked(lock);
     }
     if ((state[vec_size - 1] + offset) >= maximumRETIndex)
       return;
@@ -259,6 +263,7 @@ public:
       maps->reinsertGist(gist.first.data(), gist.second);
     }
   }
+  size_t boundUpdatedCounter = 0;
   // assert bound update is itself never called in parallel
   void boundUpdate(int offset) override {
     if (offset <= this->offset)
@@ -269,9 +274,70 @@ public:
     this->offset = offset;
     assert(maybeReinsert.empty());
     assert(restart.empty());
-
+    boundUpdatedCounter++;
+    // std::cout << "Bound Update " << boundUpdatedCounter << " offset: " << offset
+    //           << std::endl;
     // TODO check we do not want a copy here
-    maps->getNonEmptyGists(maybeReinsert, restart, offset);
+    threadsWorking = maxThreads;
+    std::atomic_thread_fence(
+        std::memory_order_release); // Synchronisationsbarriere
+    assert(threadsWorking.load() == maxThreads);
+    // maps->getNonEmptyGists(maybeReinsert2, restart2, offset);
+    for (int i = 0; i < maxThreads; i++) {
+      selfIterated[i] = 1;
+    }
+    stepToWork = 10;
+    iterateThreadOwnGists();
+    selfIterated[threadIndex] = 0;
+
+    // wait for other threads
+    int sum = 1;
+    while (sum > 0) {
+      std::this_thread::yield();
+      sum = 0;
+      for (int i = 0; i < maxThreads; i++) {
+        sum += selfIterated[i];
+      }
+    }
+    /*
+        {
+          // Sanity check
+          std::unordered_map<int *, DelayedTasksList *> maybeReinsertMap,
+       maybeReinsert2Map; std::pair<int *, DelayedTasksList *> item; while
+       (maybeReinsert.try_pop(item)) { maybeReinsertMap[item.first] =
+       item.second;
+          }
+          while (maybeReinsert2.try_pop(item)) {
+            maybeReinsert2Map[item.first] = item.second;
+          }
+          for (const auto &pair : maybeReinsert2Map) {
+            if (maybeReinsertMap.find(pair.first) == maybeReinsertMap.end()) {
+              std::cerr << "Sanity check failed: maybeReinsert and
+       maybeReinsert2 differ" << std::endl; assert(false);
+            }
+          }
+
+          std::unordered_map<DelayedTasksList *, int> restartMap, restart2Map;
+          DelayedTasksList * item2;
+          while (restart.try_pop(item2)) {
+            restartMap[item2] = 1;
+          }
+          while (restart2.try_pop(item2)) {
+            restart2Map[item2] = 1;
+          }
+          for (const auto &pair : restart2Map) {
+            if (restartMap.find(pair.first) == restartMap.end()) {
+              std::cerr << "Sanity check failed: restart and restart2 differ" <<
+       std::endl; assert(false);
+            }
+          }
+              maps->getNonEmptyGists(maybeReinsert, restart, offset);
+
+        }
+
+    */
+    stepToWork = 0;
+
     // resumeAllDelayedTasks();
     while (!maybeReinsert.empty() || !restart.empty()) {
       workOnMaybeReinsert();
@@ -294,13 +360,23 @@ public:
     // that should resume some tasks that are yet to be reinserted)
     while (threadsWorking > 0)
       std::this_thread::yield();
-    stepToWork.store(0, std::memory_order_relaxed);
+    stepToWork = 5;
     assert(reinsert.empty());
     clearFlag = false;
   }
-  void work() {
+  void work() override{
     while (mtx.clearFlag) {
-      if (stepToWork.load(std::memory_order_relaxed) == 0) {
+      // idle step
+      if (stepToWork.load(std::memory_order_relaxed) == 5) {
+        std::this_thread::yield();
+        continue;
+      }
+      if (stepToWork.load(std::memory_order_relaxed) == 10) {
+        if (selfIterated[threadIndex] == 1) {
+          iterateThreadOwnGists();
+          selfIterated[threadIndex] = 0;
+        }
+      } else if (stepToWork.load(std::memory_order_relaxed) == 0) {
         if (!maybeReinsert.empty()) {
           threadsWorking.fetch_add(1, std::memory_order_relaxed);
           workOnMaybeReinsert();
@@ -329,7 +405,7 @@ public:
     for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
       Gist_storage[i]->clear();
     }
-    maps->clear();
+    // maps->clear();
   }
 
   void resumeAllDelayedTasks() override {
@@ -345,10 +421,7 @@ public:
     assert(job < jobSize && job >= 0);
     CustomTrySharedLock lock(mtx);
     if (!lock.owns_lock()) {
-      work();
-      while (!lock.tryLock()) {
-        work();
-      }
+      helpWhileLocked(lock);
     }
     if (clearFlag || (task->state.back() + offset) >= maximumRETIndex) {
       // TODO on second case cancle task
@@ -374,6 +447,7 @@ public:
       DelayedTasksList *newList = reinterpret_cast<DelayedTasksList *>(-1);
       DelayedTasksList *iterator = work.second;
       std::vector<int> gistWrapped(wrappedGistLength);
+      // TODO use memcopy / initialize with values
       for (int i = 0; i < wrappedGistLength; ++i) {
         gistWrapped[i] = work.first[i];
       }
@@ -425,6 +499,11 @@ public:
     }
   }
 
+  void iterateThreadOwnGists() {
+    maps->iterateThreadOwnGists(offset, maybeReinsert, restart);
+    threadsWorking.fetch_sub(1);
+  }
+
 private:
   bool detailedLogging = false;
   IConcurrentHashMapCombined *maps = nullptr;
@@ -436,13 +515,15 @@ private:
 
   // migration
   std::atomic<int> threadsWorking = 0;
-  std::atomic<int> stepToWork = 0;
+  std::atomic<int> stepToWork = 5;
 
   tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>> maybeReinsert;
   tbb::concurrent_queue<DelayedTasksList *> restart;
+  tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>> maybeReinsert2;
+  tbb::concurrent_queue<DelayedTasksList *> restart2;
   tbb::concurrent_queue<std::pair<std::vector<int>, DelayedTasksList *>>
       reinsert;
-
+  std::vector<std::atomic<int>> selfIterated;
   // ST
   std::vector<std::unique_ptr<GistStorage<>>> Gist_storage;
 

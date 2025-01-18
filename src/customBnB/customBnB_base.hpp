@@ -62,6 +62,7 @@ public:
     numMachines = numMachine;
     jobDurations = jobDuration;
     gistLength = numMachine + 1;
+    maxThreads = maxAllowedParalellism;
     // this includes the extra info on when the gist changes
     wrappedGistLength = numMachine + 2;
     // assume sorted
@@ -136,6 +137,7 @@ public:
             }
             logging(toExecute->state, toExecute->job, "continue work on");
             solvePartial(toExecute);
+            STInstance->work();
           }
         }));
     for (int i = 1; i < maxAllowedParalellism; i++) {
@@ -161,6 +163,7 @@ public:
             continue;
           logging(toExecute->state, toExecute->job, "continue work on");
           solvePartial(toExecute);
+          STInstance->work();
         }
       }));
     }
@@ -370,8 +373,8 @@ private:
       }
       int makespan = state[numMachines - 1];
 
-      visitedNodes.fetch_add(1, std::memory_order_relaxed);
-      if (logNodes && visitedNodes % 1000000 == 0) {
+      int nodes = visitedNodes.fetch_add(1, std::memory_order_relaxed);
+      if (logNodes && nodes % 100000 == 0) {
         std::cout << "visited nodes: " << visitedNodes
                   << " current Bound: " << upperBound << " " << job
                   << " makespan " << makespan << std::endl;
@@ -671,10 +674,10 @@ private:
                                              // so no need to optimize that
     while (!lock.owns_lock()) {
       std::this_thread::yield();
+      STInstance->helpWhileLock(lock);
       if (newBound > upperBound.load())
         return; // TODO check wether this works fine because we end an
                 // exploration path even though the bound is not yet updated
-      lock.try_lock();
     }
     if (newBound > upperBound)
       return;

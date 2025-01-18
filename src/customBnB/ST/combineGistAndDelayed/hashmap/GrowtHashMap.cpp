@@ -5,12 +5,15 @@
 #include "./CustomUint64.hpp"
 #include "allocator/alignedallocator.hpp"
 #include "customBnB/structures/GistStorage.hpp"
+#include "customBnB/threadLocal/threadLocal.h"
+#include "data-structures/hash_table_mods.hpp"
+#include "data-structures/migration_table.hpp"
 #include "data-structures/table_config.hpp"
-
 // #include "hash_table_mods.hpp"
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <queue>
@@ -25,29 +28,29 @@
 // TODO update to use the DelayedTasksList
 // TODO check muss ich das value ding auch als reinterpret cast machen? weil ich
 // gklaube das wird als pointer gewrapped
+using Key = int *;
+// TODO find a way to override the equal method of the store key while using
+// uint64
+using StoreKey = CustomUint64;
+using TempConversionValue = uint64_t;
+
+using Value = DelayedTasksList *;
+// evtl geht das acuh oghne das reinterpret cast (für value) glaube das
+// problme war das fehlende atomic
+using StoreValue = Value; // uint64_t;
+static_assert(sizeof(StoreKey) == sizeof(TempConversionValue),
+              "CustomUint64 must have the same size as uint64_t");
+
+using TaskPointer = std::shared_ptr<CustomTask>;
+using allocator_type = growt::AlignedAllocator<>;
+// using allocator_type = growt::GenericAlignedAllocator<>;
+
+using HashMap = typename growt::table_config<
+    StoreKey, StoreValue, hashingCombined::VectorHasherCast, allocator_type,
+    hmod::growable, hmod::deletion>::table_type;
+
 class GrowtHashMap : public IConcurrentHashMapCombined {
-  using Key = int *;
-  // TODO find a way to override the equal method of the store key while using
-  // uint64
-  using StoreKey = CustomUint64;
-  using TempConversionValue = uint64_t;
-
-  using Value = DelayedTasksList *;
-  // evtl geht das acuh oghne das reinterpret cast (für value) glaube das
-  // problme war das fehlende atomic
-  using StoreValue = Value; // uint64_t;
-  static_assert(sizeof(StoreKey) == sizeof(TempConversionValue),
-                "CustomUint64 must have the same size as uint64_t");
-
-  using TaskPointer = std::shared_ptr<CustomTask>;
-  using allocator_type = growt::AlignedAllocator<>;
-  // using allocator_type = growt::GenericAlignedAllocator<>;
-
-  using HashMap =
-      typename growt::table_config<StoreKey, StoreValue,
-                                   hashingCombined::VectorHasherCast,
-                                   allocator_type, hmod::growable>::table_type;
-
+  std::vector<HashMap::handle_type> handles;
   struct addGistTrue {
     using mapped_type = StoreValue;
     mapped_type &previous_value;
@@ -121,11 +124,16 @@ class GrowtHashMap : public IConcurrentHashMapCombined {
 
 public:
   GrowtHashMap(std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage)
-      : IConcurrentHashMapCombined(Gist_storage), map_(200000){};
+      : IConcurrentHashMapCombined(Gist_storage), map_(20000000), handles() {
+    for (int i = 0; i < Gist_storage.size(); i++) {
+      handles.push_back(map_.get_handle());
+    }
+  };
+  ~GrowtHashMap() { handles.clear(); };
 
   DelayedTasksList *insert(Key key, bool value) override {
     StoreKey newEntry = castStoreKey(createGistEntry(key));
-    auto handle = map_.get_handle();
+    auto &handle = handles[threadIndex];
     if (value) {
       Value previous_value = nullptr;
       addGistTrue functor(previous_value);
@@ -150,7 +158,7 @@ public:
       assert(static_cast<Value>((*(isNew.first)).second) == nullptr);
       assert(previous_value == reinterpret_cast<Value>(-1) ||
              previous_value == nullptr ||
-             previous_value->value->state.size() == gistLength);
+             previous_value->value->state.size() == gistLength - 1);
 
       return reinterpret_cast<DelayedTasksList *>(previous_value);
     } else {
@@ -164,13 +172,15 @@ public:
 
   void reinsertGist(int *gist, DelayedTasksList *delayed) override {
     auto newEntry = castStoreKey(createGistEntry(gist));
-    auto handle = map_.get_handle();
+    auto &handle = handles[threadIndex];
     const auto isNew = handle.insert(newEntry, delayed);
-    assert(isNew.second);
+
+    //
+    // assert(isNew.second);
   }
 
   int find(const Key key) override {
-    auto handle = map_.get_handle();
+    auto &handle = handles[threadIndex];
     auto temp = handle.find(castStoreKey(key));
     int result = 0;
     if (temp != handle.end()) {
@@ -185,7 +195,7 @@ public:
     bool inserted = false;
     addDelayed functor = addDelayed(inserted);
 
-    auto handle = map_.get_handle();
+    auto &handle = handles[threadIndex];
     auto isNew = handle.update(castStoreKey(key), functor, task);
     auto iterated = (isNew.first);
     auto elem = *iterated;
@@ -196,7 +206,7 @@ public:
 
   std::vector<DelayedTasksList *> getDelayed() override {
     std::vector<DelayedTasksList *> delayedLists;
-    auto handle = map_.get_handle();
+    auto &handle = handles[threadIndex];
     auto it = handle.begin();
     while (it != handle.end()) {
       auto entry = *it;
@@ -225,8 +235,12 @@ public:
               tbb::concurrent_queue<DelayedTasksList *>>
         nonEmpty;
     // std::queue<std::pair<int *, DelayedTasksList *>> found;
-    auto handle = map_.get_handle();
+    auto &handle = handles[threadIndex];
     auto it = handle.begin();
+    for (auto es : handle) {
+      size++;
+    }
+
     for (; it != handle.end(); ++it) {
       size++;
       auto entry = *it;
@@ -260,7 +274,7 @@ public:
     //         static_cast<StoreValue>(static_cast<Value>(entry.second)));
     //     // check the max offset
     //     // found.push(std::make_pair(
-    //     //     reinterpret_cast<Key>(static_cast<StoreKey>(entry.first).value),
+    //     // reinterpret_cast<Key>(static_cast<StoreKey>(entry.first).value),
     //     //     value));
     //     if (reinterpret_cast<Key>(
     //             static_cast<StoreKey>(entry.first).value)[gistLength] >=
@@ -274,7 +288,7 @@ public:
     //   }
     //   ++it;
     // }
-    // std::cout << found.size() << std::endl;
+    // std::cout << size << std::endl;
     // std::unordered_map<int *, DelayedTasksList *> foundMap;
     // for (int i = 0; i < found.size(); ++i) {
     //   auto elem = found.front();
@@ -283,9 +297,48 @@ public:
     //   foundMap.insert(elem);
     // }
   }
+  void iterateThreadOwnGists(
+      int offset,
+      tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>
+          &maybeReinsert,
+      tbb::concurrent_queue<DelayedTasksList *> &restart) override {
+    // TODO maybe a handle per gist ist better du e to independence of loops/
+    // unrolling
+    auto &handle = handles[threadIndex];
 
+    for (auto gist : (*Gist_storage[threadIndex])) {
+      auto temp = handle.find(castStoreKey(gist));
+      assert(temp != handle.end());
+      auto entry = *temp;
+      if (static_cast<Value>(entry.second) != nullptr &&
+          static_cast<Value>(entry.second) !=
+              reinterpret_cast<StoreValue>(-1)) {
+        auto value = reinterpret_cast<DelayedTasksList *>(
+            static_cast<StoreValue>(static_cast<Value>(entry.second)));
+        // check the max offset
+        // found.push(std::make_pair(
+        //     reinterpret_cast<Key>(static_cast<StoreKey>(entry.first).value),
+        //     value));
+        if (reinterpret_cast<Key>(
+                static_cast<StoreKey>(entry.first).value)[gistLength] >=
+            offset) {
+          maybeReinsert.push(std::make_pair(
+              reinterpret_cast<Key>(static_cast<StoreKey>(entry.first).value),
+              value));
+        } else {
+          restart.push(value);
+        }
+      }
+      // try erase every element instead of recreating the map
+      auto val = temp.erase_if_unchanged();
+      // std::cout << val << std::endl;
+      assert(val);
+      assert(map_.get_handle().find(castStoreKey(gist)) ==
+             map_.get_handle().end());
+    }
+  }
   void clear() override {
-    map_ = HashMap(std::max(2 * size, static_cast<uint64_t>(2000000)));
+    // map_ = HashMap(5000000);
     assert(map_.get_handle().begin() == map_.get_handle().end());
   }
 
