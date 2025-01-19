@@ -17,21 +17,21 @@ struct CustomSharedMutex {
 class CustomTrySharedLock {
 public:
   inline CustomTrySharedLock(CustomSharedMutex &mtx) : mtx(mtx) {
-    if (mtx.clearFlag.load(std::memory_order_relaxed))
+    if (mtx.clearFlag.load(std::memory_order_acquire ))
       return;
     mtx.referenceCounter[threadIndex].store(1, std::memory_order_relaxed);
-    if (mtx.clearFlag.load(std::memory_order_relaxed)) {
+    if (mtx.clearFlag.load(std::memory_order_acquire )) {
       mtx.referenceCounter[threadIndex].store(0, std::memory_order_relaxed);
       return;
     }
     holdsLock = true;
   }
   bool inline tryLock() {
-    if (mtx.clearFlag.load(std::memory_order_relaxed))
+    if (mtx.clearFlag.load(std::memory_order_acquire ))
       return false;
-    mtx.referenceCounter[threadIndex].store(1, std::memory_order_relaxed);
-    if (mtx.clearFlag.load(std::memory_order_relaxed)) {
-      mtx.referenceCounter[threadIndex].store(0, std::memory_order_relaxed);
+    mtx.referenceCounter[threadIndex].store(1, std::memory_order_release);
+    if (mtx.clearFlag.load(std::memory_order_acquire )) {
+      mtx.referenceCounter[threadIndex].store(0, std::memory_order_release);
       return false;
     }
     holdsLock = true;
@@ -39,7 +39,7 @@ public:
   }
   inline ~CustomTrySharedLock() {
     if (holdsLock)
-      mtx.referenceCounter[threadIndex].store(0, std::memory_order_relaxed);
+      mtx.referenceCounter[threadIndex].store(0, std::memory_order_release);
   }
   inline bool owns_lock() { return holdsLock; }
 
@@ -54,22 +54,22 @@ private:
 class CustomUniqueLock {
 public:
   inline CustomUniqueLock(CustomSharedMutex &mtx) : mtx(mtx) {
-    mtx.clearFlag = true;
+    mtx.clearFlag.store(true, std::memory_order_release);
     bool running = false;
     for (std::size_t i = 0; i < mtx.referenceCounter.size(); i++) {
       running |= static_cast<bool>(
-          mtx.referenceCounter[i].load(std::memory_order_relaxed));
+          mtx.referenceCounter[i].load(std::memory_order_acquire));
     }
     while (running) {
       std::this_thread::yield();
       running = false;
       for (std::size_t i = 0; i < mtx.referenceCounter.size(); i++) {
         running |= static_cast<bool>(
-            mtx.referenceCounter[i].load(std::memory_order_relaxed));
+            mtx.referenceCounter[i].load(std::memory_order_acquire));
       }
     }
   }
-  inline ~CustomUniqueLock() { mtx.clearFlag = false; }
+  inline ~CustomUniqueLock() { mtx.clearFlag.store(false, std::memory_order_release); }
 
 private:
   CustomSharedMutex &mtx;
