@@ -125,19 +125,19 @@ public:
                   rand.nextInRange(maxAllowedParalellism - 1);
               toExecute = workers[stealFrom]->stealTasks();
             }
-            while (toExecute == nullptr && count++ < 1000) {
+            while (toExecute == nullptr && count++ < 30) {
               const auto stealFrom = rand.nextInRange(maxAllowedParalellism);
               toExecute = workers[stealFrom]->stealTasks();
             }
             if (toExecute == nullptr) {
-              // backup case if no task is available if the hastable works fine then we should not have to do this
-              // std::unique_lock lock(boundLock);
-              // STInstance->clear();
+              // backup case if no task is available if the hastable works fine
+              // then we should not have to do this std::unique_lock
+              // lock(boundLock); STInstance->clear();
+              STInstance->work();
               continue;
             }
             logging(toExecute->state, toExecute->job, "continue work on");
             solvePartial(toExecute);
-            STInstance->work();
           }
         }));
     for (int i = 1; i < maxAllowedParalellism; i++) {
@@ -159,11 +159,12 @@ public:
             toExecute =
                 workers[rand.nextInRange(maxAllowedParalellism)]->stealTasks();
           }
-          if (toExecute == nullptr)
+          if (toExecute == nullptr) {
+            STInstance->work();
             continue;
+          }
           logging(toExecute->state, toExecute->job, "continue work on");
           solvePartial(toExecute);
-          STInstance->work();
         }
       }));
     }
@@ -188,7 +189,8 @@ public:
           // std::cout << "Memory usage high: " << memoryUsage
           //           << "%. Calling evictAll. "
           //           << ((std::chrono::duration<
-          //                   double>)(std::chrono::high_resolution_clock::now() -
+          //                   double>)(std::chrono::high_resolution_clock::now()
+          //                   -
           //                            start))
           //                  .count()
           //           << std::endl;
@@ -290,8 +292,9 @@ public:
   }
 
   void cleanUp() override {
-    reset();
-    resetLocals();
+    // one solver instance solves one instances => no need for that
+    // reset();
+    // resetLocals();
   }
   void cancelExecution() {
     cancel = true;
@@ -689,6 +692,11 @@ private:
       STInstance->prepareBoundUpdate();
     }
     upperBound.store(newBound - 1);
+    // no need to migrate hashtable/resume if new bound is optimal
+    if (newBound == lowerBound) {
+      return;
+    }
+
     offset.store(newOffset);
     if (gist) // it is importatnt to d othe bound update on the ST before
               // updating the offset/upperBound, because otherwise the exist

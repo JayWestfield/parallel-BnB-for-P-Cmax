@@ -40,7 +40,8 @@ public:
               std::size_t vec_size, ITaskHolder &suspendedTasks,
               int HashmapType, int maxAllowedParallelism)
       : ST_custom(jobSize, offset, RET, vec_size),
-        suspendedTasks(suspendedTasks), mtx(maxAllowedParallelism), selfIterated(maxAllowedParallelism) {
+        suspendedTasks(suspendedTasks), mtx(maxAllowedParallelism),
+        selfIterated(maxAllowedParallelism) {
     for (int i = 0; i < maxAllowedParallelism; i++) {
       Gist_storage.push_back(std::make_unique<GistStorage<>>());
     }
@@ -51,7 +52,7 @@ public:
 
   ~ST_combined() {
     CustomUniqueLock lock(mtx);
-    resumeAllDelayedTasks();
+    // resumeAllDelayedTasks(); why should i resume them on deletion?
     if (maps != nullptr)
       delete maps;
   }
@@ -228,14 +229,13 @@ public:
     const int result = maps->find(threadLocalVector.data());
     return result;
   }
-  void helpWhileLocked(CustomTrySharedLock lock) {
-    while (!lock.tryLock()) {
+  void helpWhileLocked(CustomTrySharedLock &lock) {
+    while (!lock.tryLock() && !canceled) {
       work();
     }
   }
   void helpWhileLock(std::unique_lock<std::mutex> &lock) override {
-    bool notIterated = true;
-    while (!lock.try_lock()) {
+    while (!lock.try_lock() && !canceled) {
       work();
     }
   }
@@ -275,7 +275,8 @@ public:
     assert(maybeReinsert.empty());
     assert(restart.empty());
     boundUpdatedCounter++;
-    // std::cout << "Bound Update " << boundUpdatedCounter << " offset: " << offset
+    // std::cout << "Bound Update " << boundUpdatedCounter << " offset: " <<
+    // offset
     //           << std::endl;
     // TODO check we do not want a copy here
     threadsWorking = maxThreads;
@@ -298,6 +299,8 @@ public:
       for (int i = 0; i < maxThreads; i++) {
         sum += selfIterated[i];
       }
+      if (canceled)
+        return;
     }
     /*
         {
@@ -364,8 +367,11 @@ public:
     assert(reinsert.empty());
     clearFlag = false;
   }
-  void work() override{
+  void work() override {
     while (mtx.clearFlag) {
+      if (canceled)
+        return;
+
       // idle step
       if (stepToWork.load(std::memory_order_relaxed) == 5) {
         std::this_thread::yield();
@@ -405,7 +411,7 @@ public:
     for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
       Gist_storage[i]->clear();
     }
-    // maps->clear();
+    maps->clear();
   }
 
   void resumeAllDelayedTasks() override {
@@ -512,7 +518,7 @@ private:
   ITaskHolder &suspendedTasks;
   std::atomic<bool> clearFlag = false;
   CustomSharedMutex mtx;
-
+  std::atomic<bool> canceled = false;
   // migration
   std::atomic<int> threadsWorking = 0;
   std::atomic<int> stepToWork = 5;
@@ -552,7 +558,7 @@ private:
   inline bool skipThis(int depth) {
     return false; // depth % 2 == 0;
   }
-  void cancelExecution() override { clearFlag = true; }
+  void cancelExecution() override { clearFlag = true; canceled = true; }
 
   template <typename T>
   void logging(const std::vector<int> &state, int job, T message = "") {

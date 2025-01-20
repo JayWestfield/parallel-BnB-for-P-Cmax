@@ -124,7 +124,7 @@ class GrowtHashMap : public IConcurrentHashMapCombined {
 
 public:
   GrowtHashMap(std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage)
-      : IConcurrentHashMapCombined(Gist_storage), map_(20000000), handles() {
+      : IConcurrentHashMapCombined(Gist_storage), map_(50), handles() {
     for (int i = 0; i < Gist_storage.size(); i++) {
       handles.push_back(map_.get_handle());
     }
@@ -203,7 +203,7 @@ public:
     assert(value == nullptr || inserted);
     return isNew.second && inserted;
   }
-
+// TODO get delayed can be done like iterate own gists but needs work ofc
   std::vector<DelayedTasksList *> getDelayed() override {
     std::vector<DelayedTasksList *> delayedLists;
     auto &handle = handles[threadIndex];
@@ -217,6 +217,7 @@ public:
             static_cast<StoreValue>(static_cast<Value>(entry.second)));
         delayedLists.push_back(value);
       }
+      // std::cout << static_cast<StoreKey>(entry.first) << std::endl;
       ++it;
     }
     return delayedLists;
@@ -339,6 +340,14 @@ public:
   }
   void clear() override {
     // map_ = HashMap(5000000);
+    if (handles[threadIndex].begin() != handles[threadIndex].end()) {
+      handles.clear();
+      map_ = HashMap(5000);
+      // update handles
+      for (int i = 0; i < Gist_storage.size(); i++) {
+        handles.push_back(map_.get_handle());
+      }
+    }
     assert(map_.get_handle().begin() == map_.get_handle().end());
   }
 
