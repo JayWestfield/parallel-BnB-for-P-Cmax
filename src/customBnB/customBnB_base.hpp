@@ -660,6 +660,7 @@ private:
     assert(newBound >= lowerBound);
     if (newBound == lowerBound) {
       foundOptimal = true;
+      STInstance->cancelExecution();
       // STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag
       // not necessary with custom tasks
       // that should be more performant
