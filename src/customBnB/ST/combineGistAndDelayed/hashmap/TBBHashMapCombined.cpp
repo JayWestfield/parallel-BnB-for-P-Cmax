@@ -23,7 +23,7 @@ class TBBHashMapCombined : public IConcurrentHashMapCombined {
 
 public:
   TBBHashMapCombined(std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage)
-      : IConcurrentHashMapCombined(Gist_storage){};
+      : IConcurrentHashMapCombined(Gist_storage), map_(5000){};
   DelayedTasksList *insert(Key key, bool value) override {
     tbb::concurrent_hash_map<Key, Value,
                              hashingCombined::VectorHasher>::accessor accessor;
@@ -116,14 +116,16 @@ public:
 
   void iterateThreadOwnGists(
       int offset,
-      tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>> &maybeReinsert,
+      tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>
+          &maybeReinsert,
       tbb::concurrent_queue<DelayedTasksList *> &restart) override {
-        // std::cout << "iterate " << threadIndex << " offset: " << offset << std::endl;
-        // std::cout << "size " << map_.size() << std::endl;
-        int counter = 0;
-    for (auto it = (*Gist_storage[threadIndex]).begin(); it != (*Gist_storage[threadIndex]).end(); ++it) {
+    // std::cout << "iterate " << threadIndex << " offset: " << offset <<
+    // std::endl; std::cout << "size " << map_.size() << std::endl;
+    int counter = 0;
+    for (auto it = (*Gist_storage[threadIndex]).begin();
+         it != (*Gist_storage[threadIndex]).end(); ++it) {
       counter++;
-      int * gist = *it;
+      int *gist = *it;
       tbb::concurrent_hash_map<
           Key, Value, hashingCombined::VectorHasher>::const_accessor accessor;
       auto value = map_.find(accessor, gist);
@@ -137,8 +139,7 @@ public:
         }
       }
     }
-            // std::cout << "elements " << counter << std::endl;
-
+    // std::cout << "elements " << counter << std::endl;
   }
 
   void clear() override { map_.clear(); }
