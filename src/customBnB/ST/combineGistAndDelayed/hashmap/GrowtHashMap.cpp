@@ -124,7 +124,7 @@ class GrowtHashMap : public IConcurrentHashMapCombined {
 
 public:
   GrowtHashMap(std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage)
-      : IConcurrentHashMapCombined(Gist_storage), map_(5000000), handles() {
+      : IConcurrentHashMapCombined(Gist_storage), map_(5000000000), handles() {
     for (int i = 0; i < Gist_storage.size(); i++) {
       handles.push_back(map_.get_handle());
     }

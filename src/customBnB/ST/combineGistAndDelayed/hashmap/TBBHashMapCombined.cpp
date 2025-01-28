@@ -23,7 +23,7 @@ class TBBHashMapCombined : public IConcurrentHashMapCombined {
 
 public:
   TBBHashMapCombined(std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage)
-      : IConcurrentHashMapCombined(Gist_storage), map_(5000){};
+      : IConcurrentHashMapCombined(Gist_storage), map_(5000000000){};
   DelayedTasksList *insert(Key key, bool value) override {
     tbb::concurrent_hash_map<Key, Value,
                              hashingCombined::VectorHasher>::accessor accessor;
