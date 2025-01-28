@@ -124,7 +124,7 @@ class GrowtHashMap : public IConcurrentHashMapCombined {
 
 public:
   GrowtHashMap(std::vector<std::unique_ptr<GistStorage<>>> &Gist_storage)
-      : IConcurrentHashMapCombined(Gist_storage), map_(5000000000), handles() {
+      : IConcurrentHashMapCombined(Gist_storage), map_(5000000), handles() {
     for (int i = 0; i < Gist_storage.size(); i++) {
       handles.push_back(map_.get_handle());
     }
@@ -336,11 +336,13 @@ public:
       assert(val);
       assert(map_.get_handle().find(castStoreKey(gist)) ==
              map_.get_handle().end());
+      cleared = true;
     }
   }
   void clear() override {
     // map_ = HashMap(5000000);
-    if (handles[threadIndex].begin() != handles[threadIndex].end()) {
+    // if (handles[threadIndex].begin() != handles[threadIndex].end()) {
+    if (!cleared) {
       handles.clear();
       map_ = HashMap(5000);
       // update handles
@@ -349,7 +351,9 @@ public:
       }
     }
     assert(map_.get_handle().begin() == map_.get_handle().end());
+    cleared = false;
   }
 
   void iterate() const {}
+  bool cleared = false;
 };
