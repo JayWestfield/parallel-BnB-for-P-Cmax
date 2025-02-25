@@ -1,3 +1,6 @@
 [submodule "external/growt"]
 	path = external/growt
 	url = https://github.com/TooBiased/growt.git
+[submodule "external/task-based-workstealing"]
+	path = external/task-based-workstealing
+	url = https://github.com/JayWestfield/task-based-workstealing.git
