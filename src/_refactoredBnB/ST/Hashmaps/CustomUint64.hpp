@@ -22,12 +22,12 @@ public:
     if ((value & bitmask) == (max & bitmask))
       return this->value == other.value;
     else {
-      if (use_fingerprint &&
-          FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
-              reinterpret_cast<int *>(value)) !=
-              FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
-                  reinterpret_cast<int *>(other.value)))
-        return false;
+      // if (use_fingerprint &&
+      //     FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+      //         reinterpret_cast<int *>(value)) !=
+      //         FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+      //             reinterpret_cast<int *>(other.value)))
+      //   return false;
       return std::equal(reinterpret_cast<Key>(value & bitmask),
                         reinterpret_cast<Key>(value & bitmask) + ws::gistLength,
                         reinterpret_cast<Key>(other.value & bitmask));
@@ -40,12 +40,12 @@ public:
     if (other == 0)
       return this->value == other;
     else {
-      if (use_fingerprint &&
-          FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
-              reinterpret_cast<int *>(value)) !=
-              FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
-                  reinterpret_cast<int *>(value)))
-        return false;
+      // if (use_fingerprint &&
+      //     FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+      //         reinterpret_cast<int *>(value)) !=
+      //         FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+      //             reinterpret_cast<int *>(value)))
+      //   return false;
       return std::equal(FingerPrintUtil<use_fingerprint>::getOriginalPointer(
                             reinterpret_cast<Key>(value & bitmask)),
                         FingerPrintUtil<use_fingerprint>::getOriginalPointer(

@@ -1,5 +1,6 @@
 #include "./SolverConfig.hpp"
 #include "_refactoredBnB/ST/Hashmaps/GrowtHashMap_refactored.hpp"
+#include "_refactoredBnB/ST/Hashmaps/TBBHashMap_refactored.hpp"
 #include "_refactoredBnB/Solver/solver_base.hpp"
 #include "_refactoredBnB/Structs/structCollection.hpp"
 #include "experiments/readData/readData.h"
@@ -57,12 +58,15 @@ int main(int argc, char *argv[]) {
   constexpr Logging allLogs{true, true, true, true};
   // note the addPrev optimization has problems somehow????ß
   constexpr Optimizations allOpts{true, true, true, true, false};
-  constexpr Config myConfig{allOpts, allLogs};
+  constexpr Config myConfig{allOpts, noLogs};
   // TODO big switch for the correct solver
+
   solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint>,
               myConfig>
       solver(config.numThreads);
-
+  // solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint>,
+  //             myConfig>
+  //     solver(config.numThreads);
   bool timerExpired = false;
   canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
                                              &timerExpired, &config]() {

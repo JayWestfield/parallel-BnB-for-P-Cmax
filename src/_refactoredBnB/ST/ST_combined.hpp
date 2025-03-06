@@ -3,13 +3,11 @@
 #include "../Structs/DelayedTasksList.hpp"
 #include "../Structs/TaskContext.hpp"
 
-#include "../../external/task-based-workstealing/src/work_stealing_config.hpp"
 #include "./FingerPrintUtil.hpp"
 #include "_refactoredBnB/Structs/GistStorage.hpp"
 #include "_refactoredBnB/Structs/globalValues.hpp"
 #include "_refactoredBnB/Structs/structCollection.hpp"
 #include "customSharedLock.hpp"
-#include "src/ws_common.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -235,9 +233,7 @@ public:
             createGistEntry(ws::threadLocalVector.data())));
     if (!succesfullInsert)
       deleteGistEntry();
-    // maps.insert(FingerPrintUtil<use_fingerprint>::addFingerprint(
-    //                 createGistEntry(ws::threadLocalVector.data())),
-    //             false);
+
     logging(ws::threadLocalVector, job, "add Prev");
   }
 
@@ -271,15 +267,15 @@ public:
     // std::atomic_thread_fence(
     //     std::memory_order_release); // Synchronisationsbarriere
     assert(threadsWorking.load() == maxThreads);
-    // maps.getNonEmptyGists(maybeReinsert2, restart2, offset);
+    maps.getNonEmptyGists(maybeReinsert2, restart2, offset);
     for (int i = 0; i < maxThreads; i++) {
       selfIterated[i] = 1;
     }
     stepToWork = 10;
-    std::cout << "step to Work: " << stepToWork << std::endl;
+    // std::cout << "step to Work: " << stepToWork << std::endl;
     iterateThreadOwnGists();
     selfIterated[ws::thread_index_] = 0;
-
+    // maps.getNonEmptyGists(maybeReinsert, restart, offset);
     // wait for other threads
     int sum = 1;
     while (sum > 0) {
@@ -293,7 +289,7 @@ public:
     }
 
     stepToWork = 0;
-    std::cout << "step to Work: " << stepToWork << std::endl;
+    // std::cout << "step to Work: " << stepToWork << std::endl;
 
     // resumeAllDelayedTasks();
     while (!maybeReinsert.empty() || !restart.empty()) {
@@ -311,7 +307,7 @@ public:
       Gist_storage[i].clear();
     }
     stepToWork.store(1, std::memory_order_relaxed);
-    std::cout << "step to Work: " << stepToWork << std::endl;
+    // std::cout << "step to Work: " << stepToWork << std::endl;
 
     while (!reinsert.empty()) {
       workOnReinsert();
@@ -321,7 +317,7 @@ public:
     while (threadsWorking > 0)
       std::this_thread::yield();
     stepToWork = 5;
-    std::cout << "step to Work: " << stepToWork << std::endl;
+    // std::cout << "step to Work: " << stepToWork << std::endl;
 
     assert(reinsert.empty());
     clearFlag = false;
@@ -477,12 +473,14 @@ public:
     std::pair<std::vector<int>, DelayedTasksList *> work;
     while (reinsert.try_pop(work)) {
       // resumeTaskList(work.second);
-      maps.reinsertGist(work.first.data(), work.second);
+      maps.reinsertGist(FingerPrintUtil<use_fingerprint>::addFingerprint(
+                            createGistEntry((work.first.data()))),
+                        work.second);
     }
   }
 
   void iterateThreadOwnGists() {
-    std::cout << ws::thread_index_ << std::endl;
+    // std::cout << ws::thread_index_ << std::endl;
     maps.iterateThreadOwnGists(offset, Gist_storage[ws::thread_index_],
                                maybeReinsert, restart);
     threadsWorking.fetch_sub(1);
@@ -497,7 +495,7 @@ private:
   int offset; // no atomic because the bound Update is sequential
   const std::vector<std::vector<int>> &RET;
 
-  bool detailedLogging = true;
+  bool detailedLogging = false;
   wss<TaskContext> &scheduler;
   bool useBitmaps = false; // currently not supported
   std::atomic<bool> clearFlag = false;

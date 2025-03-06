@@ -49,12 +49,13 @@ set(BASEFILES_Refactored
 )
 set(SOURCES_Refactored
     src/experiments/readData/readData.cpp
-    src/_refactoredBnB/executeSolver.cpp
 )
 #todo profiler
 set(CUSTOMSOURCES_Refactored
     src/experiments/readData/readData.cpp
-    src/experiments/Profiler.cpp
+    src/experiments/Profiler_refactored.cpp
+    src/_refactoredBnB/executeSolverGrowt.cpp
+    src/_refactoredBnB/executeSolverTBB.cpp
 )
 
 # define dependencies and compile flags
@@ -70,16 +71,28 @@ target_compile_options(RefactoredBnBDependencies INTERFACE -mcx16)
 
 
 # Add the main executable
-add_executable(RefactoredBnB ${BASEFILES_Refactored} ${SOURCES_Refactored})
-target_link_libraries(RefactoredBnB PRIVATE RefactoredBnBDependencies)
+add_executable(RefactoredBnBTBB ${BASEFILES_Refactored} ${SOURCES_Refactored} src/_refactoredBnB/executeSolverTBB.cpp)
+target_link_libraries(RefactoredBnBTBB PRIVATE RefactoredBnBDependencies)
+# Add the main executable
+add_executable(RefactoredBnBGrowt ${BASEFILES_Refactored} ${SOURCES_Refactored} src/_refactoredBnB/executeSolverGrowt.cpp)
+target_link_libraries(RefactoredBnBGrowt PRIVATE RefactoredBnBDependencies)
 
 # Add another project with different sources
 add_executable(RefactoredBnB_custom ${BASEFILES_Refactored} ${CUSTOMSOURCES_Refactored})
 target_link_libraries(RefactoredBnB_custom PRIVATE BnBdependencies tcmalloc_and_profiler profiler)
+add_dependencies(RefactoredBnB_custom RefactoredBnBTBB)
+
+add_custom_target(profile
+    COMMAND rm -f ./profiling_results/profile_*.prof
+    COMMAND ./RefactoredBnB_custom
+    COMMAND google-pprof --callgrind ./RefactoredBnB_custom ./profiling_results/profile_*.prof > ./profiling_results/transformed_gperf.out
+    COMMAND kcachegrind ./profiling_results/transformed_gperf.out
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 
 # Add the main executable
 add_executable(full_refactored src/experiments/readData/readData.cpp
     src/_refactoredBnB/main.cpp)
 target_link_libraries(full_refactored PRIVATE RefactoredBnBDependencies)
 
-add_dependencies(full_refactored RefactoredBnB)
+add_dependencies(full_refactored RefactoredBnBTBB RefactoredBnBGrowt)

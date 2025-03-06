@@ -1,4 +1,4 @@
-
+#pragma once
 
 #include "../Structs/Difficulty.hpp"
 #include "../Structs/TaskContext.hpp"
@@ -155,8 +155,8 @@ private:
       if (job > lastRelevantJobIndex) {
         updateBound(makespan);
         return true;
-        // } else if (makespan > upperBound) {
-        //   return true;
+      } else if (makespan > upperBound) {
+        return true;
       } // 3 jobs remaining
       else if (job == lastRelevantJobIndex - 2) {
         std::vector<int> one = state;

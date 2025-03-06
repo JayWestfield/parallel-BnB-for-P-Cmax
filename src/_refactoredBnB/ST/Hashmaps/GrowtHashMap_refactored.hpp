@@ -11,7 +11,6 @@
 #include "data-structures/hash_table_mods.hpp"
 #include "data-structures/migration_table.hpp"
 #include "data-structures/table_config.hpp"
-#include "src/ws_common.hpp"
 // #include "hash_table_mods.hpp"
 
 #include <algorithm>
@@ -36,12 +35,13 @@
 template <bool use_fingerprint> class GrowtHashMap_refactored {
 public:
   using Key = int *;
+  using Value = DelayedTasksList *;
+  using StoreKey = CustomUint64<use_fingerprint>;
+
   // TODO find a way to  the equal method of the store key while using
   // uint64
-  using StoreKey = CustomUint64<use_fingerprint>;
   using TempConversionValue = uint64_t;
 
-  using Value = DelayedTasksList *;
   // evtl geht das acuh oghne das reinterpret cast (für value) glaube das
   // problme war das fehlende atomic
   using StoreValue = Value; // uint64_t;
@@ -66,18 +66,16 @@ public:
       lhs = nullptr; // reinterpret_cast<StoreValue>(nullptr);
       return lhs;
     }
-    // mapped_type atomic(mapped_type &lhs) const {
-    //   previous_value = lhs;
-    //   assert(lhs == reinterpret_cast<Value>(-1) || lhs == nullptr ||
-    //          previous_value->value->context.state.size() == ws::gistLength);
-    //   while (!__sync_bool_compare_and_swap(&lhs, previous_value, nullptr)) {
-    //     previous_value = lhs;
-    //   }
-    //   return lhs;
-    // }
+    mapped_type atomic(mapped_type &lhs) const {
+      previous_value = lhs;
+      assert(lhs == reinterpret_cast<Value>(-1) || lhs == nullptr ||
+             previous_value->value->context.state.size() == ws::gistLength);
+      while (!__sync_bool_compare_and_swap(&lhs, previous_value, nullptr)) {
+        previous_value = lhs;
+      }
+      return lhs;
+    }
     // todo maybe do an atomic version with compare and swap
-    // Only necessary for JunctionWrapper (not needed)
-    using junction_compatible = std::true_type;
   };
 
   struct addDelayed {
@@ -96,27 +94,27 @@ public:
       return lhs;
     }
     // atomic update leads to issues somehow
-    // StoreValue atomic(mapped_type &lhs, TaskPointer rhs) {
-    //   mapped_type expected = lhs;
-    //   while (true) {
-    //     auto lhs_value = reinterpret_cast<Value>(expected);
-    //     if (lhs_value != nullptr) {
-    //       // TODO check that might create a memory leak
-    //       lhs_value = new DelayedTasksList(rhs, lhs_value);
-    //       mapped_type new_value = reinterpret_cast<mapped_type>(lhs_value);
-    //       if (__sync_bool_compare_and_swap(&lhs, expected, lhs_value)) {
-    //         inserted = true;
-    //         return lhs_value;
-    //       } else {
-    //         expected = lhs;
-    //         lhs_value->next = nullptr;
-    //         delete lhs_value;
-    //       }
-    //     } else {
-    //       return lhs;
-    //     }
-    //   }
-    // }
+    StoreValue atomic(mapped_type &lhs, TaskPointer rhs) {
+      mapped_type expected = lhs;
+      while (true) {
+        auto lhs_value = reinterpret_cast<Value>(expected);
+        if (lhs_value != nullptr) {
+          // TODO check that might create a memory leak
+          lhs_value = new DelayedTasksList(rhs, lhs_value);
+          mapped_type new_value = reinterpret_cast<mapped_type>(lhs_value);
+          if (__sync_bool_compare_and_swap(&lhs, expected, lhs_value)) {
+            inserted = true;
+            return lhs_value;
+          } else {
+            expected = lhs;
+            lhs_value->next = nullptr;
+            delete lhs_value;
+          }
+        } else {
+          return lhs;
+        }
+      }
+    }
 
     // Only necessary for JunctionWrapper (not needed)
     using junction_compatible = std::true_type;
@@ -136,6 +134,8 @@ public:
   };
   ~GrowtHashMap_refactored() { handles.clear(); };
   std::pair<bool, DelayedTasksList *> addGist(Key key) {
+    assert(key != ws::threadLocalVector.data());
+    // std::cout << key << std::endl;
     StoreKey newEntry = castStoreKey(key);
     auto &handle = handles[ws::thread_index_];
     Value previous_value = reinterpret_cast<Value>(-1);
@@ -152,6 +152,9 @@ public:
                           reinterpret_cast<DelayedTasksList *>(previous_value));
   }
   bool addPreviously(Key key) {
+    assert(key != ws::threadLocalVector.data());
+    // std::cout << key << std::endl;
+
     auto &handle = handles[ws::thread_index_];
     StoreKey newEntry = castStoreKey(key);
 
@@ -220,6 +223,9 @@ public:
 
   bool tryAddDelayed(TaskPointer task, int *key) {
     bool inserted = false;
+    assert(key != ws::threadLocalVector.data());
+    // std::cout << "delayed key " << key << std::endl;
+
     addDelayed functor = addDelayed(inserted);
 
     auto &handle = handles[ws::thread_index_];
@@ -275,8 +281,9 @@ public:
       if (static_cast<Value>(entry.second) != nullptr &&
           static_cast<Value>(entry.second) !=
               reinterpret_cast<StoreValue>(-1)) {
-        auto value = reinterpret_cast<DelayedTasksList *>(
-            static_cast<StoreValue>(static_cast<Value>(entry.second)));
+        // auto value = reinterpret_cast<DelayedTasksList *>(
+        //     static_cast<StoreValue>(static_cast<Value>(entry.second)));
+        auto value = entry.second;
         // check the max offset
         // found.push(std::make_pair(
         //     reinterpret_cast<Key>(static_cast<StoreKey>(entry.first).value),
@@ -302,14 +309,16 @@ public:
     // unrolling
     auto &handle = handles[ws::thread_index_];
     for (auto gist : storageToIterate) {
+      // TODO use Fingerptint
       auto temp = handle.find(castStoreKey(gist));
       assert(temp != handle.end());
       auto entry = *temp;
       if (static_cast<Value>(entry.second) != nullptr &&
           static_cast<Value>(entry.second) !=
               reinterpret_cast<StoreValue>(-1)) {
-        auto value = reinterpret_cast<DelayedTasksList *>(
-            static_cast<StoreValue>(static_cast<Value>(entry.second)));
+        // auto value = reinterpret_cast<DelayedTasksList *>(
+        //     static_cast<StoreValue>(static_cast<Value>(entry.second)));
+        auto value = entry.second;
         // check the max offset
         // found.push(std::make_pair(
         //     reinterpret_cast<Key>(static_cast<StoreKey>(entry.first).value),

@@ -75,16 +75,20 @@ std::vector<std::string> getInstancesToSolve(Config config,
 }
 
 void printConfigInline(const Config &config) {
+  auto solver =
+      config.SolverConfig / 100 == 1 ? "executableTBB " : "executableGrowt ";
   std::cout << "Start Experiment with: [Config] maxThreads="
             << config.maxThreads << ", timeout=" << config.timeout
-            << ", STVersion=" << config.SolverConfig << ", basePath='"
+            << ", STVersion=" << solver << config.SolverConfig << ", basePath='"
             << config.basePath << "'" << ", benchmark='" << config.benchmark
             << "'" << ", instanceSelectionPath='"
             << config.instanceSelectionPath << "'" << std::endl;
 }
 int main(int argc, char *argv[]) {
   Parser readData;
-  std::string executable = "build/RefactoredBnB";
+  std::string executableTBB = "build/RefactoredBnB";
+  std::string executableGrowt = "build/RefactoredBnB";
+
   Config config = parseArguments(argc, argv);
   printConfigInline(config);
 
@@ -105,7 +109,8 @@ int main(int argc, char *argv[]) {
       argsStream << config.SolverConfig << " " << config.timeout << " " << i
                  << " " << instancePath << " "
                  << optimalSolutions.at(instanceName);
-
+      auto executable =
+          config.SolverConfig / 100 == 1 ? executableTBB : executableGrowt;
       std::string command = executable + " " + argsStream.str();
 
       int returnCode = std::system(command.c_str());
