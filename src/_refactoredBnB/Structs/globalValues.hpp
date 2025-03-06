@@ -1,5 +1,7 @@
 #pragma once
 #include "../../external/task-based-workstealing/src/ws_common.hpp"
+#include "_refactoredBnB/Structs/DelayedTasksList.hpp"
+#include "_refactoredBnB/Structs/TaskContext.hpp"
 #include <vector>
 namespace ws {
 thread_local std::vector<int> threadLocalVector;
@@ -13,4 +15,7 @@ void initializeThreadLocalVector(int size) {
                                       // comparator in Vectorhasher
   threadLocalStateVector.resize(size);
 }
+using TaskPointer = Task<TaskContext> *;
+using HashKey = int *;
+using HashValue = DelayedTasksList *;
 } // namespace ws

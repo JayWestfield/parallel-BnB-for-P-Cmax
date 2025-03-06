@@ -68,6 +68,7 @@ template <bool use_fingerprint> struct VectorHasherCast {
     }
     return h;
   }
+  // TODO add fingerprint comparison in the equal method
   bool operator()(const StoreKey lhs, const StoreKey rhs) const {
     return std::equal(reinterpret_cast<Key>(lhs),
                       reinterpret_cast<Key>(lhs) + ws::gistLength,

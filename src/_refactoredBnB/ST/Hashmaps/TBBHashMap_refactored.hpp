@@ -3,58 +3,27 @@
 #include "_refactoredBnB/ST/Hashmaps/hashing/hashing.hpp"
 #include "_refactoredBnB/Structs/DelayedTasksList.hpp"
 #include "_refactoredBnB/Structs/TaskContext.hpp"
-#include "customBnB/threadLocal/threadLocal.h"
+#include "_refactoredBnB/Structs/globalValues.hpp"
 
 #include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <iostream>
-#include <memory>
-#include <ostream>
+
 #include <tbb/concurrent_hash_map.h>
 #include <utility>
 #include <vector>
-// TODO the value should only be the delayed lsit not thw whole stEntry
+using namespace ws;
+using tbbMap =
+    tbb::concurrent_hash_map<HashKey, HashValue, hashingCombined::VectorHasher>;
 template <bool use_fingerprint> class TBBHashMap_refactored {
-  using Key = int *;
-  using Value = DelayedTasksList *;
 
-  tbb::concurrent_hash_map<Key, Value, hashingCombined::VectorHasher> map_;
+  tbb::concurrent_hash_map<HashKey, HashValue, hashingCombined::VectorHasher>
+      map_;
 
 public:
   TBBHashMap_refactored(int initialHashmapSize, int maxAllowedParallelism)
       : map_(initialHashmapSize){};
 
-  DelayedTasksList *insert(Key key, bool value) {
-    assert(false && "unused/deprecated");
-    // tbb::concurrent_hash_map<Key, Value,
-    //                          hashingCombined::VectorHasher>::accessor
-    //                          accessor;
-    // auto newEntry = createGistEntry(key);
-
-    // const bool isNew = map_.insert(accessor, key);
-    // if (isNew) {
-    //   accessor->second =
-    //       value ? nullptr : reinterpret_cast<DelayedTasksList *>(-1);
-    //   return value ? nullptr : reinterpret_cast<DelayedTasksList *>(-1);
-    // } else {
-    //   deleteGistEntry();
-    //   if (value) {
-    //     if (accessor->second == nullptr)
-    //       return nullptr; // TODO that should not be necessary
-    //     const auto delayed = std::move(accessor->second);
-    //     accessor->second = nullptr;
-    //     return delayed;
-    //   } else {
-    //     return reinterpret_cast<DelayedTasksList *>(-1);
-    //   }
-    // }
-  }
-  std::pair<bool, DelayedTasksList *> addGist(Key key) {
-    // std::cout << key << std::endl;
-
-    tbb::concurrent_hash_map<Key, Value,
-                             hashingCombined::VectorHasher>::accessor accessor;
+  std::pair<bool, HashValue> addGist(HashKey key) {
+    tbbMap::accessor accessor;
 
     const bool isNew = map_.insert(accessor, key);
     const auto delayed = isNew ? nullptr : accessor->second;
@@ -62,21 +31,17 @@ public:
     return std::make_pair(isNew, delayed);
   }
 
-  bool addPreviously(Key key) {
-    // std::cout << key << std::endl;
-
-    tbb::concurrent_hash_map<Key, Value,
-                             hashingCombined::VectorHasher>::accessor accessor;
+  bool addPreviously(HashKey key) {
+    tbbMap::accessor accessor;
     const bool isNew = map_.insert(accessor, key);
     if (isNew) {
-      accessor->second = reinterpret_cast<DelayedTasksList *>(-1);
+      accessor->second = reinterpret_cast<HashValue>(-1);
       return true;
     }
     return false;
   }
-  bool tryAddDelayed(Task<TaskContext> *task, int *key) {
-    tbb::concurrent_hash_map<Key, Value,
-                             hashingCombined::VectorHasher>::accessor accessor;
+  bool tryAddDelayed(TaskPointer task, HashKey key) {
+    tbbMap::accessor accessor;
     if (map_.find(accessor, key)) {
       if (accessor->second == nullptr) {
         return false;
@@ -87,20 +52,15 @@ public:
       return false;
     }
   }
-  void reinsertGist(int *gist, DelayedTasksList *delayed) {
-    tbb::concurrent_hash_map<Key, Value,
-                             hashingCombined::VectorHasher>::accessor accessor;
-    // std::cout << "reinsert " << gist << std::endl;
-
+  void reinsertGist(HashKey gist, HashValue delayed) {
+    tbbMap::accessor accessor;
     const bool isNew = map_.insert(accessor, gist);
-
     assert(isNew);
     accessor->second = delayed;
   }
 
-  FindGistResult find(const Key key) {
-    tbb::concurrent_hash_map<
-        Key, Value, hashingCombined::VectorHasher>::const_accessor accessor;
+  FindGistResult find(const HashKey key) {
+    tbbMap::accessor accessor;
     if (map_.find(accessor, key)) {
       return accessor->second == nullptr ? FindGistResult::COMPLETED
                                          : FindGistResult::STARTED;
@@ -108,11 +68,11 @@ public:
     return FindGistResult::NOT_FOUND;
   }
 
-  std::vector<DelayedTasksList *> getDelayed() {
-    std::vector<DelayedTasksList *> delayedLists;
+  std::vector<HashValue> getDelayed() {
+    std::vector<HashValue> delayedLists;
     for (auto entry : map_) {
       if (entry.second != nullptr &&
-          entry.second != reinterpret_cast<DelayedTasksList *>(-1)) {
+          entry.second != reinterpret_cast<HashValue>(-1)) {
         delayedLists.push_back(entry.second);
       }
     }
@@ -121,17 +81,14 @@ public:
   // cannot filter the gist here, because we do not have access to the compute
   // gist necessary to chekc wether the delayed tast
   // first describes entries that might be reinserted
-  void
-  getNonEmptyGists(tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>
-                       &maybeReinsert,
-                   tbb::concurrent_queue<DelayedTasksList *> &restart,
-                   const int newOffset) {
-    std::pair<tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>,
-              tbb::concurrent_queue<DelayedTasksList *>>
+  void getNonEmptyGists(
+      tbb::concurrent_queue<std::pair<HashKey, HashValue>> &maybeReinsert,
+      tbb::concurrent_queue<HashValue> &restart, const int newOffset) {
+    std::pair<tbb::concurrent_queue<std::pair<HashKey, HashValue>>,
+              tbb::concurrent_queue<HashValue>>
         nonEmpty;
     for (auto entry : map_) {
-      if (entry.second != nullptr &&
-          entry.second != reinterpret_cast<DelayedTasksList *>(-1)) {
+      if (isNotEmpty(entry.second)) {
         // check the max offset TODO check is gist length correct ?
         if (entry.first[ws::gistLength] >= newOffset) {
           maybeReinsert.push(entry);
@@ -141,22 +98,18 @@ public:
       }
     }
   }
-
+  // todo check for the tbb version the normal iteration might be better?
   void iterateThreadOwnGists(
       int offset, GistStorage storageToIterate,
-      tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>
-          &maybeReinsert,
-      tbb::concurrent_queue<DelayedTasksList *> &restart) {
-    // return;
-    // std::cout << "iterate " << threadIndex << " offset: " << offset <<
-    // std::endl; std::cout << "size " << map_.size() << std::endl;
+      tbb::concurrent_queue<std::pair<HashKey, HashValue>> &maybeReinsert,
+      tbb::concurrent_queue<HashValue> &restart) {
+    // TODO can i reuse the accessor? / is that beneficial?
+    tbbMap::const_accessor accessor;
+
     for (auto it : storageToIterate) {
-      tbb::concurrent_hash_map<
-          Key, Value, hashingCombined::VectorHasher>::const_accessor accessor;
       auto value = map_.find(accessor, it);
       assert(value);
-      if (accessor->second != nullptr &&
-          accessor->second != reinterpret_cast<DelayedTasksList *>(-1)) {
+      if (isNotEmpty(accessor->second)) {
         if (accessor->first[ws::gistLength] >= offset) {
           maybeReinsert.push(*accessor);
         } else {
@@ -164,9 +117,13 @@ public:
         }
       }
     }
-    // std::cout << "elements " << counter << std::endl;
   }
   void BoundUpdateClear() { map_.clear(); }
 
   void clear() { map_.clear(); }
+
+private:
+  inline bool isNotEmpty(HashValue value) const {
+    return value != nullptr && value != reinterpret_cast<HashValue>(-1);
+  }
 };
