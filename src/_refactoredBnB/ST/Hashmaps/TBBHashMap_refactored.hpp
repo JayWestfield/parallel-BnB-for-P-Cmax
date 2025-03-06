@@ -2,21 +2,18 @@
 
 #include "_refactoredBnB/ST/Hashmaps/hashing/hashing.hpp"
 #include "_refactoredBnB/Structs/DelayedTasksList.hpp"
-#include "_refactoredBnB/Structs/TaskContext.hpp"
 #include "_refactoredBnB/Structs/globalValues.hpp"
-
 #include <cassert>
 
 #include <tbb/concurrent_hash_map.h>
 #include <utility>
 #include <vector>
+
 using namespace ws;
 using tbbMap =
     tbb::concurrent_hash_map<HashKey, HashValue, hashingCombined::VectorHasher>;
-template <bool use_fingerprint> class TBBHashMap_refactored {
 
-  tbb::concurrent_hash_map<HashKey, HashValue, hashingCombined::VectorHasher>
-      map_;
+template <bool use_fingerprint> class TBBHashMap_refactored {
 
 public:
   TBBHashMap_refactored(int initialHashmapSize, int maxAllowedParallelism)
@@ -123,6 +120,7 @@ public:
   void clear() { map_.clear(); }
 
 private:
+  tbbMap map_;
   inline bool isNotEmpty(HashValue value) const {
     return value != nullptr && value != reinterpret_cast<HashValue>(-1);
   }
