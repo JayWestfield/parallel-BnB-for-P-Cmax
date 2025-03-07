@@ -31,7 +31,7 @@ template <bool use_fingerprint> class GrowtHashMap_refactored {
   static_assert(sizeof(StoreKey) == sizeof(TempConversionValue),
                 "CustomUint64 must have the same size as uint64_t");
 
-  const HashValue emptyList = emptyList;
+  const HashValue emptyList = reinterpret_cast<HashValue>(-1);
   using allocator_type = growt::AlignedAllocator<>;
   // using allocator_type = growt::GenericAlignedAllocator<>;
 
@@ -203,7 +203,7 @@ public:
     for (auto gist : storageToIterate) {
       // TODO use Fingerptint
       auto entryHandle = handle.find(castStoreKey(gist));
-      assert(temp != handle.end());
+      assert(entryHandle != handle.end());
       HashKey key = reinterpret_cast<HashKey>(
           static_cast<StoreKey>((*entryHandle).first).value);
       HashValue value = (*entryHandle).second;
