@@ -13,8 +13,6 @@
 #include <cassert>
 #include <cstddef>
 #include <iostream>
-#include <limits>
-#include <memory>
 #include <mutex>
 #include <oneapi/tbb/concurrent_queue.h>
 #include <ostream>
@@ -23,7 +21,9 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
-template <typename HashTable, bool use_fingerprint> class ST {
+template <typename HashTable, bool use_fingerprint,
+          bool detailedLogging = false>
+class ST {
 
 public:
   ST(int offset, const std::vector<std::vector<int>> &RET,
@@ -35,46 +35,39 @@ public:
     for (int i = 0; i < maxThreads; i++) {
       Gist_storage.push_back(GistStorage(GistStorageSize));
     }
-    // maps
-    // referenceCounter = 0;
-    // clearFlag = false;
   }
 
-  ~ST() {
-    CustomUniqueLock lock(mtx);
-    // resumeAllDelayedTasks(); why should i resume them on deletion?
-  }
+  ~ST() { CustomUniqueLock lock(mtx); }
 
   void computeGist(const std::vector<int> &state, int job,
                    std::vector<int> &gist) {
     assert(std::is_sorted(state.begin(), state.end()));
     assert((state.back() + offset) < RET[0].size());
-    for (size_t i = 0; i < static_cast<size_t>(ws::stateLength); i++) {
-      gist[i] = RET[job][state[i] + offset];
+    const auto &retRow = RET[job];
+#pragma omp unroll 8
+    for (size_t i = 0; i < ws::stateLength; i++) {
+      gist[i] = retRow[state[i] + offset];
     }
-    gist[ws::stateLength] =
-        job; // TODO think about wether we really need the jobdepth here (can 2
-             // partial assignments with a different depth have teh same gist
-             // and if so is that a problem?)
+    gist[ws::stateLength] = job;
   }
   int findMaxOffset(const int val, const int job, const int currentOffset) {
     const auto entry = RET[job][val + offset];
     std::size_t newMaxOffset = currentOffset;
     auto compare = RET[job][val + offset + newMaxOffset];
 
-    // maybe it is better to do it as a oneliner?
+    // TODO test which one is better
     while (entry != compare) {
+      // newMaxOffset -= entry - compare;
       newMaxOffset--;
       compare = RET[job][val + offset + newMaxOffset];
     }
     assert(entry == compare);
-    // std::cout << offset - 1 << std::endl;
     assert(newMaxOffset >= 0);
+
     assert(currentOffset >= newMaxOffset);
     return newMaxOffset;
   }
-  // TODO wtf happens here the gist with offset should be written to gist but in
-  // the end we compute gist2 that is unused?
+
   void computeGistWithMaxOffset(const std::vector<int> &state, int job,
                                 std::vector<int> &gist) {
     assert(std::is_sorted(state.begin(), state.end()));
@@ -125,39 +118,6 @@ public:
   // TODO also think about the dif between compare and entry can be used as a
   // step width !!!!! search or try not every but every second entry etc
 
-  inline void resumeTask(DelayedTasksList *next) {
-    logging(next->value->context.state, next->value->context.job, "runnable");
-    scheduler.resumeTask(next->value);
-  }
-  inline void cancelTask(DelayedTasksList *next) {
-    logging(next->value->context.state, next->value->context.job, "cancel");
-    scheduler.cancelTask(next->value);
-  }
-  inline void cancelTaskList(DelayedTasksList *next) {
-    assert(next != nullptr);
-    auto current = next;
-    // calcel delayed tasks
-    while (next != reinterpret_cast<DelayedTasksList *>(-1)) {
-      cancelTask(next);
-      next = next->next;
-    }
-    if (current != nullptr &&
-        current != reinterpret_cast<DelayedTasksList *>(-1))
-      delete current;
-  }
-  inline void resumeTaskList(DelayedTasksList *next) {
-    if (next != nullptr) {
-      auto current = next;
-      // resume delayed tasks
-      while (next != reinterpret_cast<DelayedTasksList *>(-1)) {
-        resumeTask(next);
-        next = next->next;
-      }
-      if (current != nullptr &&
-          current != reinterpret_cast<DelayedTasksList *>(-1))
-        delete current;
-    }
-  }
   void addGist(const std::vector<int> &state, int job) {
     if ((state[ws::gistLength - 2] + offset) >= RET[0].size() || skipThis(job))
       return;
@@ -169,9 +129,7 @@ public:
     if ((state[ws::gistLength - 2] + offset) >= RET[0].size())
       return;
     computeGistWithMaxOffset(state, job, ws::threadLocalVector);
-    // auto next = maps.insert(FingerPrintUtil<use_fingerprint>::addFingerprint(
-    //                             ws::threadLocalVector.data()),
-    //                         true);
+
     auto next = maps.addGist(FingerPrintUtil<use_fingerprint>::addFingerprint(
         createGistEntry(ws::threadLocalVector.data())));
     // signals wether to keep the gist or not
@@ -322,7 +280,7 @@ public:
     assert(reinsert.empty());
     clearFlag = false;
   }
-  // TODO Eviction policy and execution
+  // TODO Eviction policy and execution !!!!
   void evict() { clear(); }
   void work() {
     while (mtx.clearFlag) {
@@ -478,9 +436,9 @@ public:
                         work.second);
     }
   }
-
+  // one could access maybeReinsert etc in batches but currently it is no
+  // bottleneck
   void iterateThreadOwnGists() {
-    // std::cout << ws::thread_index_ << std::endl;
     maps.iterateThreadOwnGists(offset, Gist_storage[ws::thread_index_],
                                maybeReinsert, restart);
     threadsWorking.fetch_sub(1);
@@ -495,7 +453,6 @@ private:
   int offset; // no atomic because the bound Update is sequential
   const std::vector<std::vector<int>> &RET;
 
-  bool detailedLogging = false;
   wss<TaskContext> &scheduler;
   bool useBitmaps = false; // currently not supported
   std::atomic<bool> clearFlag = false;
@@ -523,6 +480,39 @@ private:
     return Gist_storage[ws::thread_index_].push(gist);
   }
   void deleteGistEntry() { Gist_storage[ws::thread_index_].pop(); }
+  inline void resumeTask(DelayedTasksList *next) {
+    logging(next->value->context.state, next->value->context.job, "runnable");
+    scheduler.resumeTask(next->value);
+  }
+  inline void cancelTask(DelayedTasksList *next) {
+    logging(next->value->context.state, next->value->context.job, "cancel");
+    scheduler.cancelTask(next->value);
+  }
+  inline void cancelTaskList(DelayedTasksList *next) {
+    assert(next != nullptr);
+    if (next != nullptr) {
+
+      auto current = next;
+      while (next != reinterpret_cast<DelayedTasksList *>(-1)) {
+        cancelTask(next);
+        next = next->next;
+      }
+      if (current != nullptr &&
+          current != reinterpret_cast<DelayedTasksList *>(-1))
+        delete current;
+    }
+  }
+  inline void resumeTaskList(DelayedTasksList *next) {
+    if (next != nullptr) {
+      auto current = next;
+      while (next != reinterpret_cast<DelayedTasksList *>(-1)) {
+        resumeTask(next);
+        next = next->next;
+      }
+      if (current != reinterpret_cast<DelayedTasksList *>(-1))
+        delete current;
+    }
+  }
   template <typename T>
   void logging(const std::vector<int> &state, int job, T message = "") {
     if (!detailedLogging)

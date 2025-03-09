@@ -4,28 +4,22 @@
 #include "../Structs/TaskContext.hpp"
 #include "../Structs/memory_monitor.hpp"
 #include "../external/task-based-workstealing/src/work_stealing_config.hpp"
-#include "_refactoredBnB/Structs/GistStorage.hpp"
 #include "_refactoredBnB/Structs/globalValues.hpp"
 
 #include "_refactoredBnB/ST/ST_combined.hpp"
 #include "_refactoredBnB/Structs/structCollection.hpp"
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdlib>
-#include <memory>
 #include <numeric>
 #include <sstream>
-#include <stdexcept>
-#include <thread>
 #include <vector>
 
 // TODO STStorage # initializing
 // TODO think about initializethreadLocalVector is it needed do i need to adapt
 // the wss?
 // TODO use makro for cleaner return?
-
 // TODO outource some stuff into other files especially structs
 
 template <typename Hashmap, Config SolverConfig> class solver_base {
@@ -119,6 +113,40 @@ public:
 
 private:
   int skipDepth;
+
+  // instance
+  int maxAllowedParalellism;
+  int numMachines;
+  std::vector<int> jobDurations;
+
+  // general
+  std::atomic<bool> foundOptimal = false;
+  std::atomic<bool> cancel = false;
+
+  std::atomic<bool> continueExecution = true;
+
+  // Bounds
+  std::atomic<int> upperBound;
+  int initialLowerBound;
+  std::atomic<int> lowerBound;
+  int initialUpperBound;
+  std::mutex boundLock;
+
+  // RET
+  std::vector<std::vector<int>> RET = {{}};
+  std::atomic<int> offset;
+
+  // ST
+  ST<Hashmap, SolverConfig.optimizations.use_fingerprint,
+     SolverConfig.logging.detailedLogging>
+      STInstance;
+
+  // only one jobsize left
+  int lastSizeJobIndex;
+  int lastRelevantJobIndex;
+
+  wss<TaskContext> scheduler;
+
   // constexpr?
   bool inline skipLookup(int depth) {
     return depth >= lastSizeJobIndex - skipDepth;
@@ -161,23 +189,18 @@ private:
       else if (job == lastRelevantJobIndex - 2) {
         std::vector<int> one = state;
         lpt(one, job);
-        std::vector<int> two = state;
-        two[1] += jobDurations[job++];
-        lpt(two, job);
+        state[1] += jobDurations[job];
+        lpt(state, job + 1);
         return true;
       } else if (job >= lastSizeJobIndex) { // Rule 5
-        // TODO why do we need to copy the vector?
-        std::vector<int> one = state;
-        lpt(one, job);
+        lpt(state, job);
         return true;
       }
       continueAt = Continuation::STCHECK;
     }
     case Continuation::STCHECK:
-      // TODO add condition to not check the last few depths into the st
       if (SolverConfig.optimizations.use_gists && !skipLookup(job)) {
         FindGistResult exists = STInstance.exists(state, job);
-
         switch (exists) {
         case FindGistResult::COMPLETED:
           logging(state, job, "gist found ");
@@ -204,7 +227,7 @@ private:
         if (loopIndex >= 0) {
           if (state[loopIndex] + jobDurations[job] <= upperBound &&
               lookupRetFur(state[loopIndex], jobDurations[job], job)) {
-            if (SolverConfig.optimizations.use_gists)
+            if (SolverConfig.optimizations.use_gists && !skipLookup(job))
               STInstance.addGist(state, job);
             return true;
           } else {
@@ -262,31 +285,13 @@ private:
                static_cast<size_t>(numMachines));
 
         resortAfterIncrement(ws::threadLocalStateVector, i);
-
-        // filter delayed / solved assignments directly before spawning the
-        // tasks
         if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
           FindGistResult ex =
               STInstance.exists(ws::threadLocalStateVector, job + 1);
-          if (ex == FindGistResult::COMPLETED)
-            continue;
-          else
+          if (ex != FindGistResult::COMPLETED)
             scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
-          // switch (ex) {
-          // case 0:
-          //   scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
-          //   break;
-          // case 1:
-          //   scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
-          //   // todo theoretically it can instantly added as a
-          //   // suspended task but task does not exist yet maybe skip this
-          //   check
-          //   // and just create the task
-          //   break;
-          // default:
-          //   continue;
-          //   break;
-          // }
+          // TODO for FindGistResult::STARTED the task could theoretically be
+          // spawned but not scheduled but the wss does not support that
         } else {
           scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
         }
@@ -318,7 +323,8 @@ private:
         STInstance.addGist(state, job);
       return true;
     }
-    std::cout << "errror cannot land here" << std::endl;
+    throw std::invalid_argument(
+        "received invalid ContinuationToken or missing return");
     return true;
   }
   void inline idleFunction() {
@@ -436,7 +442,7 @@ private:
     // after
     auto newPosIt =
         std::upper_bound(vec.begin() + index, vec.end(), incrementedValue);
-    assert(static_cast<std::size_t>(ws::stateLength) == vec.size());
+    assert(ws::stateLength == vec.size());
     size_t newPosIndex = std::distance(vec.begin(), newPosIt);
     if (newPosIndex == index) {
       return;
@@ -447,16 +453,14 @@ private:
   }
 
   /**
-   * @brief tightens the upper bound and updates the offset for the RET
+   * @brief tightens the upper bound and updates the offset for the RET as well
+   * as updating the ST and restarting necessary tasks
    */
   void updateBound(int newBound) {
     assert(newBound >= lowerBound);
     if (newBound == lowerBound) {
       foundOptimal = true;
       STInstance.cancelExecution();
-      // STInstance->resumeAllDelayedTasks(); // TODO work with a finished flag
-      // not necessary with custom tasks
-      // that should be more performant
     }
 
     if (SolverConfig.logging.logBound)
@@ -466,21 +470,15 @@ private:
       return;
     if (SolverConfig.logging.logBound)
       std::cout << "new Bound " << newBound << std::endl;
-    std::unique_lock lock(boundLock,
-                          std::try_to_lock); // this one does not appear often
-                                             // so no need to optimize that
+    std::unique_lock lock(boundLock, std::try_to_lock);
+    // this one does not appear often so no need to optimize that
     while (!lock.owns_lock()) {
       STInstance.helpWhileLock(lock);
     }
     if (newBound > upperBound)
       return;
     const int newOffset = initialUpperBound - (newBound - 1);
-    if (SolverConfig.optimizations
-            .use_gists) // it is importatnt to d othe bound update on the ST
-                        // before updating the offset/upperBound, because
-                        // otherwise the exist might return a false positive (i
-                        // am not 100% sure why)
-    {
+    if (SolverConfig.optimizations.use_gists) {
       STInstance.prepareBoundUpdate();
     }
     upperBound.store(newBound - 1);
@@ -490,12 +488,10 @@ private:
     }
 
     offset.store(newOffset);
-    if (SolverConfig.optimizations
-            .use_gists) // it is importatnt to d othe bound update on the ST
-                        // before updating the offset/upperBound, because
-                        // otherwise the exist might return a false positive (i
-                        // am not 100% sure why)
-    {
+    // it is importatnt to d othe bound update on the ST before updating the
+    // offset/upperBound, because otherwise the exist might return a false
+    // positive (i am not 100% sure why)
+    if (SolverConfig.optimizations.use_gists) {
       STInstance.boundUpdate(newOffset);
     }
     upperBound.store(newBound - 1);
@@ -508,27 +504,6 @@ private:
       std::cout << "new Bound " << newBound << "finished" << std::endl;
   }
 
-  // instance
-  int maxAllowedParalellism;
-  int numMachines;
-  std::vector<int> jobDurations;
-
-  // general
-  std::atomic<bool> foundOptimal = false;
-  std::atomic<bool> cancel = false;
-
-  std::atomic<bool> continueExecution = true;
-
-  // Bounds
-  std::atomic<int> upperBound;
-  int initialLowerBound;
-  std::atomic<int> lowerBound;
-  int initialUpperBound;
-  std::mutex boundLock;
-
-  // RET
-  std::vector<std::vector<int>> RET = {{}};
-  std::atomic<int> offset;
   template <typename T>
   void logging(const std::vector<int> &state, int job, T message = "") {
     if (!SolverConfig.logging.detailedLogging)
@@ -537,17 +512,7 @@ private:
     gis << message << " ";
     for (auto vla : state)
       gis << vla << ", ";
-    // gis << " => "  << std::endl;
     gis << " Job: " << job << std::endl;
-
     std::cout << gis.str();
   }
-  // ST
-  ST<Hashmap, SolverConfig.optimizations.use_fingerprint> STInstance;
-
-  // only one jobsize left
-  int lastSizeJobIndex;
-  int lastRelevantJobIndex;
-
-  wss<TaskContext> scheduler;
 };

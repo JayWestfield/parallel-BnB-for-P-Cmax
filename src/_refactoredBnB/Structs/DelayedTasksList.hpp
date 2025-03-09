@@ -1,8 +1,8 @@
 #pragma once
-#include "../external/task-based-workstealing/src/work_stealing_config.hpp"
+#include "../external/task-based-workstealing/src/structs/task.hpp"
 
 #include "_refactoredBnB/Structs/TaskContext.hpp"
-#include <memory>
+
 struct DelayedTasksList {
   Task<TaskContext> *value;
   DelayedTasksList *next;

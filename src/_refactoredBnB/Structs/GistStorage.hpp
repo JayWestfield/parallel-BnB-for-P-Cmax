@@ -13,8 +13,6 @@ public:
       : current_index(0), segments(), SegmentSize(SegmentSize) {
     segments.push_back(std::vector<int>(SegmentSize, 0));
   }
-  // GistStorage(const GistStorage&) = delete;
-
   ~GistStorage() = default;
   int *push(int *gist) {
     if (current_index >= SegmentSize - ws::wrappedGistLength) {
