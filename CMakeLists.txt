@@ -54,8 +54,6 @@ set(SOURCES_Refactored
 set(CUSTOMSOURCES_Refactored
     src/experiments/readData/readData.cpp
     src/experiments/Profiler_refactored.cpp
-    src/_refactoredBnB/executeSolverGrowt.cpp
-    src/_refactoredBnB/executeSolverTBB.cpp
 )
 
 # define dependencies and compile flags
@@ -80,13 +78,16 @@ target_link_libraries(RefactoredBnBGrowt PRIVATE RefactoredBnBDependencies)
 # Add another project with different sources
 add_executable(RefactoredBnB_custom ${BASEFILES_Refactored} ${CUSTOMSOURCES_Refactored})
 target_link_libraries(RefactoredBnB_custom PRIVATE BnBdependencies tcmalloc_and_profiler profiler)
-add_dependencies(RefactoredBnB_custom RefactoredBnBTBB)
+add_dependencies(RefactoredBnB_custom RefactoredBnBTBB RefactoredBnBGrowt)
 
+set(PROFILE_ARGS "201 100000 1  ../benchmarks/lawrinenko/p_cmax-class6-n54-m24-minsize54-maxsize216-seed16650.txt 325")
+separate_arguments(PROFILE_ARGS)
 add_custom_target(profile
-    COMMAND rm -f ./profiling_results/profile_*.prof
-    COMMAND ./RefactoredBnB_custom
-    COMMAND google-pprof --callgrind ./RefactoredBnB_custom ./profiling_results/profile_*.prof > ./profiling_results/transformed_gperf.out
-    COMMAND kcachegrind ./profiling_results/transformed_gperf.out
+    COMMAND export "\$(dbus-launch)"
+    COMMAND rm -f ../profiling_results/profile_*.prof
+    COMMAND ./RefactoredBnB_custom ${PROFILE_ARGS}
+    COMMAND google-pprof --callgrind ./RefactoredBnB_custom ../profiling_results/profile_*.prof > ../profiling_results/transformed_gperf.out
+    COMMAND kcachegrind ../profiling_results/transformed_gperf.out
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

@@ -3,6 +3,7 @@
 #include "../Structs/DelayedTasksList.hpp"
 #include "../Structs/TaskContext.hpp"
 
+#include "../external/task-based-workstealing/src/work_stealing_config.hpp"
 #include "./FingerPrintUtil.hpp"
 #include "_refactoredBnB/Structs/GistStorage.hpp"
 #include "_refactoredBnB/Structs/globalValues.hpp"
@@ -195,16 +196,6 @@ public:
     logging(ws::threadLocalVector, job, "add Prev");
   }
 
-  void
-  reinsertGists(std::vector<std::pair<std::vector<int>, DelayedTasksList *>>
-                    gistsToReinsert) {
-    for (auto gist : gistsToReinsert) {
-      maps.reinsertGist(FingerPrintUtil<use_fingerprint>::addFingerprint(
-                            createGistEntry(Gist_storage, gist.first.data())),
-                        gist.second);
-      // maps.reinsertGist(gist.first.data(), gist.second);
-    }
-  }
   size_t boundUpdatedCounter = 0;
   // assert bound update is itself never called in parallel
   void boundUpdate(int offset) {
@@ -217,23 +208,17 @@ public:
     assert(maybeReinsert.empty());
     assert(restart.empty());
     boundUpdatedCounter++;
-    // std::cout << "Bound Update " << boundUpdatedCounter << " offset: " <<
-    // offset
-    //           << std::endl;
+
     // TODO check we do not want a copy here
     threadsWorking = maxThreads;
-    // std::atomic_thread_fence(
-    //     std::memory_order_release); // Synchronisationsbarriere
+
     assert(threadsWorking.load() == maxThreads);
-    maps.getNonEmptyGists(maybeReinsert2, restart2, offset);
     for (int i = 0; i < maxThreads; i++) {
       selfIterated[i] = 1;
     }
     stepToWork = 10;
-    // std::cout << "step to Work: " << stepToWork << std::endl;
     iterateThreadOwnGists();
     selfIterated[ws::thread_index_] = 0;
-    // maps.getNonEmptyGists(maybeReinsert, restart, offset);
     // wait for other threads
     int sum = 1;
     while (sum > 0) {
@@ -247,7 +232,6 @@ public:
     }
 
     stepToWork = 0;
-    // std::cout << "step to Work: " << stepToWork << std::endl;
 
     // resumeAllDelayedTasks();
     while (!maybeReinsert.empty() || !restart.empty()) {
@@ -464,8 +448,7 @@ private:
   HashTable maps;
   tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>> maybeReinsert;
   tbb::concurrent_queue<DelayedTasksList *> restart;
-  tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>> maybeReinsert2;
-  tbb::concurrent_queue<DelayedTasksList *> restart2;
+
   tbb::concurrent_queue<std::pair<std::vector<int>, DelayedTasksList *>>
       reinsert;
   std::vector<std::atomic<int>> selfIterated;

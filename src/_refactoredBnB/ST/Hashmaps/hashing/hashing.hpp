@@ -70,14 +70,22 @@ template <bool use_fingerprint> struct VectorHasherCast {
   }
   // TODO add fingerprint comparison in the equal method
   bool operator()(const StoreKey lhs, const StoreKey rhs) const {
-    return std::equal(reinterpret_cast<Key>(lhs),
-                      reinterpret_cast<Key>(lhs) + ws::gistLength,
-                      reinterpret_cast<Key>(rhs));
+    return std::equal(FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+                          reinterpret_cast<Key>(lhs)),
+                      FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+                          reinterpret_cast<Key>(lhs)) +
+                          ws::gistLength,
+                      FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+                          reinterpret_cast<Key>(rhs)));
   }
   inline bool equal(StoreKey a, StoreKey b) const {
-    return std::equal(reinterpret_cast<Key>(a),
-                      reinterpret_cast<Key>(a) + ws::gistLength,
-                      reinterpret_cast<Key>(b));
+    return std::equal(FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+                          reinterpret_cast<Key>(a)),
+                      FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+                          reinterpret_cast<Key>(a)) +
+                          ws::gistLength,
+                      FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+                          reinterpret_cast<Key>(b)));
   }
 };
 }; // namespace hashingCombined

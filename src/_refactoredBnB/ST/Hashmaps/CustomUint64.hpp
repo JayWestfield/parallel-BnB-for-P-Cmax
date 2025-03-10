@@ -12,7 +12,6 @@ static constexpr size_t max = 0xffffffffffffffff;
 template <bool use_fingerprint> struct CustomUint64 {
 public:
   uint64_t value;
-  using Key = int *;
   constexpr CustomUint64() : value(0) {}
   constexpr CustomUint64(uint64_t v) : value(v) {}
 
@@ -22,15 +21,20 @@ public:
     if ((value & bitmask) == (max & bitmask))
       return this->value == other.value;
     else {
-      // if (use_fingerprint &&
-      //     FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
-      //         reinterpret_cast<int *>(value)) !=
-      //         FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
-      //             reinterpret_cast<int *>(other.value)))
-      //   return false;
-      return std::equal(reinterpret_cast<Key>(value & bitmask),
-                        reinterpret_cast<Key>(value & bitmask) + ws::gistLength,
-                        reinterpret_cast<Key>(other.value & bitmask));
+      if (use_fingerprint &&
+          FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+              reinterpret_cast<ws::HashKey>(value)) !=
+              FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+                  reinterpret_cast<ws::HashKey>(other.value)))
+        return false;
+      return std::equal(
+          FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+              reinterpret_cast<ws::HashKey>(value & bitmask)),
+          FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+              reinterpret_cast<ws::HashKey>(value & bitmask)) +
+              ws::gistLength,
+          FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+              reinterpret_cast<ws::HashKey>(other.value & bitmask)));
     }
 
     // return this->value == other.value;
@@ -40,18 +44,19 @@ public:
     if (other == 0)
       return this->value == other;
     else {
-      // if (use_fingerprint &&
-      //     FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
-      //         reinterpret_cast<int *>(value)) !=
-      //         FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
-      //             reinterpret_cast<int *>(value)))
-      //   return false;
+      if (use_fingerprint &&
+          FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+              reinterpret_cast<int *>(value)) !=
+              FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+                  reinterpret_cast<int *>(value)))
+        return false;
       return std::equal(FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                            reinterpret_cast<Key>(value & bitmask)),
+                            reinterpret_cast<ws::HashKey>(value & bitmask)),
                         FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                            reinterpret_cast<Key>(value & bitmask)) +
+                            reinterpret_cast<ws::HashKey>(value & bitmask)) +
                             ws::gistLength,
-                        reinterpret_cast<Key>(other));
+                        FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+                            reinterpret_cast<ws::HashKey>(other)));
     }
   }
 

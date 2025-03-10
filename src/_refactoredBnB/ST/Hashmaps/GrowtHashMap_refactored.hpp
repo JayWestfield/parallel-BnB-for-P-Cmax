@@ -202,10 +202,12 @@ public:
     auto &handle = handles[thread_index_];
     for (auto gist : storageToIterate) {
       // TODO use Fingerptint
-      auto entryHandle = handle.find(castStoreKey(gist));
+      auto entryHandle = handle.find(
+          castStoreKey(FingerPrintUtil<use_fingerprint>::addFingerprint(gist)));
       assert(entryHandle != handle.end());
-      HashKey key = reinterpret_cast<HashKey>(
-          static_cast<StoreKey>((*entryHandle).first).value);
+      HashKey key = FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+          reinterpret_cast<HashKey>(
+              static_cast<StoreKey>((*entryHandle).first).value));
       HashValue value = (*entryHandle).second;
       if (isNotEmpty(value)) {
         if (key[gistLength] >= offset) {

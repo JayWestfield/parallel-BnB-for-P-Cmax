@@ -86,8 +86,8 @@ void printConfigInline(const Config &config) {
 }
 int main(int argc, char *argv[]) {
   Parser readData;
-  std::string executableTBB = "build/RefactoredBnB";
-  std::string executableGrowt = "build/RefactoredBnB";
+  std::string executableTBB = "build/RefactoredBnBTBB";
+  std::string executableGrowt = "build/RefactoredBnBGrowt";
 
   Config config = parseArguments(argc, argv);
   printConfigInline(config);
