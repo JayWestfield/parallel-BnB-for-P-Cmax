@@ -10,9 +10,9 @@
 #include <vector>
 
 using namespace ws;
-using tbbMap =
-    tbb::concurrent_hash_map<HashKey, HashValue, hashingCombined::VectorHasher>;
-
+template <bool use_fingerprint>
+using tbbMap = tbb::concurrent_hash_map<
+    HashKey, HashValue, hashingCombined::VectorHasherPrint<use_fingerprint>>;
 template <bool use_fingerprint> class TBBHashMap_refactored {
 
 public:
@@ -20,7 +20,7 @@ public:
       : map_(initialHashmapSize){};
 
   std::pair<bool, HashValue> addGist(HashKey key) {
-    tbbMap::accessor accessor;
+    typename tbbMap<use_fingerprint>::accessor accessor;
 
     const bool isNew = map_.insert(accessor, key);
     const auto delayed = isNew ? nullptr : accessor->second;
@@ -29,7 +29,7 @@ public:
   }
 
   bool addPreviously(HashKey key) {
-    tbbMap::accessor accessor;
+    typename tbbMap<use_fingerprint>::accessor accessor;
     const bool isNew = map_.insert(accessor, key);
     if (isNew) {
       accessor->second = reinterpret_cast<HashValue>(-1);
@@ -38,7 +38,7 @@ public:
     return false;
   }
   bool tryAddDelayed(TaskPointer task, HashKey key) {
-    tbbMap::accessor accessor;
+    typename tbbMap<use_fingerprint>::accessor accessor;
     if (map_.find(accessor, key)) {
       if (accessor->second == nullptr) {
         return false;
@@ -50,14 +50,14 @@ public:
     }
   }
   void reinsertGist(HashKey gist, HashValue delayed) {
-    tbbMap::accessor accessor;
+    typename tbbMap<use_fingerprint>::accessor accessor;
     const bool isNew = map_.insert(accessor, gist);
     assert(isNew);
     accessor->second = delayed;
   }
 
   FindGistResult find(const HashKey key) {
-    tbbMap::accessor accessor;
+    typename tbbMap<use_fingerprint>::accessor accessor;
     if (map_.find(accessor, key)) {
       return accessor->second == nullptr ? FindGistResult::COMPLETED
                                          : FindGistResult::STARTED;
@@ -101,7 +101,7 @@ public:
       tbb::concurrent_queue<std::pair<HashKey, HashValue>> &maybeReinsert,
       tbb::concurrent_queue<HashValue> &restart) {
     // TODO can i reuse the accessor? / is that beneficial?
-    tbbMap::const_accessor accessor;
+    typename tbbMap<use_fingerprint>::const_accessor accessor;
 
     for (auto it : storageToIterate) {
       auto value = map_.find(
@@ -121,7 +121,7 @@ public:
   void clear() { map_.clear(); }
 
 private:
-  tbbMap map_;
+  tbbMap<use_fingerprint> map_;
   inline bool isNotEmpty(HashValue value) const {
     return value != nullptr && value != reinterpret_cast<HashValue>(-1);
   }

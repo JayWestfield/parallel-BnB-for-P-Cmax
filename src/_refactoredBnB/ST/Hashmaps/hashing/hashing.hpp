@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
-
+// note not really refactored this one
 namespace hashingCombined {
 
 // source:
