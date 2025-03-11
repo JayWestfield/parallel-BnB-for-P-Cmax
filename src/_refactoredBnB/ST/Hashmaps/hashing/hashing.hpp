@@ -50,15 +50,17 @@ template <bool use_fingerprint> struct VectorHasherPrint {
   }
   size_t hash(int *a) const {
     size_t h = 17;
+    auto pointer = FingerPrintUtil<use_fingerprint>::getOriginalPointer(a);
     for (int i = 0; i < ws::gistLength; i++) {
-      hash_combine(h, a[i]);
+      hash_combine(h, pointer[i]);
     }
     return h;
   }
   size_t operator()(int *a) const {
     size_t h = 17;
+    auto pointer = FingerPrintUtil<use_fingerprint>::getOriginalPointer(a);
     for (int i = 0; i < ws::gistLength; i++) {
-      hash_combine(h, a[i]);
+      hash_combine(h, pointer[i]);
     }
     return h;
   }

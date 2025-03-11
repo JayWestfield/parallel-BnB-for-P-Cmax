@@ -108,7 +108,8 @@ public:
           accessor, FingerPrintUtil<use_fingerprint>::addFingerprint(it));
       assert(value);
       if (isNotEmpty(accessor->second)) {
-        if (accessor->first[ws::gistLength] >= offset) {
+        if (FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+                accessor->first)[ws::gistLength] >= offset) {
           maybeReinsert.push(*accessor);
         } else {
           restart.push(accessor->second);

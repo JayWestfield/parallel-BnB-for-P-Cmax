@@ -31,7 +31,7 @@ public:
 // or sth like that Specialization: Fingerprint support enabled
 template <> class FingerPrintUtil<true> {
 public:
-  static uint16_t computeFingerprint(int *value) {
+  inline static uint16_t computeFingerprint(int *value) {
     uint32_t hash = 0x811C9DC5; // FNV-1a hash base
     // unroll???ß
     for (size_t i = 0; i < ws::gistLength; ++i) {
@@ -41,21 +41,21 @@ public:
     return static_cast<uint16_t>(hash & MASK);
   }
 
-  static int *tagPointerWithFingerprint(int *ptr, uint16_t fingerprint) {
+  inline static int *tagPointerWithFingerprint(int *ptr, uint16_t fingerprint) {
     uintptr_t rawPtr = reinterpret_cast<uintptr_t>(ptr);
     rawPtr = (rawPtr & FINGERPRINT_MASK) |
              (static_cast<uintptr_t>(fingerprint) << 48);
     return reinterpret_cast<int *>(rawPtr);
   }
-  static int *addFingerprint(int *value) {
+  inline static int *addFingerprint(int *value) {
     return tagPointerWithFingerprint(value, computeFingerprint(value));
   }
-  static uint16_t getFingerprintFromPointer(int *ptr) {
+  inline static uint16_t getFingerprintFromPointer(int *ptr) {
     return static_cast<uint16_t>((reinterpret_cast<uintptr_t>(ptr) >> 48) &
                                  MASK);
   }
 
-  static int *getOriginalPointer(int *ptr) {
+  inline static int *getOriginalPointer(int *ptr) {
     return reinterpret_cast<int *>(reinterpret_cast<uintptr_t>(ptr) &
                                    FINGERPRINT_MASK);
   }
