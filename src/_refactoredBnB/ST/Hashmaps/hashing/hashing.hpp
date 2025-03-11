@@ -46,11 +46,13 @@ struct VectorHasher {
 };
 template <bool use_fingerprint> struct VectorHasherPrint {
   inline void hash_combine(std::size_t &s, const int &v) const {
+    // removing the second part significantly decreases hash quality ???!!!!
     s ^= hashingCombined::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
   }
   size_t hash(int *a) const {
     size_t h = 17;
     auto pointer = FingerPrintUtil<use_fingerprint>::getOriginalPointer(a);
+#pragma omp unroll 4
     for (int i = 0; i < ws::gistLength; i++) {
       hash_combine(h, pointer[i]);
     }
@@ -59,6 +61,7 @@ template <bool use_fingerprint> struct VectorHasherPrint {
   size_t operator()(int *a) const {
     size_t h = 17;
     auto pointer = FingerPrintUtil<use_fingerprint>::getOriginalPointer(a);
+#pragma omp unroll 4
     for (int i = 0; i < ws::gistLength; i++) {
       hash_combine(h, pointer[i]);
     }
