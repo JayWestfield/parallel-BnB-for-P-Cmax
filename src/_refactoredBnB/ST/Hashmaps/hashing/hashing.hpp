@@ -44,6 +44,46 @@ struct VectorHasher {
     return std::equal(a, a + ws::gistLength, b);
   }
 };
+template <bool use_fingerprint> struct VectorHasherPrint {
+  inline void hash_combine(std::size_t &s, const int &v) const {
+    s ^= hashingCombined::hash_int(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+  }
+  size_t hash(int *a) const {
+    size_t h = 17;
+    for (int i = 0; i < ws::gistLength; i++) {
+      hash_combine(h, a[i]);
+    }
+    return h;
+  }
+  size_t operator()(int *a) const {
+    size_t h = 17;
+    for (int i = 0; i < ws::gistLength; i++) {
+      hash_combine(h, a[i]);
+    }
+    return h;
+  }
+  bool operator()(const int *lhs, const int *rhs) const {
+    if (use_fingerprint &&
+        FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer((lhs)) !=
+            FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer((rhs)))
+      return false;
+    return std::equal(
+        FingerPrintUtil<use_fingerprint>::getOriginalPointer((lhs)),
+        FingerPrintUtil<use_fingerprint>::getOriginalPointer((lhs)) +
+            ws::gistLength,
+        FingerPrintUtil<use_fingerprint>::getOriginalPointer((rhs)));
+  }
+  inline bool equal(int *a, int *b) const {
+    if (use_fingerprint &&
+        FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(a) !=
+            FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(b))
+      return false;
+    return std::equal(FingerPrintUtil<use_fingerprint>::getOriginalPointer(a),
+                      FingerPrintUtil<use_fingerprint>::getOriginalPointer(a) +
+                          ws::gistLength,
+                      FingerPrintUtil<use_fingerprint>::getOriginalPointer(b));
+  }
+};
 template <bool use_fingerprint> struct VectorHasherCast {
   using Key = int *;
   using StoreKey = uint64_t;
@@ -70,22 +110,34 @@ template <bool use_fingerprint> struct VectorHasherCast {
   }
   // TODO add fingerprint comparison in the equal method
   bool operator()(const StoreKey lhs, const StoreKey rhs) const {
+    if (use_fingerprint &&
+        FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+            reinterpret_cast<ws::HashKey>(lhs)) !=
+            FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+                reinterpret_cast<ws::HashKey>(rhs)))
+      return false;
     return std::equal(FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                          reinterpret_cast<Key>(lhs)),
+                          reinterpret_cast<ws::HashKey>(lhs)),
                       FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                          reinterpret_cast<Key>(lhs)) +
+                          reinterpret_cast<ws::HashKey>(lhs)) +
                           ws::gistLength,
                       FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                          reinterpret_cast<Key>(rhs)));
+                          reinterpret_cast<ws::HashKey>(rhs)));
   }
   inline bool equal(StoreKey a, StoreKey b) const {
+    if (use_fingerprint &&
+        FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+            reinterpret_cast<ws::HashKey>(a)) !=
+            FingerPrintUtil<use_fingerprint>::getFingerprintFromPointer(
+                reinterpret_cast<ws::HashKey>(b)))
+      return false;
     return std::equal(FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                          reinterpret_cast<Key>(a)),
+                          reinterpret_cast<ws::HashKey>(a)),
                       FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                          reinterpret_cast<Key>(a)) +
+                          reinterpret_cast<ws::HashKey>(a)) +
                           ws::gistLength,
                       FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                          reinterpret_cast<Key>(b)));
+                          reinterpret_cast<ws::HashKey>(b)));
   }
 };
 }; // namespace hashingCombined

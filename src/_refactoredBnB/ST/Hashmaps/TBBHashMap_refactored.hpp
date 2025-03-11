@@ -104,7 +104,8 @@ public:
     tbbMap::const_accessor accessor;
 
     for (auto it : storageToIterate) {
-      auto value = map_.find(accessor, it);
+      auto value = map_.find(
+          accessor, FingerPrintUtil<use_fingerprint>::addFingerprint(it));
       assert(value);
       if (isNotEmpty(accessor->second)) {
         if (accessor->first[ws::gistLength] >= offset) {
