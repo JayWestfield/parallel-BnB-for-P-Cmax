@@ -61,7 +61,8 @@ int main(int argc, char *argv[]) {
   constexpr Config myConfig{allOpts, noLogs};
   // TODO big switch for the correct solver
 
-  solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint>,
+  solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint,
+                                      myConfig.optimizations.use_max_offset>,
               myConfig>
       solver(config.numThreads);
   // solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint>,
@@ -101,7 +102,8 @@ int main(int argc, char *argv[]) {
       times += std::to_string(solver.timeFrames[i].count()) + ";";
     }
 
-    times.pop_back();
+    if (solver.hardness != Difficulty::trivial)
+      times.pop_back();
     times.append("}");
     std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count()
               << "," << solver.visitedNodes << "," << times << ","

@@ -64,7 +64,8 @@ int main(int argc, char *argv[]) {
   // solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint>,
   // myConfig>
   // solver(config.numThreads);
-  solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint>,
+  solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint,
+                                    myConfig.optimizations.use_max_offset>,
               myConfig>
       solver(config.numThreads);
   bool timerExpired = false;

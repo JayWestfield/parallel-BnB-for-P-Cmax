@@ -13,7 +13,8 @@ using namespace ws;
 template <bool use_fingerprint>
 using tbbMap = tbb::concurrent_hash_map<
     HashKey, HashValue, hashingCombined::VectorHasherPrint<use_fingerprint>>;
-template <bool use_fingerprint> class TBBHashMap_refactored {
+template <bool use_fingerprint, bool use_max_offset>
+class TBBHashMap_refactored {
 
 public:
   TBBHashMap_refactored(int initialHashmapSize, int maxAllowedParallelism)
@@ -87,7 +88,7 @@ public:
     for (auto entry : map_) {
       if (isNotEmpty(entry.second)) {
         // check the max offset TODO check is gist length correct ?
-        if (entry.first[ws::gistLength] >= newOffset) {
+        if (use_max_offset && entry.first[ws::gistLength] >= newOffset) {
           maybeReinsert.push(entry);
         } else {
           restart.push(entry.second);
@@ -108,7 +109,8 @@ public:
           accessor, FingerPrintUtil<use_fingerprint>::addFingerprint(it));
       assert(value);
       if (isNotEmpty(accessor->second)) {
-        if (FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+        if (use_max_offset &&
+            FingerPrintUtil<use_fingerprint>::getOriginalPointer(
                 accessor->first)[ws::gistLength] >= offset) {
           maybeReinsert.push(*accessor);
         } else {

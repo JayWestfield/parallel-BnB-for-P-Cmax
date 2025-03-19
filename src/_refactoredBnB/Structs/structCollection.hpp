@@ -10,6 +10,7 @@ struct Optimizations {
   bool use_gists = true;
   bool use_add_previously = true;
   bool use_fingerprint = false;
+  bool use_max_offset = true;
 };
 struct Logging {
   // Logging

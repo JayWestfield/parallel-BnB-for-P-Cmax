@@ -21,7 +21,8 @@ using namespace ws;
 // TODO update to use the DelayedTasksList
 // TODO check muss ich das value ding auch als reinterpret cast machen? weil ich
 // gklaube das wird als pointer gewrapped
-template <bool use_fingerprint> class GrowtHashMap_refactored {
+template <bool use_fingerprint, bool use_max_offset>
+class GrowtHashMap_refactored {
   using StoreKey = CustomUint64<use_fingerprint>;
 
   // TODO find a way to  the equal method of the store key while using
@@ -184,7 +185,7 @@ public:
       HashValue value = (*it).second;
 
       if (isNotEmpty(value)) {
-        if (key[gistLength] >= newOffset) {
+        if (use_max_offset && key[gistLength] >= newOffset) {
           maybeReinsert.push(std::make_pair(key, value));
         } else {
           restart.push(value);
@@ -210,7 +211,7 @@ public:
               static_cast<StoreKey>((*entryHandle).first).value));
       HashValue value = (*entryHandle).second;
       if (isNotEmpty(value)) {
-        if (key[gistLength] >= offset) {
+        if (use_max_offset && key[gistLength] >= offset) {
           maybeReinsert.push(std::make_pair(key, value));
         } else {
           restart.push(value);

@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
-template <typename HashTable, bool use_fingerprint,
+template <typename HashTable, bool use_fingerprint, bool use_max_offset,
           bool detailedLogging = false>
 class ST {
 
@@ -71,6 +71,10 @@ public:
 
   void computeGistWithMaxOffset(const std::vector<int> &state, int job,
                                 std::vector<int> &gist) {
+    if (!use_max_offset) {
+      computeGist(state, job, gist);
+      return;
+    }
     assert(std::is_sorted(state.begin(), state.end()));
     assert((state.back() + offset) < RET[0].size());
     int maxAllowedOffset = 0;

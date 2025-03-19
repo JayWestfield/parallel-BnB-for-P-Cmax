@@ -55,7 +55,8 @@ public:
                           [this]() { this->STInstance.evict(); });
     ws::stateLength = instance.numMachines;
     ws::gistLength = instance.numMachines + 1;
-    ws::wrappedGistLength = instance.numMachines + 2;
+    ws::wrappedGistLength = instance.numMachines + 1 +
+                            (SolverConfig.optimizations.use_max_offset ? 1 : 0);
     ws::maxThreads = maxAllowedParalellism;
     jobDurations = instance.jobDurations;
     numMachines = instance.numMachines;
@@ -73,6 +74,8 @@ public:
 
     if (initialUpperBound == lowerBound) {
       hardness = Difficulty::trivial;
+      continueExecution = false;
+      monitor.notify();
       return initialUpperBound;
     }
 
@@ -106,8 +109,8 @@ public:
     if (cancel) {
       return 0;
     }
-    monitor.notify();
     continueExecution = false;
+    monitor.notify();
     return upperBound + 1;
   }
 
@@ -138,6 +141,7 @@ private:
 
   // ST
   ST<Hashmap, SolverConfig.optimizations.use_fingerprint,
+     SolverConfig.optimizations.use_max_offset,
      SolverConfig.logging.detailedLogging>
       STInstance;
 
@@ -154,7 +158,8 @@ private:
   bool solvePartial(Task<TaskContext> *task) {
     ws::initializeThreadLocalVector(numMachines);
 
-    auto &[state, job, continueAt, r6, loopIndex] = (*task).context;
+    auto &[state, job, unsortedState, sameJobsize, continueAt, r6, loopIndex] =
+        (*task).context;
     logging(state, job, "Work on: ");
     switch (continueAt) {
     case Continuation::InitialStart: {
@@ -265,7 +270,86 @@ private:
       // Rule 4
       if (numMachines > lastRelevantJobIndex - job + 1)
         endState = lastRelevantJobIndex - job + 1;
+      // same job size rule
+      if (sameJobsize >= 0) {
+        assert(sameJobsize < numMachines);
+        for (int l = 0; l <= sameJobsize; l++) {
+          if (unsortedState[l] + jobDurations[job] > upperBound)
+            continue;
+          // Rule 1
+          bool R1_pruned = false;
+          for (int a = 0; a < l; a++) {
+            R1_pruned |= unsortedState[a] == unsortedState[l];
+          }
+          if (R1_pruned)
+            continue;
+          // TODO in the end rule 6 check about the unsorted state not the
+          // sorted if sameJobSize >= 0
+          bool R6_pruned = false;
+          for (int a = 0; a < l; a++) {
+            if (lookupRet(unsortedState[l], unsortedState[a], job)) {
+              R6_pruned = true;
+              r6.push_back(l);
+              break;
+            }
+          }
+          if (R6_pruned)
+            continue;
 
+          // find the corresponding index in the sorted state ( dont care for
+          // same load machines those are filtered out above)
+          int i = -1;
+          for (int a = 0; a < numMachines; a++) {
+            if (state[a] == unsortedState[i]) {
+              i = a;
+              break;
+            }
+          }
+          assert(i >= 0 && i < numMachines);
+          if (i > 0 && lookupRet(state[i], state[i - 1], job)) { // Rule 6
+            r6.push_back(i);
+            continue;
+          }
+          ws::threadLocalStateVector = state;
+          assert(ws::threadLocalStateVector.size() ==
+                 static_cast<size_t>(numMachines));
+          ws::threadLocalStateVector[i] += jobDurations[job];
+          assert(ws::threadLocalStateVector.size() ==
+                 static_cast<size_t>(numMachines));
+
+          resortAfterIncrement(ws::threadLocalStateVector, i);
+          if (jobDurations[job] == jobDurations[job + 1]) {
+            std::vector<int> unsorted = unsortedState;
+            unsorted[l] += jobDurations[job];
+            if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
+              FindGistResult ex =
+                  STInstance.exists(ws::threadLocalStateVector, job + 1);
+              if (ex != FindGistResult::COMPLETED)
+                scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
+                                   unsorted, l);
+              // TODO for FindGistResult::STARTED the task could theoretically
+              // be spawned but not scheduled but the wss does not support that
+            } else {
+              scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
+                                 unsorted, l);
+            }
+          } else {
+            if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
+              FindGistResult ex =
+                  STInstance.exists(ws::threadLocalStateVector, job + 1);
+              if (ex != FindGistResult::COMPLETED)
+                scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
+              // TODO for FindGistResult::STARTED the task could theoretically
+              // be spawned but not scheduled but the wss does not support that
+            } else {
+              scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
+            }
+          }
+        }
+        continueAt = Continuation::DELAYED;
+        scheduler.waitTask(task);
+        return false;
+      }
       assert(endState <= numMachines);
       // base case
       for (int i = 0; i < endState; i++) {
@@ -285,15 +369,35 @@ private:
                static_cast<size_t>(numMachines));
 
         resortAfterIncrement(ws::threadLocalStateVector, i);
-        if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
-          FindGistResult ex =
-              STInstance.exists(ws::threadLocalStateVector, job + 1);
-          if (ex != FindGistResult::COMPLETED)
-            scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
-          // TODO for FindGistResult::STARTED the task could theoretically be
-          // spawned but not scheduled but the wss does not support that
+        if (jobDurations[job] == jobDurations[job + 1]) {
+          std::vector<int> unsorted = state;
+          int incr = i;
+          while (state[incr] == state[incr + 1] && incr < numMachines - 1)
+            incr++;
+          unsorted[incr] += jobDurations[job];
+          if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
+            FindGistResult ex =
+                STInstance.exists(ws::threadLocalStateVector, job + 1);
+            if (ex != FindGistResult::COMPLETED)
+              scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
+                                 unsorted, incr);
+            // TODO for FindGistResult::STARTED the task could theoretically
+            // be spawned but not scheduled but the wss does not support that
+          } else {
+            scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
+                               unsorted, incr);
+          }
         } else {
-          scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
+          if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
+            FindGistResult ex =
+                STInstance.exists(ws::threadLocalStateVector, job + 1);
+            if (ex != FindGistResult::COMPLETED)
+              scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
+            // TODO for FindGistResult::STARTED the task could theoretically
+            // be spawned but not scheduled but the wss does not support that
+          } else {
+            scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
+          }
         }
       }
       continueAt = Continuation::DELAYED;
