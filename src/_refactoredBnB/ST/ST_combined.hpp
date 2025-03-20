@@ -18,10 +18,18 @@
 #include <oneapi/tbb/concurrent_queue.h>
 #include <ostream>
 #include <sstream>
+#include <stdexcept>
 #include <thread>
 #include <unistd.h>
 #include <utility>
 #include <vector>
+enum class workingStep {
+  IDLE,
+  ITERATE,
+  ITERATEEVICT,
+  PROCESSFOUNDGISTS,
+  REINSERT
+};
 template <typename HashTable, bool use_fingerprint, bool use_max_offset,
           bool detailedLogging = false>
 class ST {
@@ -203,6 +211,8 @@ public:
   size_t boundUpdatedCounter = 0;
   // assert bound update is itself never called in parallel
   void boundUpdate(int offset) {
+    mtx.clearFlag = true;
+
     if (offset <= this->offset)
       return;
     CustomUniqueLock lock(mtx);
@@ -220,7 +230,7 @@ public:
     for (int i = 0; i < maxThreads; i++) {
       selfIterated[i] = 1;
     }
-    stepToWork = 10;
+    stepToWork = workingStep::ITERATE;
     iterateThreadOwnGists();
     selfIterated[ws::thread_index_] = 0;
     // wait for other threads
@@ -235,7 +245,7 @@ public:
         return;
     }
 
-    stepToWork = 0;
+    stepToWork = workingStep::PROCESSFOUNDGISTS;
 
     // resumeAllDelayedTasks();
     while (!maybeReinsert.empty() || !restart.empty()) {
@@ -252,7 +262,7 @@ public:
     for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
       Gist_storage[i].clear();
     }
-    stepToWork.store(1, std::memory_order_relaxed);
+    stepToWork.store(workingStep::REINSERT, std::memory_order_relaxed);
     // std::cout << "step to Work: " << stepToWork << std::endl;
 
     while (!reinsert.empty()) {
@@ -262,30 +272,79 @@ public:
     // that should resume some tasks that are yet to be reinserted)
     while (threadsWorking > 0)
       std::this_thread::yield();
-    stepToWork = 5;
+    stepToWork = workingStep::IDLE;
     // std::cout << "step to Work: " << stepToWork << std::endl;
 
     assert(reinsert.empty());
     clearFlag = false;
   }
   // TODO Eviction policy and execution !!!!
-  void evict() { clear(); }
+  void evict() {
+    mtx.clearFlag = true;
+    CustomUniqueLock lock(mtx);
+    for (int i = 0; i < maxThreads; i++) {
+      selfIterated[i] = 1;
+    }
+    threadsWorking = maxThreads;
+
+    // TODO enum for step to work
+    stepToWork = workingStep::ITERATEEVICT;
+    // TODO evict needs to store the vectors not only the pointers
+    iterateThreadOwnGistsEvict();
+    selfIterated[ws::thread_index_] = 0;
+    // wait for other threads
+    int sum = 1;
+    while (sum > 0) {
+      std::this_thread::yield();
+      sum = 0;
+      for (int i = 0; i < maxThreads; i++) {
+        sum += selfIterated[i];
+      }
+      if (canceled)
+        return;
+    }
+    maps.BoundUpdateClear();
+
+    for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
+      Gist_storage[i].clear();
+    }
+
+    stepToWork.store(workingStep::REINSERT, std::memory_order_relaxed);
+    // std::cout << "step to Work: " << stepToWork << std::endl;
+
+    while (!reinsert.empty()) {
+      workOnReinsert();
+    }
+
+    while (threadsWorking > 0)
+      std::this_thread::yield();
+    stepToWork = workingStep::IDLE;
+    // std::cout << "step to Work: " << stepToWork << std::endl;
+    assert(threadsWorking == 0);
+    assert(reinsert.empty());
+    clearFlag = false;
+  }
   void work() {
     while (mtx.clearFlag) {
       if (canceled)
         return;
-
-      // idle step
-      if (stepToWork.load(std::memory_order_relaxed) == 5) {
+      switch (stepToWork.load(std::memory_order_relaxed)) {
+      case workingStep::IDLE:
         std::this_thread::yield();
-        continue;
-      }
-      if (stepToWork.load(std::memory_order_relaxed) == 10) {
+        break;
+      case workingStep::ITERATE:
         if (selfIterated[ws::thread_index_] == 1) {
           iterateThreadOwnGists();
           selfIterated[ws::thread_index_] = 0;
         }
-      } else if (stepToWork.load(std::memory_order_relaxed) == 0) {
+        break;
+      case workingStep::ITERATEEVICT:
+        if (selfIterated[ws::thread_index_] == 1) {
+          iterateThreadOwnGistsEvict();
+          selfIterated[ws::thread_index_] = 0;
+        }
+        break;
+      case workingStep::PROCESSFOUNDGISTS:
         if (!maybeReinsert.empty()) {
           threadsWorking.fetch_add(1, std::memory_order_relaxed);
           workOnMaybeReinsert();
@@ -296,14 +355,16 @@ public:
           workOnResume();
           threadsWorking.fetch_sub(1, std::memory_order_relaxed);
         }
-        std::this_thread::yield();
-      } else {
+        break;
+      case workingStep::REINSERT:
         if (!reinsert.empty()) {
           threadsWorking.fetch_add(1, std::memory_order_relaxed);
           workOnReinsert();
           threadsWorking.fetch_sub(1, std::memory_order_relaxed);
         }
-        std::this_thread::yield();
+        break;
+      default:
+        std::runtime_error("Invalid step to work");
       }
     }
   }
@@ -431,6 +492,11 @@ public:
                                maybeReinsert, restart);
     threadsWorking.fetch_sub(1);
   }
+  void iterateThreadOwnGistsEvict() {
+    // TODO store vector instead of pointer
+    maps.iterateThreadOwnGistsEvict(Gist_storage[ws::thread_index_], reinsert);
+    threadsWorking.fetch_sub(1);
+  }
   void cancelExecution() {
     clearFlag = true;
     canceled = true;
@@ -448,7 +514,7 @@ private:
   std::atomic<bool> canceled = false;
   // migration
   std::atomic<int> threadsWorking = 0;
-  std::atomic<int> stepToWork = 5;
+  std::atomic<workingStep> stepToWork = workingStep::IDLE;
   HashTable maps;
   tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>> maybeReinsert;
   tbb::concurrent_queue<DelayedTasksList *> restart;

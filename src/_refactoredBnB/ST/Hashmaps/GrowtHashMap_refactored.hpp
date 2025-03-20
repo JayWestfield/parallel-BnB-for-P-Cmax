@@ -195,7 +195,7 @@ public:
   }
 
   void iterateThreadOwnGists(
-      int offset, GistStorage storageToIterate,
+      int offset, GistStorage &storageToIterate,
       tbb::concurrent_queue<std::pair<int *, DelayedTasksList *>>
           &maybeReinsert,
       tbb::concurrent_queue<DelayedTasksList *> &restart) {
@@ -210,12 +210,43 @@ public:
           reinterpret_cast<HashKey>(
               static_cast<StoreKey>((*entryHandle).first).value));
       HashValue value = (*entryHandle).second;
+      // if (isNotEmpty(value)) {
+      if (use_max_offset && key[gistLength] >= offset) {
+        maybeReinsert.push(std::make_pair(key, value));
+      } else if (isNotEmpty(value)) {
+        restart.push(value);
+      }
+      // }
+      // erase every element instead of recreating the map
+      // force erase does not work on growt????
+      bool val = entryHandle.erase_if_unchanged();
+
+      assert(val);
+      assert(map_.get_handle().find(castStoreKey(gist)) ==
+             map_.get_handle().end());
+    }
+  }
+  void iterateThreadOwnGistsEvict(
+      GistStorage &storageToIterate,
+      tbb::concurrent_queue<std::pair<std::vector<int>, DelayedTasksList *>>
+          &reinsert) {
+
+    auto &handle = handles[thread_index_];
+    for (auto gist : storageToIterate) {
+      // TODO use Fingerptint
+      auto entryHandle = handle.find(
+          castStoreKey(FingerPrintUtil<use_fingerprint>::addFingerprint(gist)));
+      assert(entryHandle != handle.end());
+      HashKey key = FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+          reinterpret_cast<HashKey>(
+              static_cast<StoreKey>((*entryHandle).first).value));
+      HashValue value = (*entryHandle).second;
       if (isNotEmpty(value)) {
-        if (use_max_offset && key[gistLength] >= offset) {
-          maybeReinsert.push(std::make_pair(key, value));
-        } else {
-          restart.push(value);
+        std::vector<int> gistWrapped(ws::wrappedGistLength);
+        for (int i = 0; i < ws::wrappedGistLength; ++i) {
+          gistWrapped[i] = gist[i];
         }
+        reinsert.push(std::make_pair(gistWrapped, value));
       }
       // erase every element instead of recreating the map
       // force erase does not work on growt????

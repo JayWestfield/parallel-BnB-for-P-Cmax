@@ -300,7 +300,7 @@ private:
           // same load machines those are filtered out above)
           int i = -1;
           for (int a = 0; a < numMachines; a++) {
-            if (state[a] == unsortedState[i]) {
+            if (state[a] == unsortedState[l]) {
               i = a;
               break;
             }

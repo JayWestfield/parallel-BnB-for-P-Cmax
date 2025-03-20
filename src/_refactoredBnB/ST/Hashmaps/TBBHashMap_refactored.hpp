@@ -108,14 +108,34 @@ public:
       auto value = map_.find(
           accessor, FingerPrintUtil<use_fingerprint>::addFingerprint(it));
       assert(value);
+      // if (isNotEmpty(accessor->second)) {
+      if (use_max_offset &&
+          FingerPrintUtil<use_fingerprint>::getOriginalPointer(
+              accessor->first)[ws::gistLength] >= offset) {
+        maybeReinsert.push(*accessor);
+      } else if (isNotEmpty(accessor->second)) {
+        restart.push(accessor->second);
+      }
+      // }
+    }
+  }
+  void iterateThreadOwnGistsEvict(
+      GistStorage &storageToIterate,
+      tbb::concurrent_queue<std::pair<std::vector<int>, HashValue>> &reinsert) {
+    // TODO can i reuse the accessor? / is that beneficial?
+    typename tbbMap<use_fingerprint>::const_accessor accessor;
+
+    for (auto it : storageToIterate) {
+      auto value = map_.find(
+          accessor, FingerPrintUtil<use_fingerprint>::addFingerprint(it));
+      assert(value);
       if (isNotEmpty(accessor->second)) {
-        if (use_max_offset &&
-            FingerPrintUtil<use_fingerprint>::getOriginalPointer(
-                accessor->first)[ws::gistLength] >= offset) {
-          maybeReinsert.push(*accessor);
-        } else {
-          restart.push(accessor->second);
+        std::vector<int> gistWrapped(ws::wrappedGistLength);
+        // TODO use memcopy / initialize with values
+        for (int i = 0; i < ws::wrappedGistLength; ++i) {
+          gistWrapped[i] = it[i];
         }
+        reinsert.push(std::make_pair(gistWrapped, accessor->second));
       }
     }
   }
