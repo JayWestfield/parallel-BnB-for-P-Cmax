@@ -60,11 +60,12 @@ int main(int argc, char *argv[]) {
   constexpr Optimizations allOpts{true, true, true, true, true};
   constexpr Config myConfig{allOpts, noLogs};
   // TODO big switch for the correct solver
-
+  auto solverConfig = config.solverConfig;
   solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint,
                                       myConfig.optimizations.use_max_offset>,
               myConfig>
-      solver(config.numThreads);
+      solver(config.numThreads, solverConfig.initialHashMapSize,
+             solverConfig.notInsertingGists, solverConfig.GistStorageStackSize);
   // solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint>,
   //             myConfig>
   //     solver(config.numThreads);

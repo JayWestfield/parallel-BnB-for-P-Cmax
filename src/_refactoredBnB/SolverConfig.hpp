@@ -8,22 +8,21 @@
 // additional to follow
 struct SolverConfig {
   int initialHashMapSize;
-  int paramB;
-  int paramC;
+  int GistStorageStackSize;
+  int notInsertingGists;
   int paramD;
   int paramE;
 };
 
 SolverConfig getSolverConfig(int version) {
-  switch (version) {
-  case 100:
-    return {100, 20, 30, 40, 50};
-  case 101:
-    return {5000000, 20, 30, 40, 50};
-  case 200:
-    return {100, 20, 30, 40, 50};
-  case 201:
-    return {5000000, 20, 30, 40, 50};
+  int config = version % 100;
+  switch (config) {
+  case 0:
+    return {100, 512, 1, 0, 0};
+  case 1:
+    return {5000000, 512, 1, 0, 0};
+  case 2:
+    return {50000000, 512, 1, 0, 0};
   default:
     throw std::invalid_argument("Invalid STVersion: " +
                                 std::to_string(version));

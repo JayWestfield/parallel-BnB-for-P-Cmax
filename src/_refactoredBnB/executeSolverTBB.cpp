@@ -64,10 +64,12 @@ int main(int argc, char *argv[]) {
   // solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint>,
   // myConfig>
   // solver(config.numThreads);
+  auto solverConfig = config.solverConfig;
   solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint,
                                     myConfig.optimizations.use_max_offset>,
               myConfig>
-      solver(config.numThreads);
+      solver(config.numThreads, solverConfig.initialHashMapSize,
+             solverConfig.notInsertingGists, solverConfig.GistStorageStackSize);
   bool timerExpired = false;
   canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
                                              &timerExpired, &config]() {

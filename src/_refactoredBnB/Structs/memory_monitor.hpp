@@ -12,7 +12,7 @@ public:
     monitoringThread = std::thread([&]() {
       while (continueExecution) {
         double memoryUsage = getMemoryUsagePercentage();
-        if (memoryUsage > 85) {
+        if (memoryUsage > 80) {
           // Call the provided eviction function
           evictionFunc();
         }

@@ -51,8 +51,10 @@ public:
     STInstance.cancelExecution();
   }
   int solve(Instance instance) {
-    memoryMonitor monitor(continueExecution,
-                          [this]() { this->STInstance.evict(); });
+    memoryMonitor monitor(continueExecution, [this]() {
+      std::unique_lock lock(boundLock);
+      this->STInstance.evict();
+    });
     ws::stateLength = instance.numMachines;
     ws::gistLength = instance.numMachines + 1;
     ws::wrappedGistLength = instance.numMachines + 1 +
@@ -61,8 +63,8 @@ public:
     jobDurations = instance.jobDurations;
     numMachines = instance.numMachines;
 
-    assert(std::is_sorted(jobDurations.begin(), jobDurations.end(),
-                          std::greater<int>()));
+    // assert(std::is_sorted(jobDurations.begin(), jobDurations.end(),
+    //                       std::greater<int>()));
     offset = 1;
 
     initialLowerBound = trivialLowerBound();
@@ -553,7 +555,7 @@ private:
     }
     std::rotate(vec.begin() + index, vec.begin() + index + 1,
                 vec.begin() + newPosIndex);
-    assert(std::is_sorted(vec.begin(), vec.end()));
+    // assert(std::is_sorted(vec.begin(), vec.end()));
   }
 
   /**

@@ -262,7 +262,7 @@ public:
     for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
       Gist_storage[i].clear();
     }
-    stepToWork.store(workingStep::REINSERT, std::memory_order_relaxed);
+    stepToWork = workingStep::REINSERT;
     // std::cout << "step to Work: " << stepToWork << std::endl;
 
     while (!reinsert.empty()) {
@@ -280,7 +280,6 @@ public:
   }
   // TODO Eviction policy and execution !!!!
   void evict() {
-    mtx.clearFlag = true;
     CustomUniqueLock lock(mtx);
     for (int i = 0; i < maxThreads; i++) {
       selfIterated[i] = 1;
@@ -290,8 +289,9 @@ public:
     // TODO enum for step to work
     stepToWork = workingStep::ITERATEEVICT;
     // TODO evict needs to store the vectors not only the pointers
-    iterateThreadOwnGistsEvict();
-    selfIterated[ws::thread_index_] = 0;
+    // evict is called by the memory monitor thread => no eviction call for the
+    // curent thread iterateThreadOwnGistsEvict();
+    // selfIterated[ws::thread_index_] = 0;
     // wait for other threads
     int sum = 1;
     while (sum > 0) {
@@ -309,15 +309,16 @@ public:
       Gist_storage[i].clear();
     }
 
-    stepToWork.store(workingStep::REINSERT, std::memory_order_relaxed);
+    stepToWork = workingStep::REINSERT;
     // std::cout << "step to Work: " << stepToWork << std::endl;
-
-    while (!reinsert.empty()) {
-      workOnReinsert();
-    }
-
-    while (threadsWorking > 0)
+    // called my monitor thread => has no dedicated gist storage
+    // while (!reinsert.empty()) {
+    //   workOnReinsert();
+    // }
+    // maybe sth longer than a yield like aminor sleep or so
+    while (threadsWorking > 0 || !reinsert.empty())
       std::this_thread::yield();
+
     stepToWork = workingStep::IDLE;
     // std::cout << "step to Work: " << stepToWork << std::endl;
     assert(threadsWorking == 0);
