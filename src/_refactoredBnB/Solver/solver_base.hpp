@@ -283,6 +283,8 @@ private:
       // handled somewhere else Rule 4
       if (numMachines > lastRelevantJobIndex - job + 1)
         endState = lastRelevantJobIndex - job + 1;
+      assert(endState <= numMachines);
+
       // same job size rule
       if (sameJobsize >= 0) {
         assert(sameJobsize < numMachines);
@@ -291,7 +293,7 @@ private:
             continue;
           // Rule 1
           bool R1_pruned = false;
-          for (int a = 0; a < l; a++) {
+          for (int a = l + 1; a <= sameJobsize; a++) {
             R1_pruned |= unsortedState[a] == unsortedState[l];
           }
           if (R1_pruned)
@@ -299,27 +301,33 @@ private:
           // TODO in the end rule 6 check about the unsorted state not the
           // sorted if sameJobSize >= 0
           bool R6_pruned = false;
-          for (int a = 0; a < l; a++) {
-            if (lookupRet(unsortedState[l], unsortedState[a], job)) {
-              R6_pruned = true;
-              r6.push_back(l);
-              break;
-            }
-          }
-          if (R6_pruned)
-            continue;
+          // need to run the last one as a task because the same job size rule
+          // only says the other assignment is done somewhere but wwe have no
+          // guarantee that this is finished before this here so it might lead
+          // to a bound update after the continuation:Delayed happened !!!
+          // for (int a = l + 1; a <= sameJobsize; a++) {
+          //   if (lookupRet(unsortedState[l], unsortedState[a], job)) {
+          //     R6_pruned = true;
+          //     r6.push_back(l);
+          //     break;
+          //   }
+          // }
+          // if (R6_pruned)
+          //   continue;
 
           // find the corresponding index in the sorted state ( dont care for
           // same load machines those are filtered out above)
           int i = -1;
-          for (int a = 0; a < numMachines; a++) {
+          for (int a = numMachines - 1; a >= 0; a--) {
             if (state[a] == unsortedState[l]) {
               i = a;
               break;
             }
           }
+          // why do i check the ret twice for rule 6?
           assert(i >= 0 && i < numMachines);
-          if (i > 0 && lookupRet(state[i], state[i - 1], job)) { // Rule 6
+          if (i < sameJobsize &&
+              lookupRet(state[i], state[i + 1], job)) { // Rule 6
             r6.push_back(i);
             continue;
           }
@@ -364,55 +372,57 @@ private:
         continueAt = Continuation::DELAYED;
         scheduler.waitTask(task);
         return false;
-      }
-      assert(endState <= numMachines);
-      // base case
-      for (int i = 0; i < endState; i++) {
-        if ((i > 0 && state[i] == state[i - 1]) ||
-            state[i] + jobDurations[job] > upperBound)
-          continue; // Rule 1 + check directly wether the new state would be
-                    // feasible
-        if (i > 0 && lookupRet(state[i], state[i - 1], job)) { // Rule 6
-          r6.push_back(i);
-          continue;
-        }
-        ws::threadLocalStateVector = state;
-        assert(ws::threadLocalStateVector.size() ==
-               static_cast<size_t>(numMachines));
-        ws::threadLocalStateVector[i] += jobDurations[job];
-        assert(ws::threadLocalStateVector.size() ==
-               static_cast<size_t>(numMachines));
+      } else {
+        // base case
+        for (int i = 0; i < endState; i++) {
+          if ((i > endState - 1 && state[i] == state[i + 1]) ||
+              state[i] + jobDurations[job] > upperBound)
+            continue; // Rule 1 + check directly wether the new state would be
+                      // feasible
+          if (i > endState - 1 &&
+              lookupRet(state[i], state[i + 1], job)) { // Rule 6
+            r6.push_back(i);
+            continue;
+          }
+          ws::threadLocalStateVector = state;
+          assert(ws::threadLocalStateVector.size() ==
+                 static_cast<size_t>(numMachines));
+          ws::threadLocalStateVector[i] += jobDurations[job];
+          assert(ws::threadLocalStateVector.size() ==
+                 static_cast<size_t>(numMachines));
 
-        resortAfterIncrement(ws::threadLocalStateVector, i);
-        if (jobDurations[job] == jobDurations[job + 1]) {
-          std::vector<int> unsorted = state;
-          int incr = i;
-          // TODO this only works for same load but what about the ret / rule 6?
-          while (incr < numMachines - 1 && state[incr] == state[incr + 1])
-            incr++;
-          unsorted[incr] += jobDurations[job];
-          if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
-            FindGistResult ex =
-                STInstance.exists(ws::threadLocalStateVector, job + 1);
-            if (ex != FindGistResult::COMPLETED)
+          resortAfterIncrement(ws::threadLocalStateVector, i);
+          if (jobDurations[job] == jobDurations[job + 1]) {
+            std::vector<int> unsorted = state;
+            int incr = i;
+            // TODO this only works for same load but what about the ret / rule
+            // 6?
+            // while (incr < numMachines - 1 && state[incr] == state[incr + 1])
+            //   incr++;
+            unsorted[incr] += jobDurations[job];
+            if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
+              FindGistResult ex =
+                  STInstance.exists(ws::threadLocalStateVector, job + 1);
+              if (ex != FindGistResult::COMPLETED)
+                scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
+                                   unsorted, incr);
+              // TODO for FindGistResult::STARTED the task could theoretically
+              // be spawned but not scheduled but the wss does not support that
+            } else {
               scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
                                  unsorted, incr);
-            // TODO for FindGistResult::STARTED the task could theoretically
-            // be spawned but not scheduled but the wss does not support that
+            }
           } else {
-            scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
-                               unsorted, incr);
-          }
-        } else {
-          if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
-            FindGistResult ex =
-                STInstance.exists(ws::threadLocalStateVector, job + 1);
-            if (ex != FindGistResult::COMPLETED)
+            if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
+              FindGistResult ex =
+                  STInstance.exists(ws::threadLocalStateVector, job + 1);
+              if (ex != FindGistResult::COMPLETED)
+                scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
+              // TODO for FindGistResult::STARTED the task could theoretically
+              // be spawned but not scheduled but the wss does not support that
+            } else {
               scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
-            // TODO for FindGistResult::STARTED the task could theoretically
-            // be spawned but not scheduled but the wss does not support that
-          } else {
-            scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
+            }
           }
         }
       }
@@ -423,7 +433,7 @@ private:
     case Continuation::DELAYED:
       if (!r6.empty()) {
         for (int i : r6) {
-          if (!lookupRet(state[i], state[i - 1], job)) { // Rule 6
+          if (!lookupRet(state[i], state[i + 1], job)) { // Rule 6
             ws::threadLocalStateVector = state;
             ws::threadLocalStateVector[i] += jobDurations[job];
             resortAfterIncrement(ws::threadLocalStateVector, i);
