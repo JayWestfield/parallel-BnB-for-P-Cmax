@@ -9,14 +9,14 @@ public:
                 std::function<void()> evictionFunc)
       : continueExecution(continueExecution), evictionFunc(evictionFunc) {
 
-    monitoringThread = std::thread([&]() {
-      while (continueExecution) {
+    monitoringThread = std::thread([this]() {
+      while (this->continueExecution) {
         double memoryUsage = getMemoryUsagePercentage();
-        if (memoryUsage > 80) {
+        if (memoryUsage > 70) {
           // Call the provided eviction function
-          evictionFunc();
+          this->evictionFunc();
         }
-        std::unique_lock<std::mutex> condLock(mtx);
+        std::unique_lock<std::mutex> condLock(this->mtx);
         mycond.wait_for(condLock, std::chrono::milliseconds(5));
       }
     });

@@ -51,10 +51,7 @@ public:
     STInstance.cancelExecution();
   }
   int solve(Instance instance) {
-    memoryMonitor monitor(continueExecution, [this]() {
-      std::unique_lock lock(boundLock);
-      this->STInstance.evict();
-    });
+
     ws::stateLength = instance.numMachines;
     ws::gistLength = instance.numMachines + 1;
     ws::wrappedGistLength = instance.numMachines + 1 +
@@ -77,7 +74,6 @@ public:
     if (initialUpperBound == lowerBound) {
       hardness = Difficulty::trivial;
       continueExecution = false;
-      monitor.notify();
       return initialUpperBound;
     }
 
@@ -88,7 +84,10 @@ public:
 
     // RET
     offset = 1;
-    fillRET();
+    if (SolverConfig.optimizations.use_gists ||
+        SolverConfig.optimizations.use_fur) {
+      fillRET();
+    }
     // one JobSize left
     int i = lastRelevantJobIndex;
     // TODO last size can be done async
@@ -98,7 +97,10 @@ public:
     if (SolverConfig.logging.logInitialBounds)
       std::cout << "Initial Upper Bound: " << upperBound
                 << " Initial lower Bound: " << lowerBound << std::endl;
-
+    memoryMonitor monitor(continueExecution, [this]() {
+      std::unique_lock lock(this->boundLock);
+      this->STInstance.evict();
+    });
     lastUpdate = std::chrono::high_resolution_clock::now();
     // start Computing
     std::vector<int> initialState(numMachines, 0);
@@ -113,6 +115,16 @@ public:
     }
     continueExecution = false;
     monitor.notify();
+    if (initialUpperBound == upperBound + 1) {
+      hardness = Difficulty::lptOpt;
+    } else if (upperBound + 1 == lowerBound) {
+      if (lowerBound != initialLowerBound)
+        hardness = Difficulty::lowerBoundOptimal2;
+      else
+        hardness = Difficulty::lowerBoundOptimal;
+    } else {
+      hardness = Difficulty::full;
+    }
     return upperBound + 1;
   }
 
@@ -267,9 +279,8 @@ private:
       // index of assignments that are currently ignored by Rule 6 (same Ret
       // entry than the previous job and can therefore be ignored)
 
-      // index of assignments, that would lead to a gist that is already handled
-      // somewhere else
-      // Rule 4
+      // index of assignments, that would lead to a gist that is already
+      // handled somewhere else Rule 4
       if (numMachines > lastRelevantJobIndex - job + 1)
         endState = lastRelevantJobIndex - job + 1;
       // same job size rule
@@ -330,7 +341,8 @@ private:
                 scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
                                    unsorted, l);
               // TODO for FindGistResult::STARTED the task could theoretically
-              // be spawned but not scheduled but the wss does not support that
+              // be spawned but not scheduled but the wss does not support
+              // that
             } else {
               scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
                                  unsorted, l);
@@ -342,7 +354,8 @@ private:
               if (ex != FindGistResult::COMPLETED)
                 scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
               // TODO for FindGistResult::STARTED the task could theoretically
-              // be spawned but not scheduled but the wss does not support that
+              // be spawned but not scheduled but the wss does not support
+              // that
             } else {
               scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
             }
@@ -374,7 +387,8 @@ private:
         if (jobDurations[job] == jobDurations[job + 1]) {
           std::vector<int> unsorted = state;
           int incr = i;
-          while (state[incr] == state[incr + 1] && incr < numMachines - 1)
+          // TODO this only works for same load but what about the ret / rule 6?
+          while (incr < numMachines - 1 && state[incr] == state[incr + 1])
             incr++;
           unsorted[incr] += jobDurations[job];
           if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
@@ -446,8 +460,8 @@ private:
   }
 
   /**
-   * @brief find index, to when jobs are no longer relevant regarding the given
-   * Bound.
+   * @brief find index, to when jobs are no longer relevant regarding the
+   * given Bound.
    */
   int computeIrrelevanceIndex(int bound) {
     std::vector<int> sum(jobDurations.size() + 1);
@@ -520,8 +534,8 @@ private:
     RET = std::vector<std::vector<int>>(
         lastRelevantJobIndex + 1, std::vector<int>(initialUpperBound + 1));
     for (auto u = 0; u <= initialUpperBound;
-         u++) { // TODO there is some point u where everithing before is a 1 and
-                // after it is a 2 so 2 for loops could be less branches
+         u++) { // TODO there is some point u where everithing before is a 1
+                // and after it is a 2 so 2 for loops could be less branches
       if (u + jobDurations[lastRelevantJobIndex] > initialUpperBound) {
         RET[lastRelevantJobIndex][u] = 1;
       } else {
@@ -559,8 +573,8 @@ private:
   }
 
   /**
-   * @brief tightens the upper bound and updates the offset for the RET as well
-   * as updating the ST and restarting necessary tasks
+   * @brief tightens the upper bound and updates the offset for the RET as
+   * well as updating the ST and restarting necessary tasks
    */
   void updateBound(int newBound) {
     assert(newBound >= lowerBound);
