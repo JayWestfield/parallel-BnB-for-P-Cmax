@@ -436,30 +436,35 @@ public:
       for (int i = 0; i < ws::wrappedGistLength; ++i) {
         gistWrapped[i] = work.first[i];
       }
-      while (iterator != reinterpret_cast<DelayedTasksList *>(-1)) {
-        DelayedTasksList *current = iterator;
-        iterator = iterator->next;
-        // keep it in case the gist is still accurate
-        if (current->value->context.state.back() + offset >= RET[0].size()) {
-          // TODO instantly terminate instead of restarting
-          cancelTask(current);
-          current->next = reinterpret_cast<DelayedTasksList *>(-1);
-          delete current;
-          continue;
+      if (iterator != nullptr) {
+        while (iterator != reinterpret_cast<DelayedTasksList *>(-1)) {
+          DelayedTasksList *current = iterator;
+          iterator = iterator->next;
+          // keep it in case the gist is still accurate
+          if (current->value->context.state.back() + offset >= RET[0].size()) {
+            // TODO instantly terminate instead of restarting
+            cancelTask(current);
+            current->next = reinterpret_cast<DelayedTasksList *>(-1);
+            delete current;
+            continue;
+          }
+          computeGist(current->value->context.state, job,
+                      ws::threadLocalVector);
+          // equal could be shorter by one last one is the job
+          if (std::equal(work.first, work.first + ws::gistLength,
+                         ws::threadLocalVector.data())) {
+            logging(current->value->context.state, current->value->context.job,
+                    "reinsert");
+            current->next = newList;
+            newList = current;
+          } else {
+            resumeTask(current);
+            current->next = reinterpret_cast<DelayedTasksList *>(-1);
+            delete current;
+          }
         }
-        computeGist(current->value->context.state, job, ws::threadLocalVector);
-        // equal could be shorter by one last one is the job
-        if (std::equal(work.first, work.first + ws::gistLength,
-                       ws::threadLocalVector.data())) {
-          logging(current->value->context.state, current->value->context.job,
-                  "reinsert");
-          current->next = newList;
-          newList = current;
-        } else {
-          resumeTask(current);
-          current->next = reinterpret_cast<DelayedTasksList *>(-1);
-          delete current;
-        }
+      } else {
+        newList = nullptr;
       }
 
       reinsert.push(std::make_pair(gistWrapped, newList));
