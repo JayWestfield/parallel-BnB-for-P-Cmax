@@ -15,6 +15,7 @@ public:
   }
   ~GistStorage() = default;
   int *push(int *gist) {
+    assert(ws::wrappedGistLength <= SegmentSize);
     if (current_index >= SegmentSize - ws::wrappedGistLength) {
       segments.push_back(std::vector<int>(SegmentSize, 0));
       current_index = 0;

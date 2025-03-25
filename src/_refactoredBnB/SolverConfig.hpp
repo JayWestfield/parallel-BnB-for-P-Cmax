@@ -18,11 +18,11 @@ SolverConfig getSolverConfig(int version) {
   int config = version % 100;
   switch (config) {
   case 0:
-    return {100, 512, 1, 0, 0};
+    return {100, 4096, 1, 0, 0};
   case 1:
-    return {5000000, 512, 1, 0, 0};
+    return {5000000, 4096, 1, 0, 0};
   case 2:
-    return {50000000, 512, 1, 0, 0};
+    return {50000000, 4096, 1, 0, 0};
   default:
     throw std::invalid_argument("Invalid STVersion: " +
                                 std::to_string(version));
