@@ -57,7 +57,9 @@ int main(int argc, char *argv[]) {
   constexpr Logging noLogs{false, false, false, false};
   constexpr Logging allLogs{true, true, true, true};
   // note the addPrev optimization has problems somehow????ß
-  constexpr Optimizations allOpts{true, true, true, true, true};
+  constexpr Optimizations allOpts{true, true, true, true, false, true};
+  constexpr Optimizations noOpts{false, false, false, false, false};
+
   constexpr Config myConfig{allOpts, noLogs};
   // TODO big switch for the correct solver
   auto solverConfig = config.solverConfig;

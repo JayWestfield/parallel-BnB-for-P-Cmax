@@ -9,6 +9,7 @@
 #include "_refactoredBnB/ST/ST_combined.hpp"
 #include "_refactoredBnB/Structs/structCollection.hpp"
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
@@ -84,13 +85,14 @@ public:
 
     // RET
     offset = 1;
-    if (SolverConfig.optimizations.use_gists ||
-        SolverConfig.optimizations.use_fur) {
-      fillRET();
-    }
+
+    fillRET();
+
     // one JobSize left
     int i = lastRelevantJobIndex;
     // TODO last size can be done async
+    if (jobDurations[i] == 0)
+      --i;
     while (i > 0 && jobDurations[--i] == jobDurations[lastRelevantJobIndex]) {
     }
     lastSizeJobIndex = i + 1;
@@ -378,7 +380,7 @@ private:
           if ((i > endState - 1 && state[i] == state[i + 1]) ||
               state[i] + jobDurations[job] > upperBound)
             continue; // Rule 1 + check directly wether the new state would be
-                      // feasible
+          // feasible
           if (i > endState - 1 &&
               lookupRet(state[i], state[i + 1], job)) { // Rule 6
             r6.push_back(i);
@@ -394,23 +396,18 @@ private:
           resortAfterIncrement(ws::threadLocalStateVector, i);
           if (jobDurations[job] == jobDurations[job + 1]) {
             std::vector<int> unsorted = state;
-            int incr = i;
-            // TODO this only works for same load but what about the ret / rule
-            // 6?
-            // while (incr < numMachines - 1 && state[incr] == state[incr + 1])
-            //   incr++;
-            unsorted[incr] += jobDurations[job];
+            unsorted[i] += jobDurations[job];
             if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
               FindGistResult ex =
                   STInstance.exists(ws::threadLocalStateVector, job + 1);
               if (ex != FindGistResult::COMPLETED)
                 scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
-                                   unsorted, incr);
+                                   unsorted, i);
               // TODO for FindGistResult::STARTED the task could theoretically
               // be spawned but not scheduled but the wss does not support that
             } else {
               scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
-                                 unsorted, incr);
+                                 unsorted, i);
             }
           } else {
             if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {
@@ -433,6 +430,7 @@ private:
     case Continuation::DELAYED:
       if (!r6.empty()) {
         for (int i : r6) {
+          assert(i < numMachines - 1);
           if (!lookupRet(state[i], state[i + 1], job)) { // Rule 6
             ws::threadLocalStateVector = state;
             ws::threadLocalStateVector[i] += jobDurations[job];
