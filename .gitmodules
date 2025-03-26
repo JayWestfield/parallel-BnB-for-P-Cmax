@@ -4,3 +4,6 @@
 [submodule "external/task-based-workstealing"]
 	path = external/task-based-workstealing
 	url = https://github.com/JayWestfield/task-based-workstealing.git
+[submodule "external/pcmax"]
+	path = external/pcmax
+	url = https://github.com/JayWestfield/pcmax.git
