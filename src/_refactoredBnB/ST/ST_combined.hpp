@@ -86,19 +86,23 @@ public:
     assert(std::is_sorted(state.begin(), state.end()));
     assert((state.back() + offset) < RET[0].size());
     int maxAllowedOffset = 0;
-    // manual unrolling or pragma from open mp? use gist length instead of
-    // vecsize ?
+    const int maxValue =
+        RET[0].size() - state[ws::stateLength - 1] - offset - 1;
+    // manual unrolling or pragma from open mp? use gist
+    // length instead of vecsize ?
     gist[0] = RET[job][state[0] + offset];
     {
       auto compare = RET[job][state[0] + offset];
-      while (RET[job][state[0] + offset + ++maxAllowedOffset] == compare) {
+      while (RET[job][state[0] + offset + maxAllowedOffset + 1] == compare &&
+             maxAllowedOffset < maxValue) {
+        maxAllowedOffset++;
       };
-      maxAllowedOffset--;
       assert(maxAllowedOffset >= 0);
     }
-    maxAllowedOffset =
-        std::min(maxAllowedOffset,
-                 int(RET[0].size() - state[ws::stateLength - 1] - offset - 1));
+    // maxAllowedOffset =
+    //     std::min(maxAllowedOffset,
+    //              int(RET[0].size() - state[ws::stateLength - 1] - offset -
+    //              1));
     assert(maxAllowedOffset >= 0);
     for (size_t i = 1; i < static_cast<size_t>(ws::stateLength); i++) {
       gist[i] = RET[job][state[i] + offset];
