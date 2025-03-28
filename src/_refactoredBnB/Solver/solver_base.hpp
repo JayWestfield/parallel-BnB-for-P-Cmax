@@ -302,7 +302,7 @@ private:
             continue;
           // TODO in the end rule 6 check about the unsorted state not the
           // sorted if sameJobSize >= 0
-          bool R6_pruned = false;
+          // bool R6_pruned = false;
           // need to run the last one as a task because the same job size rule
           // only says the other assignment is done somewhere but wwe have no
           // guarantee that this is finished before this here so it might lead
@@ -328,11 +328,15 @@ private:
           }
           // why do i check the ret twice for rule 6?
           assert(i >= 0 && i < numMachines);
-          if (i < sameJobsize &&
-              lookupRet(state[i], state[i + 1], job)) { // Rule 6
-            r6.push_back(i);
-            continue;
-          }
+          // i think rule 6 here is buggy we cannot ensure that the other (i+1)
+          // is assigned in this task but if it is done in another task and that
+          // yields a better solution, but this task here finishes earlier we
+          // wil not retry this assignment because we thought this is the same
+          // if (i < sameJobsize &&
+          //     lookupRet(state[i], state[i + 1], job)) { // Rule 6
+          //   r6.push_back(i);
+          //   continue;
+          // }
           ws::threadLocalStateVector = state;
           assert(ws::threadLocalStateVector.size() ==
                  static_cast<size_t>(numMachines));
@@ -541,6 +545,7 @@ private:
     };
     RET = std::vector<std::vector<int>>(
         lastRelevantJobIndex + 1, std::vector<int>(initialUpperBound + 1));
+#pragma omp unroll 8
     for (auto u = 0; u <= initialUpperBound;
          u++) { // TODO there is some point u where everithing before is a 1
                 // and after it is a 2 so 2 for loops could be less branches
@@ -550,6 +555,7 @@ private:
         RET[lastRelevantJobIndex][u] = 2;
       }
     }
+#pragma omp unroll 8
     for (auto i = 0; i <= lastRelevantJobIndex; i++) {
       RET[i][initialUpperBound] = 1;
     }
