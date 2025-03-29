@@ -347,7 +347,8 @@ public:
         if (selfIterated[ws::thread_index_] == 1) {
           iterateThreadOwnGistsEvict();
           selfIterated[ws::thread_index_] = 0;
-        }
+        } else
+          std::this_thread::yield();
         break;
       case workingStep::PROCESSFOUNDGISTS:
         if (!maybeReinsert.empty()) {
@@ -427,6 +428,7 @@ public:
     }
   }
   void workOnMaybeReinsert() {
+    ws::initializeThreadLocalVector(ws::stateLength);
     if (maybeReinsert.empty())
       return;
 
