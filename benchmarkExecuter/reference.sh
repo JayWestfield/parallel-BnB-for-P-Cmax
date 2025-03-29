@@ -5,7 +5,7 @@
 TIMEOUT=${1:-30}  # Default: 180
 
 
-ulimit -s 32768  # Set stack size to 32 MB
+ulimit -s 65536  # Set stack size to 32 MB
 
 # List of benchmark names
 BENCHMARKS="berndt cnf frangioni graph huebner laupichler lawrinenko lehmann planted schreiber anni"
