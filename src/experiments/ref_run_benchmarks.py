@@ -46,7 +46,7 @@ try:
 except FileNotFoundError:
     print(f"Error: File '{instances_file}' not found.")
     sys.exit(1)
-option = ["-branch"]
+option = ["-cdsm"]
 # Run each instance
 for instance_name in instance_names:
     if not instance_name:  # Skip empty lines
