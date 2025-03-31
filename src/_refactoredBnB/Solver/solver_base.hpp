@@ -4,13 +4,13 @@
 #include "../Structs/TaskContext.hpp"
 #include "../Structs/memory_monitor.hpp"
 #include "../external/task-based-workstealing/src/work_stealing_config.hpp"
-#include "_refactoredBnB/Structs/globalValues.hpp"
-
 #include "_refactoredBnB/ST/ST_combined.hpp"
+#include "_refactoredBnB/Structs/globalValues.hpp"
 #include "_refactoredBnB/Structs/structCollection.hpp"
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <numeric>
@@ -375,9 +375,6 @@ private:
             }
           }
         }
-        continueAt = Continuation::DELAYED;
-        scheduler.waitTask(task);
-        return false;
       } else {
         // base case
         for (int i = 0; i < endState; i++) {
@@ -427,10 +424,10 @@ private:
           }
         }
       }
+    }
       continueAt = Continuation::DELAYED;
       scheduler.waitTask(task);
       return false;
-    }
     case Continuation::DELAYED:
       if (!r6.empty()) {
         for (int i : r6) {
@@ -467,8 +464,9 @@ private:
     return std::max(
         std::max(jobDurations[0],
                  jobDurations[numMachines - 1] + jobDurations[numMachines]),
-        std::accumulate(jobDurations.begin(), jobDurations.end(), 0) /
-            numMachines);
+        ((int)std::ceil(((double)std::accumulate(jobDurations.begin(),
+                                                 jobDurations.end(), 0)) /
+                        (double)numMachines)));
   }
 
   /**
