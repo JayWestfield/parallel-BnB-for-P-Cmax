@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
   std::mutex mtx;
   int result = 0;
   Instance instance = getInstance(config.instancePath);
-  constexpr Logging noLogs{false, false, true, false};
+  constexpr Logging noLogs{false, false, false, false};
   constexpr Logging allLogs{true, true, true, true};
   // note the addPrev optimization has problems somehow????ß
   constexpr Optimizations allOpts{true, true, true, true, false, true, false};
