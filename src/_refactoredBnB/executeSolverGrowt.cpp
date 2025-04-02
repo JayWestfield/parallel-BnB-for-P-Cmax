@@ -54,10 +54,10 @@ int main(int argc, char *argv[]) {
   std::mutex mtx;
   int result = 0;
   Instance instance = getInstance(config.instancePath);
-  constexpr Logging noLogs{false, false, false, false};
+  constexpr Logging noLogs{false, false, true, false};
   constexpr Logging allLogs{true, true, true, true};
   // note the addPrev optimization has problems somehow????ß
-  constexpr Optimizations allOpts{true, true, true, true, false, true};
+  constexpr Optimizations allOpts{true, true, true, true, false, true, false};
   constexpr Optimizations noOpts{false, false, false, false, false};
 
   constexpr Config myConfig{allOpts, noLogs};
@@ -93,6 +93,7 @@ int main(int argc, char *argv[]) {
   }
   cv.notify_all();
   canceler.get();
+  assert(result == config.optimalSolution);
   if (result == 0)
     std::cout << " (canceled)";
   else if (result != config.optimalSolution)

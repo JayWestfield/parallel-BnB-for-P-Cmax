@@ -11,6 +11,7 @@ struct Optimizations {
   bool use_add_previously = true;
   bool use_fingerprint = false;
   bool use_max_offset = true;
+  bool use_sameJobsize = false;
 };
 struct Logging {
   // Logging

@@ -288,7 +288,7 @@ private:
       assert(endState <= numMachines);
 
       // same job size rule
-      if (sameJobsize >= 0) {
+      if (SolverConfig.optimizations.use_sameJobsize && sameJobsize >= 0) {
         assert(sameJobsize < numMachines);
         for (int l = 0; l <= sameJobsize; l++) {
           if (unsortedState[l] + jobDurations[job] > upperBound)
@@ -303,9 +303,11 @@ private:
           // TODO in the end rule 6 check about the unsorted state not the
           // sorted if sameJobSize >= 0
           // bool R6_pruned = false;
-          // need to run the last one as a task because the same job size rule
-          // only says the other assignment is done somewhere but wwe have no
-          // guarantee that this is finished before this here so it might lead
+          // need to run the last one as a task because the same job size
+          // rule
+          // only says the other assignment is done somewhere but wwe have
+          // no guarantee that this is finished before this here so it might
+          // lead
           // to a bound update after the continuation:Delayed happened !!!
           // for (int a = l + 1; a <= sameJobsize; a++) {
           //   if (lookupRet(unsortedState[l], unsortedState[a], job)) {
@@ -317,8 +319,8 @@ private:
           // if (R6_pruned)
           //   continue;
 
-          // find the corresponding index in the sorted state ( dont care for
-          // same load machines those are filtered out above)
+          // find the corresponding index in the sorted state ( dont care
+          // for same load machines those are filtered out above)
           int i = -1;
           for (int a = numMachines - 1; a >= 0; a--) {
             if (state[a] == unsortedState[l]) {
@@ -328,12 +330,17 @@ private:
           }
           // why do i check the ret twice for rule 6?
           assert(i >= 0 && i < numMachines);
-          // i think rule 6 here is buggy we cannot ensure that the other (i+1)
-          // is assigned in this task but if it is done in another task and that
-          // yields a better solution, but this task here finishes earlier we
-          // wil not retry this assignment because we thought this is the same
+          // i think rule 6 here is buggy we cannot ensure that the other
+          // (i + 1)
+          // is assigned in this task but if it is done in another task and
+          // that
+          // yields a better solution, but this task here finishes
+          // earlier we wil not retry this assignment because we thought
+          // this is the
+          // same
           // if (i < sameJobsize &&
-          //     lookupRet(state[i], state[i + 1], job)) { // Rule 6
+          //     lookupRet(state[i], state[i + 1], job)) { //
+          //     Rule 6
           //   r6.push_back(i);
           //   continue;
           // }
@@ -354,7 +361,8 @@ private:
               if (ex != FindGistResult::COMPLETED)
                 scheduler.addChild(task, ws::threadLocalStateVector, job + 1,
                                    unsorted, l);
-              // TODO for FindGistResult::STARTED the task could theoretically
+              // TODO for FindGistResult::STARTED the task could
+              // theoretically
               // be spawned but not scheduled but the wss does not support
               // that
             } else {
@@ -367,7 +375,8 @@ private:
                   STInstance.exists(ws::threadLocalStateVector, job + 1);
               if (ex != FindGistResult::COMPLETED)
                 scheduler.addChild(task, ws::threadLocalStateVector, job + 1);
-              // TODO for FindGistResult::STARTED the task could theoretically
+              // TODO for FindGistResult::STARTED the task could
+              // theoretically
               // be spawned but not scheduled but the wss does not support
               // that
             } else {
@@ -395,7 +404,8 @@ private:
                  static_cast<size_t>(numMachines));
 
           resortAfterIncrement(ws::threadLocalStateVector, i);
-          if (jobDurations[job] == jobDurations[job + 1]) {
+          if (SolverConfig.optimizations.use_sameJobsize &&
+              jobDurations[job] == jobDurations[job + 1]) {
             std::vector<int> unsorted = state;
             unsorted[i] += jobDurations[job];
             if (SolverConfig.optimizations.use_gists && !skipLookup(job + 1)) {

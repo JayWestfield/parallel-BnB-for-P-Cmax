@@ -31,7 +31,7 @@ enum class workingStep {
   REINSERT
 };
 template <typename HashTable, bool use_fingerprint, bool use_max_offset,
-          bool detailedLogging = false>
+          bool detailedLogging>
 class ST {
 
 public:
@@ -226,7 +226,7 @@ public:
     assert(maybeReinsert.empty());
     assert(restart.empty());
     boundUpdatedCounter++;
-
+    waitForThreads();
     // TODO check we do not want a copy here
     threadsWorking = maxThreads;
 
@@ -238,6 +238,7 @@ public:
     iterateThreadOwnGists();
     selfIterated[ws::thread_index_] = 0;
     // wait for other threads
+    // TODO could we just waitForThreads()
     int sum = 1;
     while (sum > 0) {
       std::this_thread::yield();
@@ -248,8 +249,9 @@ public:
       if (canceled)
         return;
     }
-
+    waitForThreads();
     stepToWork = workingStep::PROCESSFOUNDGISTS;
+    waitForThreads();
 
     // resumeAllDelayedTasks();
     while (!maybeReinsert.empty() || !restart.empty()) {
@@ -277,6 +279,8 @@ public:
     while (threadsWorking > 0)
       std::this_thread::yield();
     stepToWork = workingStep::IDLE;
+    waitForThreads();
+
     // std::cout << "step to Work: " << stepToWork << std::endl;
 
     assert(reinsert.empty());
@@ -285,11 +289,16 @@ public:
   // TODO Eviction policy and execution !!!!
   void evict() {
     CustomUniqueLock lock(mtx);
+    assert(stepToWork == workingStep::IDLE);
+    assert(threadsWorking == 0);
+    std::cout << "start Evict" << std::endl;
     for (int i = 0; i < maxThreads; i++) {
       selfIterated[i] = 1;
     }
-    threadsWorking = maxThreads;
+    std::cout << "Evict selfIterated" << std::endl;
+    waitForThreads();
 
+    threadsWorking = maxThreads;
     // TODO enum for step to work
     stepToWork = workingStep::ITERATEEVICT;
     // TODO evict needs to store the vectors not only the pointers
@@ -300,18 +309,28 @@ public:
     int sum = 1;
     while (sum > 0) {
       std::this_thread::yield();
+      std::cout << "Evict selfIterated " << sum << std::endl;
       sum = 0;
       for (int i = 0; i < maxThreads; i++) {
         sum += selfIterated[i];
       }
       if (canceled)
         return;
+      if (sum == 0) {
+        break;
+      } else {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
     }
+    std::cout << "iterate own" << std::endl;
+
     maps.BoundUpdateClear();
 
     for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
       Gist_storage[i].clear();
     }
+    std::cout << "storage cleared" << std::endl;
+    waitForThreads();
 
     stepToWork = workingStep::REINSERT;
     // std::cout << "step to Work: " << stepToWork << std::endl;
@@ -322,12 +341,17 @@ public:
     // maybe sth longer than a yield like aminor sleep or so
     while (threadsWorking > 0 || !reinsert.empty())
       std::this_thread::yield();
+    waitForThreads();
 
     stepToWork = workingStep::IDLE;
+    waitForThreads();
+    assert(stepToWork == workingStep::IDLE);
+
     // std::cout << "step to Work: " << stepToWork << std::endl;
     assert(threadsWorking == 0);
     assert(reinsert.empty());
     clearFlag = false;
+    std::cout << "end Evict" << std::endl;
   }
   void work() {
     while (mtx.clearFlag) {
@@ -351,22 +375,35 @@ public:
           std::this_thread::yield();
         break;
       case workingStep::PROCESSFOUNDGISTS:
+        // mabye depending on threadindex dividable by 2 which one to do first
         if (!maybeReinsert.empty()) {
-          threadsWorking.fetch_add(1, std::memory_order_relaxed);
+          threadsWorking.fetch_add(1);
+          if (stepToWork != workingStep::PROCESSFOUNDGISTS) {
+            threadsWorking.fetch_sub(1);
+            break;
+          }
           workOnMaybeReinsert();
-          threadsWorking.fetch_sub(1, std::memory_order_relaxed);
+          threadsWorking.fetch_sub(1);
         }
         if (!restart.empty()) {
-          threadsWorking.fetch_add(1, std::memory_order_relaxed);
+          threadsWorking.fetch_add(1);
+          if (stepToWork != workingStep::PROCESSFOUNDGISTS) {
+            threadsWorking.fetch_sub(1);
+            break;
+          }
           workOnResume();
-          threadsWorking.fetch_sub(1, std::memory_order_relaxed);
+          threadsWorking.fetch_sub(1);
         }
         break;
       case workingStep::REINSERT:
         if (!reinsert.empty()) {
-          threadsWorking.fetch_add(1, std::memory_order_relaxed);
+          threadsWorking.fetch_add(1);
+          if (stepToWork != workingStep::REINSERT) {
+            threadsWorking.fetch_sub(1);
+            break;
+          }
           workOnReinsert();
-          threadsWorking.fetch_sub(1, std::memory_order_relaxed);
+          threadsWorking.fetch_sub(1);
         }
         break;
       default:
@@ -577,6 +614,12 @@ private:
       if (current != reinterpret_cast<DelayedTasksList *>(-1))
         delete current;
     }
+  }
+
+  void waitForThreads() {
+    while (threadsWorking.load(std::memory_order_acquire) > 0)
+      std::this_thread::yield();
+    assert(threadsWorking == 0);
   }
   template <typename T>
   void logging(const std::vector<int> &state, int job, T message = "") {
