@@ -108,6 +108,7 @@ template <bool use_fingerprint> struct VectorHasherCast {
     auto pointer = FingerPrintUtil<use_fingerprint>::getOriginalPointer(
         reinterpret_cast<Key>(a));
     size_t h = 17;
+#pragma omp unroll 4
     for (int i = 0; i < ws::gistLength; i++) {
       hash_combine(h, pointer[i]);
     }

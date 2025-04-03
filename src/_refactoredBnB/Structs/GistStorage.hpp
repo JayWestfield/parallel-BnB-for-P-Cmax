@@ -11,13 +11,16 @@ class GistStorage {
 public:
   GistStorage(std::size_t SegmentSize = 1024)
       : current_index(0), segments(), SegmentSize(SegmentSize) {
-    segments.push_back(std::vector<int>(SegmentSize, 0));
+    // segments.push_back(std::vector<int>(SegmentSize, 0));
   }
   ~GistStorage() = default;
   int *push(int *gist) {
-    assert(ws::wrappedGistLength <= SegmentSize);
-    if (current_index >= SegmentSize - ws::wrappedGistLength) {
-      segments.push_back(std::vector<int>(SegmentSize, 0));
+    assert(ws::wrappedGistLength <= SegmentSize * ws::wrappedGistLength);
+    if (current_index >=
+            (SegmentSize * ws::wrappedGistLength) - ws::wrappedGistLength ||
+        segments.empty()) {
+      segments.push_back(
+          std::vector<int>(SegmentSize * ws::wrappedGistLength, 0));
       current_index = 0;
     }
     // TODO compute pointer instead of &
@@ -26,6 +29,7 @@ public:
     // that in there but that is bad for decoupling the hashmap from the stclass
     // TODO rather use a memfill or sth like that
     auto &segment = (segments.back());
+#pragma omp simd
     for (size_t i = 0; i < static_cast<size_t>(ws::wrappedGistLength); i++) {
       auto toWrite = *(gist + i);
       segment[current_index++] = toWrite;
@@ -40,9 +44,8 @@ public:
   void clear() {
     // assert delyed tasks are already resumed
     segments.clear();
-    segments.push_back(std::vector<int>(SegmentSize));
     current_index = 0;
-    assert(segments.size() == 1 && current_index == 0);
+    assert(segments.size() == 0 && current_index == 0);
   }
   // might not need to be iterable only if the hashtable is not iterable or if
   // we have no collection of all the delayed task (again a segmented stack?)
@@ -84,11 +87,19 @@ public:
     std::size_t idx;
   };
 
-  Iterator begin() { return Iterator(0, 0, segments, current_index); }
+  Iterator begin() {
+    if (segments.size() == 0)
+      return Iterator(0, 0, segments, 0);
+    else
+      return Iterator(0, 0, segments, current_index);
+  }
 
   Iterator end() {
-    return Iterator(segments.size() - 1, current_index, segments,
-                    current_index);
+    if (segments.size() == 0)
+      return Iterator(0, 0, segments, 0);
+    else
+      return Iterator(segments.size() - 1, current_index, segments,
+                      current_index);
   }
 
 private:

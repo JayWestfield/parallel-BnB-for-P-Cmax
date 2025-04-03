@@ -34,7 +34,7 @@ public:
   // x * last size jobindex
   // if it is >= look at jobindex < lastsize - x
   solver_base(int maxAllowedParalellism, int initialHashmapSize = 2000,
-              int skipDepth = 1, int GistStorageSize = 1024)
+              int skipDepth = 1, int GistStorageSize = 100)
       : maxAllowedParalellism(maxAllowedParalellism),
         scheduler(
             maxAllowedParalellism, [this]() { this->idleFunction(); },
