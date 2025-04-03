@@ -158,6 +158,7 @@ private:
   // ST
   ST<Hashmap, SolverConfig.optimizations.use_fingerprint,
      SolverConfig.optimizations.use_max_offset,
+     SolverConfig.optimizations.use_add_previously,
      SolverConfig.logging.detailedLogging>
       STInstance;
 
@@ -603,6 +604,7 @@ private:
     if (newBound == lowerBound) {
       foundOptimal = true;
       STInstance.cancelExecution();
+      continueExecution = false;
     }
 
     if (SolverConfig.logging.logBound)

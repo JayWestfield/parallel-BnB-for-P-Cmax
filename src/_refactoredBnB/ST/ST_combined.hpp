@@ -31,7 +31,7 @@ enum class workingStep {
   REINSERT
 };
 template <typename HashTable, bool use_fingerprint, bool use_max_offset,
-          bool detailedLogging>
+          bool use_add_previously, bool detailedLogging>
 class ST {
 
 public:
@@ -291,60 +291,54 @@ public:
     CustomUniqueLock lock(mtx);
     assert(stepToWork == workingStep::IDLE);
     assert(threadsWorking == 0);
-    std::cout << "start Evict" << std::endl;
-    for (int i = 0; i < maxThreads; i++) {
-      selfIterated[i] = 1;
-    }
-    std::cout << "Evict selfIterated" << std::endl;
-    waitForThreads();
-
-    threadsWorking = maxThreads;
-    // TODO enum for step to work
-    stepToWork = workingStep::ITERATEEVICT;
-    // TODO evict needs to store the vectors not only the pointers
-    // evict is called by the memory monitor thread => no eviction call for the
-    // curent thread iterateThreadOwnGistsEvict();
-    // selfIterated[ws::thread_index_] = 0;
-    // wait for other threads
-    int sum = 1;
-    while (sum > 0) {
-      std::this_thread::yield();
-      std::cout << "Evict selfIterated " << sum << std::endl;
-      sum = 0;
+    if (use_add_previously) {
       for (int i = 0; i < maxThreads; i++) {
-        sum += selfIterated[i];
+        selfIterated[i] = 1;
       }
-      if (canceled)
-        return;
-      if (sum == 0) {
-        break;
-      } else {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      waitForThreads();
+      threadsWorking = maxThreads;
+      stepToWork = workingStep::ITERATEEVICT;
+      int sum = 1;
+      while (true) {
+        sum = 0;
+        for (int i = 0; i < maxThreads; i++) {
+          sum += selfIterated[i];
+        }
+        if (canceled)
+          return;
+        if (sum == 0) {
+          break;
+        } else {
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
       }
-    }
-    std::cout << "iterate own" << std::endl;
 
-    maps.BoundUpdateClear();
+      maps.BoundUpdateClear();
+    } else {
+      maps.clear();
+    }
 
     for (std::size_t i = 0; i < Gist_storage.size(); ++i) {
       Gist_storage[i].clear();
     }
-    std::cout << "storage cleared" << std::endl;
-    waitForThreads();
+    if (use_add_previously) {
 
-    stepToWork = workingStep::REINSERT;
-    // std::cout << "step to Work: " << stepToWork << std::endl;
-    // called my monitor thread => has no dedicated gist storage
-    // while (!reinsert.empty()) {
-    //   workOnReinsert();
-    // }
-    // maybe sth longer than a yield like aminor sleep or so
-    while (threadsWorking > 0 || !reinsert.empty())
-      std::this_thread::yield();
-    waitForThreads();
+      waitForThreads();
 
-    stepToWork = workingStep::IDLE;
-    waitForThreads();
+      stepToWork = workingStep::REINSERT;
+      // std::cout << "step to Work: " << stepToWork << std::endl;
+      // called my monitor thread => has no dedicated gist storage
+      // while (!reinsert.empty()) {
+      //   workOnReinsert();
+      // }
+      // maybe sth longer than a yield like aminor sleep or so
+      while (threadsWorking > 0 || !reinsert.empty())
+        std::this_thread::yield();
+      waitForThreads();
+
+      stepToWork = workingStep::IDLE;
+      waitForThreads();
+    }
     assert(stepToWork == workingStep::IDLE);
 
     // std::cout << "step to Work: " << stepToWork << std::endl;
@@ -617,7 +611,7 @@ private:
   }
 
   void waitForThreads() {
-    while (threadsWorking.load(std::memory_order_acquire) > 0)
+    while (threadsWorking.load(std::memory_order_acquire) > 0 || canceled)
       std::this_thread::yield();
     assert(threadsWorking == 0);
   }

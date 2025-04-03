@@ -104,7 +104,8 @@ int main(int argc, char *argv[]) {
       times += std::to_string(solver.timeFrames[i].count()) + ";";
     }
 
-    times.pop_back();
+    if (solver.hardness != Difficulty::trivial)
+      times.pop_back();
     times.append("}");
     std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count()
               << "," << solver.visitedNodes << "," << times << ","
