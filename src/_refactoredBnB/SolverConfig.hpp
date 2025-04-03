@@ -20,7 +20,7 @@ SolverConfig getSolverConfig(int version) {
   case 0:
     return {100, 100, 1, 0, 0};
   case 1:
-    return {5000000, 100, 1, 0, 0};
+    return {500000, 100, 1, 0, 0};
   case 2:
     return {50000000, 100, 1, 0, 0};
   default:
