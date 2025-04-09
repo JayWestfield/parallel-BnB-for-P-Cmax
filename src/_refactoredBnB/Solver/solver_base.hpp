@@ -96,6 +96,20 @@ public:
     while (i > 0 && jobDurations[--i] == jobDurations[lastRelevantJobIndex]) {
     }
     lastSizeJobIndex = i + 1;
+    ;
+    if (jobDurations[lastRelevantJobIndex] > 1) {
+      use_remaining_space = true;
+      min_space_required = std::vector<int>(lastRelevantJobIndex + 1, 0);
+      int min_space =
+          std::accumulate(jobDurations.begin(),
+                          jobDurations.begin() + lastRelevantJobIndex + 1, 0);
+      for (int i = 0; i <= lastRelevantJobIndex; i++) {
+        min_space_required[i] = min_space;
+        min_space -= jobDurations[i];
+        assert(min_space >= 0);
+      }
+      assert(min_space == 0);
+    }
     if (SolverConfig.logging.logInitialBounds)
       std::cout << "Initial Upper Bound: " << upperBound
                 << " Initial lower Bound: " << lowerBound << std::endl;
@@ -167,7 +181,9 @@ private:
   int lastRelevantJobIndex;
 
   wss<TaskContext> scheduler;
-
+  // remaining space
+  bool use_remaining_space = false;
+  std::vector<int> min_space_required;
   // constexpr?
   bool inline skipLookup(int depth) {
     return depth >= lastSizeJobIndex - skipDepth;
@@ -200,6 +216,23 @@ private:
         for (int i : state)
           std::cout << " " << i;
         std::cout << std::endl;
+      }
+      // remaining space rule is only usefull if last relevant job is bigger
+      // than 1 and all processors are valid
+      if (use_remaining_space &&
+          makespan > upperBound - jobDurations[lastRelevantJobIndex]) {
+        const int current_upperBound = this->upperBound.load();
+        int remaining_space = 0;
+        for (int i = 0; i < numMachines; i++) {
+          if (state[i] >=
+              current_upperBound - jobDurations[lastRelevantJobIndex]) {
+            break;
+          }
+          remaining_space += current_upperBound - state[i];
+        }
+        if (remaining_space < min_space_required[job]) {
+          return true;
+        }
       }
 
       if (job > lastRelevantJobIndex) {
