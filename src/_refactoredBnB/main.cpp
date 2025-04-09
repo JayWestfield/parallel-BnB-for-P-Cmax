@@ -104,7 +104,45 @@ int main(int argc, char *argv[]) {
     std::string instancePath =
         config.basePath + "/" + config.benchmark + "/" + instanceName + " ";
     // TODO might adapt growth factor
-    for (int i = 1; i <= config.maxThreads; i *= 2) {
+    // Vector to store futures for concurrent execution
+    std::vector<std::future<std::pair<int, std::string>>> futures;
+
+    // Launch commands for 1, 2, 4, and 8 threads concurrently
+    for (int i = 1; i <= 8; i *= 2) {
+      std::ostringstream argsStream;
+      argsStream << config.SolverConfig << " " << config.timeout << " " << i
+                 << " " << instancePath << " "
+                 << optimalSolutions.at(instanceName);
+      auto executable =
+          config.SolverConfig / 100 == 1 ? executableTBB : executableGrowt;
+      std::string command = executable + " " + argsStream.str();
+
+      // Launch the command asynchronously
+      futures.push_back(std::async(std::launch::async, [command]() {
+        std::array<char, 128> buffer;
+        std::string result;
+        FILE *pipe = popen(command.c_str(), "r");
+        if (!pipe) {
+          throw std::runtime_error("popen() failed!");
+        }
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+          result += buffer.data();
+        }
+        int returnCode = pclose(pipe);
+        return std::make_pair(returnCode, result);
+      }));
+    }
+
+    // Wait for all commands to finish and print their outputs in order
+    for (size_t i = 0; i < futures.size(); ++i) {
+      auto [returnCode, output] = futures[i].get();
+      if (returnCode != 0) {
+        std::cerr << "Command for " << (1 << i)
+                  << " threads failed with code: " << returnCode << std::endl;
+      }
+      std::cout << output << std::flush;
+    }
+    for (int i = 16; i <= config.maxThreads; i *= 2) {
       std::ostringstream argsStream;
       argsStream << config.SolverConfig << " " << config.timeout << " " << i
                  << " " << instancePath << " "

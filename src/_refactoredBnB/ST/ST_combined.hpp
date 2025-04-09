@@ -259,8 +259,7 @@ public:
       workOnResume();
     }
     // wait for other threads
-    while (threadsWorking.load(std::memory_order_acquire) > 0)
-      std::this_thread::yield();
+    waitForThreads();
     assert(maybeReinsert.empty());
     assert(restart.empty());
     maps.BoundUpdateClear();
@@ -345,7 +344,7 @@ public:
     assert(threadsWorking == 0);
     assert(reinsert.empty());
     clearFlag = false;
-    std::cout << "end Evict" << std::endl;
+    // std::cout << "end Evict" << std::endl;
   }
   void work() {
     while (mtx.clearFlag) {
@@ -611,7 +610,7 @@ private:
   }
 
   void waitForThreads() {
-    while (threadsWorking.load(std::memory_order_acquire) > 0 || canceled)
+    while (threadsWorking.load(std::memory_order_acquire) > 0 && !canceled)
       std::this_thread::yield();
     assert(threadsWorking == 0);
   }
