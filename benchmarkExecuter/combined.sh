@@ -13,5 +13,5 @@ BENCHMARKS="berndt cnf frangioni graph huebner laupichler lawrinenko lehmann pla
 
 # Loop through each benchmark and execute the command
 for BENCHMARK in $BENCHMARKS; do
-  ./build/full_refactored $THREADS $TIMEOUT $CONFIG benchmarks $BENCHMARK benchmarks/sampledBenchmarks/${BENCHMARK}-50.txt
+  ./build/full_refactored $THREADS $TIMEOUT $CONFIG benchmarks $BENCHMARK benchmarks/sampledBenchmarks/${BENCHMARK}-combined.txt
 done
