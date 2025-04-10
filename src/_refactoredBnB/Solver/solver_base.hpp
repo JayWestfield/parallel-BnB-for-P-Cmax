@@ -420,7 +420,7 @@ private:
         }
       } else {
         // base case
-        for (int i = 0; i < endState; i++) {
+        for (int i = endState - 1; i >= 0; i--) {
           if ((i < endState - 1 && state[i] == state[i + 1]) ||
               state[i] + jobDurations[job] > upperBound)
             continue; // Rule 1 + check directly wether the new state would be

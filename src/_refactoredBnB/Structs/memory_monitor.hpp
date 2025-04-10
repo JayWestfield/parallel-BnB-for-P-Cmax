@@ -12,8 +12,7 @@ public:
     monitoringThread = std::thread([this]() {
       while (this->continueExecution) {
         double memoryUsage = getMemoryUsagePercentage();
-        if (memoryUsage > 70) {
-          // Call the provided eviction function
+        if (memoryUsage > 90) {
           this->evictionFunc();
         }
         std::unique_lock<std::mutex> condLock(this->mtx);
@@ -39,13 +38,12 @@ private:
   double getMemoryUsagePercentage() {
     long totalPages = sysconf(_SC_PHYS_PAGES);
     long availablePages = sysconf(_SC_AVPHYS_PAGES);
-    long pageSize = sysconf(_SC_PAGE_SIZE);
 
     if (totalPages > 0) {
       long usedPages = totalPages - availablePages;
-      double usedMemory = static_cast<double>(usedPages * pageSize);
-      double totalMemory = static_cast<double>(totalPages * pageSize);
-      return (usedMemory / totalMemory) * 100.0;
+      return (static_cast<double>(usedPages) /
+              static_cast<double>(totalPages)) *
+             100.0;
     }
     return -1.0; // Fehlerfall
   }
