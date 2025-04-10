@@ -224,7 +224,7 @@ private:
         const int current_upperBound = this->upperBound.load();
         int remaining_space = 0;
         for (int i = 0; i < numMachines; i++) {
-          if (state[i] >=
+          if (state[i] >
               current_upperBound - jobDurations[lastRelevantJobIndex]) {
             break;
           }
@@ -421,11 +421,11 @@ private:
       } else {
         // base case
         for (int i = 0; i < endState; i++) {
-          if ((i > endState - 1 && state[i] == state[i + 1]) ||
+          if ((i < endState - 1 && state[i] == state[i + 1]) ||
               state[i] + jobDurations[job] > upperBound)
             continue; // Rule 1 + check directly wether the new state would be
           // feasible
-          if (i > endState - 1 &&
+          if (i < endState - 1 &&
               lookupRet(state[i], state[i + 1], job)) { // Rule 6
             r6.push_back(i);
             continue;
