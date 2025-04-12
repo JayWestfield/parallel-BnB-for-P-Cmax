@@ -1,9 +1,6 @@
-#include <fstream>
-#include <iostream>
-#include <sstream>
+#include <cmath>
 #include <stdexcept>
 #include <string>
-
 // additional to follow
 struct SolverConfig {
   int initialHashMapSize;
@@ -20,11 +17,19 @@ SolverConfig getSolverConfig(int version) {
       ((version / 1000) % 10) * 10 + (version / 100) % 10;
   switch (config) {
   case 0:
-    return {100, 100, 1, templateOptimization, 0};
+    return {static_cast<int>(pow(2, 7)), 100, 1, templateOptimization, 0};
   case 1:
-    return {500000, 100, 1, templateOptimization, 0};
+    return {static_cast<int>(pow(2, 10)), 100, 1, templateOptimization, 0};
   case 2:
-    return {50000000, 100, 1, templateOptimization, 0};
+    return {static_cast<int>(pow(2, 13)), 100, 1, templateOptimization, 0};
+  case 3:
+    return {static_cast<int>(pow(2, 16)), 100, 1, templateOptimization, 0};
+  case 4:
+    return {static_cast<int>(pow(2, 19)), 100, 1, templateOptimization, 0};
+  case 5:
+    return {static_cast<int>(pow(2, 21)), 100, 1, templateOptimization, 0};
+  case 6:
+    return {static_cast<int>(pow(2, 24)), 100, 1, templateOptimization, 0};
   default:
     throw std::invalid_argument("Invalid STVersion: " +
                                 std::to_string(version));
