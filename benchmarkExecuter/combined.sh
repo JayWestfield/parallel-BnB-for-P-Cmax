@@ -4,7 +4,7 @@
 # Check if arguments are provided, otherwise use default values
 THREADS=${1:-64}
 TIMEOUT=${2:-30}
-CONFIG=${3:-200}
+CONFIG=${3:-20000}
 BENCHMARK_TYPE=${4:-50}
 
 

@@ -76,7 +76,7 @@ std::vector<std::string> getInstancesToSolve(Config config,
 
 void printConfigInline(const Config &config) {
   auto solver =
-      config.SolverConfig / 100 == 1 ? "executableTBB " : "executableGrowt ";
+      config.SolverConfig / 10000 == 1 ? "executableTBB " : "executableGrowt ";
   std::cout << "Start Experiment with: [Config] maxThreads="
             << config.maxThreads << ", timeout=" << config.timeout
             << ", STVersion=" << solver << config.SolverConfig << ", basePath='"
@@ -108,13 +108,13 @@ int main(int argc, char *argv[]) {
     std::vector<std::future<std::pair<int, std::string>>> futures;
 
     // Launch commands for 1, 2, 4, and 8 threads concurrently
-    for (int i = 1; i <= 8; i *= 2) {
+    for (int i = 1; i <= std::min(8, config.maxThreads); i *= 2) {
       std::ostringstream argsStream;
       argsStream << config.SolverConfig << " " << config.timeout << " " << i
                  << " " << instancePath << " "
                  << optimalSolutions.at(instanceName);
       auto executable =
-          config.SolverConfig / 100 == 1 ? executableTBB : executableGrowt;
+          config.SolverConfig / 10000 == 1 ? executableTBB : executableGrowt;
       std::string command = executable + " " + argsStream.str();
 
       // Launch the command asynchronously

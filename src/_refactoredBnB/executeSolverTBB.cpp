@@ -1,5 +1,4 @@
 #include "./SolverConfig.hpp"
-#include "_refactoredBnB/ST/Hashmaps/GrowtHashMap_refactored.hpp"
 #include "_refactoredBnB/ST/Hashmaps/TBBHashMap_refactored.hpp"
 #include "_refactoredBnB/Solver/solver_base.hpp"
 #include "_refactoredBnB/Structs/structCollection.hpp"
@@ -47,6 +46,29 @@ Instance getInstance(std::string instancePath) {
             std::greater<int>());
   return instance;
 }
+void produceOutput(int result, instanceConfig config, double duration,
+                   std::vector<std::chrono::duration<double>> &timeFrames,
+                   uint64_t visitedNodes, Difficulty hardness) {
+  if (result == 0)
+    std::cout << " (canceled)";
+  else if (result != config.optimalSolution)
+    std::cout << " error_wrong_makespan_of_" << result << "_instead_of"
+              << config.optimalSolution;
+  else {
+    std::string times = "{";
+    for (std::size_t i = std::max<int>(timeFrames.size() - 5, 0);
+         i < timeFrames.size(); ++i) {
+      times += std::to_string(timeFrames[i].count()) + ";";
+    }
+
+    if (hardness != Difficulty::trivial)
+      times.pop_back();
+    times.append("}");
+    std::cout << " (" << duration << "," << visitedNodes << "," << times << ","
+              << (int)hardness << ")" << std::flush;
+  }
+  std::cout << std::flush;
+}
 int main(int argc, char *argv[]) {
   instanceConfig config = parseArguments(argc, argv);
   std::future<void> canceler;
@@ -56,60 +78,329 @@ int main(int argc, char *argv[]) {
   Instance instance = getInstance(config.instancePath);
   constexpr Logging noLogs{false, false, false, false};
   constexpr Logging allLogs{true, true, true, true};
-  // note the addPrev optimization has problems somehow????ß
-  constexpr Optimizations allOpts{true, true, true, true, false, true, false};
-  constexpr Config myConfig{allOpts, noLogs};
-  // TODO big switch for the correct solver
-
-  // solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint>,
-  // myConfig>
-  // solver(config.numThreads);
+  constexpr Logging myLogs = noLogs;
   auto solverConfig = config.solverConfig;
-  solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint,
-                                    myConfig.optimizations.use_max_offset>,
-              myConfig>
-      solver(config.numThreads, solverConfig.initialHashMapSize,
-             solverConfig.notInsertingGists, solverConfig.GistStorageStackSize);
-  bool timerExpired = false;
-  canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
-                                             &timerExpired, &config]() {
-    std::unique_lock<std::mutex> lock(mtx);
-    if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
-                    [&timerExpired] { return timerExpired; })) {
-      return;
-    }
-    if (result == 0) {
-      solver.cancelExecution();
-    }
-  });
-  auto start = std::chrono::high_resolution_clock::now();
-  result = solver.solve(instance);
-  auto end = std::chrono::high_resolution_clock::now();
+  switch (solverConfig.templateOptimization) {
+  case 0: {
+    constexpr Optimizations myOpts{true, true, true, true, false, true, true};
+    constexpr Config myConfig{myOpts, myLogs};
+    solver_base<
+        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
+        myConfig>
+        solver(config.numThreads, solverConfig.initialHashMapSize,
+               solverConfig.notInsertingGists,
+               solverConfig.GistStorageStackSize);
 
-  {
-    std::lock_guard<std::mutex> lock(mtx);
-    timerExpired = true;
-  }
-  cv.notify_all();
-  canceler.get();
-  if (result == 0)
-    std::cout << " (canceled)";
-  else if (result != config.optimalSolution)
-    std::cout << " error_wrong_makespan_of_" << result << "_instead_of"
-              << config.optimalSolution;
-  else {
-    std::string times = "{";
-    for (std::size_t i = std::max<int>(solver.timeFrames.size() - 5, 0);
-         i < solver.timeFrames.size(); ++i) {
-      times += std::to_string(solver.timeFrames[i].count()) + ";";
-    }
+    bool timerExpired = false;
+    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
+                                               &timerExpired, &config]() {
+      std::unique_lock<std::mutex> lock(mtx);
+      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
+                      [&timerExpired] { return timerExpired; })) {
+        return;
+      }
+      if (result == 0) {
+        solver.cancelExecution();
+      }
+    });
+    auto start = std::chrono::high_resolution_clock::now();
+    result = solver.solve(instance);
+    auto end = std::chrono::high_resolution_clock::now();
 
-    if (solver.hardness != Difficulty::trivial)
-      times.pop_back();
-    times.append("}");
-    std::cout << " (" << ((std::chrono::duration<double>)(end - start)).count()
-              << "," << solver.visitedNodes << "," << times << ","
-              << (int)solver.hardness << ")" << std::flush;
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      timerExpired = true;
+    }
+    cv.notify_all();
+    canceler.get();
+    assert(result == config.optimalSolution);
+
+    produceOutput(
+        result, config,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count(),
+        solver.timeFrames, solver.visitedNodes, solver.hardness);
+  } break;
+  case 1: {
+    constexpr Optimizations myOpts{true,  true,  true, false,
+                                   false, false, false};
+    constexpr Config myConfig{myOpts, myLogs};
+    solver_base<
+        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
+        myConfig>
+        solver(config.numThreads, solverConfig.initialHashMapSize,
+               solverConfig.notInsertingGists,
+               solverConfig.GistStorageStackSize);
+
+    bool timerExpired = false;
+    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
+                                               &timerExpired, &config]() {
+      std::unique_lock<std::mutex> lock(mtx);
+      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
+                      [&timerExpired] { return timerExpired; })) {
+        return;
+      }
+      if (result == 0) {
+        solver.cancelExecution();
+      }
+    });
+    auto start = std::chrono::high_resolution_clock::now();
+    result = solver.solve(instance);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      timerExpired = true;
+    }
+    cv.notify_all();
+    canceler.get();
+    assert(result == config.optimalSolution);
+
+    produceOutput(
+        result, config,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count(),
+        solver.timeFrames, solver.visitedNodes, solver.hardness);
+  } break;
+  case 2: {
+    constexpr Optimizations myOpts{true, true, true, true, false, false, false};
+    constexpr Config myConfig{myOpts, myLogs};
+    solver_base<
+        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
+        myConfig>
+        solver(config.numThreads, solverConfig.initialHashMapSize,
+               solverConfig.notInsertingGists,
+               solverConfig.GistStorageStackSize);
+
+    bool timerExpired = false;
+    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
+                                               &timerExpired, &config]() {
+      std::unique_lock<std::mutex> lock(mtx);
+      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
+                      [&timerExpired] { return timerExpired; })) {
+        return;
+      }
+      if (result == 0) {
+        solver.cancelExecution();
+      }
+    });
+    auto start = std::chrono::high_resolution_clock::now();
+    result = solver.solve(instance);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      timerExpired = true;
+    }
+    cv.notify_all();
+    canceler.get();
+    assert(result == config.optimalSolution);
+
+    produceOutput(
+        result, config,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count(),
+        solver.timeFrames, solver.visitedNodes, solver.hardness);
+  } break;
+  case 3: {
+    constexpr Optimizations myOpts{true, true, true, true, false, true, false};
+    constexpr Config myConfig{myOpts, myLogs};
+    solver_base<
+        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
+        myConfig>
+        solver(config.numThreads, solverConfig.initialHashMapSize,
+               solverConfig.notInsertingGists,
+               solverConfig.GistStorageStackSize);
+
+    bool timerExpired = false;
+    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
+                                               &timerExpired, &config]() {
+      std::unique_lock<std::mutex> lock(mtx);
+      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
+                      [&timerExpired] { return timerExpired; })) {
+        return;
+      }
+      if (result == 0) {
+        solver.cancelExecution();
+      }
+    });
+    auto start = std::chrono::high_resolution_clock::now();
+    result = solver.solve(instance);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      timerExpired = true;
+    }
+    cv.notify_all();
+    canceler.get();
+    assert(result == config.optimalSolution);
+
+    produceOutput(
+        result, config,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count(),
+        solver.timeFrames, solver.visitedNodes, solver.hardness);
+  } break;
+  case 4: {
+    constexpr Optimizations myOpts{true, true, true, true, false, true, true};
+    constexpr Config myConfig{myOpts, myLogs};
+    solver_base<
+        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
+        myConfig>
+        solver(config.numThreads, solverConfig.initialHashMapSize,
+               solverConfig.notInsertingGists,
+               solverConfig.GistStorageStackSize);
+
+    bool timerExpired = false;
+    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
+                                               &timerExpired, &config]() {
+      std::unique_lock<std::mutex> lock(mtx);
+      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
+                      [&timerExpired] { return timerExpired; })) {
+        return;
+      }
+      if (result == 0) {
+        solver.cancelExecution();
+      }
+    });
+    auto start = std::chrono::high_resolution_clock::now();
+    result = solver.solve(instance);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      timerExpired = true;
+    }
+    cv.notify_all();
+    canceler.get();
+    assert(result == config.optimalSolution);
+
+    produceOutput(
+        result, config,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count(),
+        solver.timeFrames, solver.visitedNodes, solver.hardness);
+  } break;
+  case 5: {
+    constexpr Optimizations myOpts{true, true, true, true, true, true, true};
+    constexpr Config myConfig{myOpts, myLogs};
+    solver_base<
+        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
+        myConfig>
+        solver(config.numThreads, solverConfig.initialHashMapSize,
+               solverConfig.notInsertingGists,
+               solverConfig.GistStorageStackSize);
+
+    bool timerExpired = false;
+    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
+                                               &timerExpired, &config]() {
+      std::unique_lock<std::mutex> lock(mtx);
+      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
+                      [&timerExpired] { return timerExpired; })) {
+        return;
+      }
+      if (result == 0) {
+        solver.cancelExecution();
+      }
+    });
+    auto start = std::chrono::high_resolution_clock::now();
+    result = solver.solve(instance);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      timerExpired = true;
+    }
+    cv.notify_all();
+    canceler.get();
+    assert(result == config.optimalSolution);
+
+    produceOutput(
+        result, config,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count(),
+        solver.timeFrames, solver.visitedNodes, solver.hardness);
+  } break;
+  case 6: {
+    constexpr Optimizations myOpts{true, true, true, true, false, true, true};
+    constexpr Config myConfig{myOpts, myLogs};
+    solver_base<
+        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
+        myConfig>
+        solver(config.numThreads, solverConfig.initialHashMapSize,
+               solverConfig.notInsertingGists,
+               solverConfig.GistStorageStackSize);
+
+    bool timerExpired = false;
+    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
+                                               &timerExpired, &config]() {
+      std::unique_lock<std::mutex> lock(mtx);
+      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
+                      [&timerExpired] { return timerExpired; })) {
+        return;
+      }
+      if (result == 0) {
+        solver.cancelExecution();
+      }
+    });
+    auto start = std::chrono::high_resolution_clock::now();
+    result = solver.solve(instance);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      timerExpired = true;
+    }
+    cv.notify_all();
+    canceler.get();
+    assert(result == config.optimalSolution);
+
+    produceOutput(
+        result, config,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count(),
+        solver.timeFrames, solver.visitedNodes, solver.hardness);
+  } break;
+  case 7: {
+    constexpr Optimizations myOpts{true, true, true, true, false, true, true};
+    constexpr Config myConfig{myOpts, myLogs};
+    solver_base<
+        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
+        myConfig>
+        solver(config.numThreads, solverConfig.initialHashMapSize,
+               solverConfig.notInsertingGists,
+               solverConfig.GistStorageStackSize);
+
+    bool timerExpired = false;
+    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
+                                               &timerExpired, &config]() {
+      std::unique_lock<std::mutex> lock(mtx);
+      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
+                      [&timerExpired] { return timerExpired; })) {
+        return;
+      }
+      if (result == 0) {
+        solver.cancelExecution();
+      }
+    });
+    auto start = std::chrono::high_resolution_clock::now();
+    result = solver.solve(instance);
+    auto end = std::chrono::high_resolution_clock::now();
+
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      timerExpired = true;
+    }
+    cv.notify_all();
+    canceler.get();
+    assert(result == config.optimalSolution);
+
+    produceOutput(
+        result, config,
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count(),
+        solver.timeFrames, solver.visitedNodes, solver.hardness);
+  } break;
   }
-  std::cout << std::flush;
 }
