@@ -114,12 +114,9 @@ int main(int argc, char *argv[]) {
     cv.notify_all();
     canceler.get();
     assert(result == config.optimalSolution);
-
-    produceOutput(
-        result, config,
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count(),
-        solver.timeFrames, solver.visitedNodes, solver.hardness);
+    produceOutput(result, config,
+                  ((std::chrono::duration<double>)(end - start)).count(),
+                  solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 1: {
     constexpr Optimizations myOpts{true,  true,  true, false,
@@ -155,12 +152,9 @@ int main(int argc, char *argv[]) {
     cv.notify_all();
     canceler.get();
     assert(result == config.optimalSolution);
-
-    produceOutput(
-        result, config,
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count(),
-        solver.timeFrames, solver.visitedNodes, solver.hardness);
+    produceOutput(result, config,
+                  ((std::chrono::duration<double>)(end - start)).count(),
+                  solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 2: {
     constexpr Optimizations myOpts{true, true, true, true, false, false, false};
@@ -195,12 +189,9 @@ int main(int argc, char *argv[]) {
     cv.notify_all();
     canceler.get();
     assert(result == config.optimalSolution);
-
-    produceOutput(
-        result, config,
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count(),
-        solver.timeFrames, solver.visitedNodes, solver.hardness);
+    produceOutput(result, config,
+                  ((std::chrono::duration<double>)(end - start)).count(),
+                  solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 3: {
     constexpr Optimizations myOpts{true, true, true, true, false, true, false};
@@ -235,12 +226,9 @@ int main(int argc, char *argv[]) {
     cv.notify_all();
     canceler.get();
     assert(result == config.optimalSolution);
-
-    produceOutput(
-        result, config,
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count(),
-        solver.timeFrames, solver.visitedNodes, solver.hardness);
+    produceOutput(result, config,
+                  ((std::chrono::duration<double>)(end - start)).count(),
+                  solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 4: {
     constexpr Optimizations myOpts{true, true, true, true, false, true, true};
@@ -275,12 +263,9 @@ int main(int argc, char *argv[]) {
     cv.notify_all();
     canceler.get();
     assert(result == config.optimalSolution);
-
-    produceOutput(
-        result, config,
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count(),
-        solver.timeFrames, solver.visitedNodes, solver.hardness);
+    produceOutput(result, config,
+                  ((std::chrono::duration<double>)(end - start)).count(),
+                  solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 5: {
     constexpr Optimizations myOpts{true, true, true, true, true, true, true};
@@ -315,12 +300,9 @@ int main(int argc, char *argv[]) {
     cv.notify_all();
     canceler.get();
     assert(result == config.optimalSolution);
-
-    produceOutput(
-        result, config,
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count(),
-        solver.timeFrames, solver.visitedNodes, solver.hardness);
+    produceOutput(result, config,
+                  ((std::chrono::duration<double>)(end - start)).count(),
+                  solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 6: {
     constexpr Optimizations myOpts{true, true, true, true, false, true, true};
@@ -355,12 +337,9 @@ int main(int argc, char *argv[]) {
     cv.notify_all();
     canceler.get();
     assert(result == config.optimalSolution);
-
-    produceOutput(
-        result, config,
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count(),
-        solver.timeFrames, solver.visitedNodes, solver.hardness);
+    produceOutput(result, config,
+                  ((std::chrono::duration<double>)(end - start)).count(),
+                  solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 7: {
     constexpr Optimizations myOpts{true, true, true, true, false, true, true};
@@ -395,12 +374,9 @@ int main(int argc, char *argv[]) {
     cv.notify_all();
     canceler.get();
     assert(result == config.optimalSolution);
-
-    produceOutput(
-        result, config,
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count(),
-        solver.timeFrames, solver.visitedNodes, solver.hardness);
+    produceOutput(result, config,
+                  ((std::chrono::duration<double>)(end - start)).count(),
+                  solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   }
 }
