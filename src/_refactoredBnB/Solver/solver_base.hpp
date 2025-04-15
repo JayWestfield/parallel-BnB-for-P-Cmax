@@ -279,7 +279,8 @@ private:
           }
           break;
         case FindGistResult::NOT_FOUND:
-          if (SolverConfig.optimizations.use_add_previously)
+          if (SolverConfig.optimizations.use_add_previously &&
+              maxAllowedParalellism > 1)
             STInstance.addPreviously(state, job);
         }
       }
