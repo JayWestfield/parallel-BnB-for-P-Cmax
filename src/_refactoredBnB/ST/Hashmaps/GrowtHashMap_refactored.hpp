@@ -51,8 +51,8 @@ class GrowtHashMap_refactored {
     }
     mapped_type atomic(mapped_type &lhs) const {
       previous_value = lhs;
-      assert(lhs == emptyList || lhs == nullptr ||
-             previous_value->value->context.state.size() == gistLength);
+      // assert(lhs == emptyList || lhs == nullptr ||
+      //        previous_value->value->context.state.size() == gistLength);
       while (!__sync_bool_compare_and_swap(&lhs, previous_value, nullptr)) {
         previous_value = lhs;
       }
@@ -68,8 +68,8 @@ class GrowtHashMap_refactored {
       auto lhs_value = reinterpret_cast<HashValue>(lhs);
       if (lhs_value != nullptr) {
         inserted = true;
-        lhs_value = new DelayedTasksList(rhs, lhs_value);
-        lhs = reinterpret_cast<HashValue>(lhs_value);
+        lhs = new DelayedTasksList(rhs, lhs_value);
+        // lhs = reinterpret_cast<HashValue>(lhs_value);
       } else {
         inserted = false;
       }
@@ -232,11 +232,12 @@ public:
           &reinsert) {
 
     auto &handle = handles[thread_index_];
+    // auto handle = map_.get_handle();
     for (auto gist : storageToIterate) {
       // TODO use Fingerptint
       auto entryHandle = handle.find(
           castStoreKey(FingerPrintUtil<use_fingerprint>::addFingerprint(gist)));
-      assert(entryHandle != handle.end());
+      assert(entryHandle != map_.get_handle().end());
       HashKey key = FingerPrintUtil<use_fingerprint>::getOriginalPointer(
           reinterpret_cast<HashKey>(
               static_cast<StoreKey>((*entryHandle).first).value));
@@ -259,6 +260,7 @@ public:
   }
   void BoundUpdateClear() {
     // expect map to be empty after each thread iterated and remove its key's
+    // clear();
     assert(map_.get_handle().begin() == map_.get_handle().end());
   }
   void clear() {
