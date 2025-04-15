@@ -82,7 +82,8 @@ int main(int argc, char *argv[]) {
   auto solverConfig = config.solverConfig;
   switch (solverConfig.templateOptimization) {
   case 0: {
-    constexpr Optimizations myOpts{true, true, true, true, false, true, true};
+    constexpr Optimizations myOpts{true, true,  true, true,
+                                   true, false, true, true};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
@@ -119,8 +120,8 @@ int main(int argc, char *argv[]) {
                   solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 1: {
-    constexpr Optimizations myOpts{true,  true,  true, false,
-                                   false, false, false};
+    constexpr Optimizations myOpts{true,  true,  true,  true,
+                                   false, false, false, false};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
@@ -157,7 +158,8 @@ int main(int argc, char *argv[]) {
                   solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 2: {
-    constexpr Optimizations myOpts{true, true, true, true, false, false, false};
+    constexpr Optimizations myOpts{true, true,  true,  true,
+                                   true, false, false, false};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
@@ -194,7 +196,8 @@ int main(int argc, char *argv[]) {
                   solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 3: {
-    constexpr Optimizations myOpts{true, true, true, true, false, true, false};
+    constexpr Optimizations myOpts{true, true,  true, true,
+                                   true, false, true, false};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
@@ -231,7 +234,8 @@ int main(int argc, char *argv[]) {
                   solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 4: {
-    constexpr Optimizations myOpts{true, true, true, true, false, true, true};
+    constexpr Optimizations myOpts{true, true,  true, true,
+                                   true, false, true, true};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
@@ -268,7 +272,8 @@ int main(int argc, char *argv[]) {
                   solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 5: {
-    constexpr Optimizations myOpts{true, true, true, true, true, true, true};
+    constexpr Optimizations myOpts{true, true, true, true,
+                                   true, true, true, true};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
@@ -305,7 +310,8 @@ int main(int argc, char *argv[]) {
                   solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 6: {
-    constexpr Optimizations myOpts{true, true, true, true, false, true, true};
+    constexpr Optimizations myOpts{true, true,  true, true,
+                                   true, false, true, true};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
@@ -342,7 +348,8 @@ int main(int argc, char *argv[]) {
                   solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
   case 7: {
-    constexpr Optimizations myOpts{true, true, true, true, false, true, true};
+    constexpr Optimizations myOpts{true, true,  true, true,
+                                   true, false, true, true};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,

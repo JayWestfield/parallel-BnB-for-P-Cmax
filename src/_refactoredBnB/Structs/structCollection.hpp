@@ -6,6 +6,7 @@
  */
 struct Optimizations {
   bool use_irrelevance = true;
+  bool use_ret = true;
   bool use_fur = true;
   bool use_gists = true;
   bool use_add_previously = true;

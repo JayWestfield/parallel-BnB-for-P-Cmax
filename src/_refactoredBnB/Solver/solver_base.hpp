@@ -7,6 +7,7 @@
 #include "_refactoredBnB/ST/ST_combined.hpp"
 #include "_refactoredBnB/Structs/globalValues.hpp"
 #include "_refactoredBnB/Structs/structCollection.hpp"
+
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -85,8 +86,16 @@ public:
 
     // RET
     offset = 1;
-
-    fillRET();
+    static_assert(SolverConfig.optimizations.use_ret ||
+                      !(SolverConfig.optimizations.use_max_offset &&
+                        SolverConfig.optimizations.use_add_previously &&
+                        SolverConfig.optimizations.use_fur &&
+                        SolverConfig.optimizations.use_gists),
+                  "if ret is diasabled none of the optimizations based on Ret "
+                  "can be used");
+    if (SolverConfig.optimizations.use_ret) {
+      fillRET();
+    }
 
     // one JobSize left
     int i = lastRelevantJobIndex;
@@ -425,7 +434,7 @@ private:
               state[i] + jobDurations[job] > upperBound)
             continue; // Rule 1 + check directly wether the new state would be
           // feasible
-          if (i < endState - 1 &&
+          if (SolverConfig.optimizations.use_ret && i < endState - 1 &&
               lookupRet(state[i], state[i + 1], job)) { // Rule 6
             r6.push_back(i);
             continue;
@@ -473,7 +482,7 @@ private:
       scheduler.waitTask(task);
       return false;
     case Continuation::DELAYED:
-      if (!r6.empty()) {
+      if (SolverConfig.optimizations.use_ret && !r6.empty()) {
         for (int i : r6) {
           assert(i < numMachines - 1);
           if (!lookupRet(state[i], state[i + 1], job)) { // Rule 6
