@@ -75,6 +75,9 @@ SolverConfig getSolverConfig(int version) {
   case 22:
     return {static_cast<int>(pow(2, 16)), static_cast<int>(pow(2, 10)),
             static_cast<int>(pow(2, 5)), templateOptimization, 0};
+  case 23:
+    return {static_cast<int>(pow(2, 16)), static_cast<int>(pow(2, 10)), 0,
+            templateOptimization, 0};
   default:
     throw std::invalid_argument("Invalid STVersion: " +
                                 std::to_string(version));

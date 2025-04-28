@@ -195,7 +195,8 @@ private:
   std::vector<int> min_space_required;
   // constexpr?
   bool inline skipLookup(int depth) {
-    return depth >= lastSizeJobIndex - skipDepth;
+    return depth >=
+           std::min(lastSizeJobIndex, lastRelevantJobIndex - 3) - skipDepth;
   }
   bool solvePartial(Task<TaskContext> *task) {
     ws::initializeThreadLocalVector(numMachines);
@@ -257,7 +258,16 @@ private:
         lpt(state, job + 1);
         return true;
       } else if (job >= lastSizeJobIndex) { // Rule 5
-        lpt(state, job);
+        int sum = 0;
+        const int upperBound = this->upperBound.load();
+        const float weight = jobDurations[lastSizeJobIndex];
+        for (const int load : state) {
+          sum +=
+              static_cast<int>(static_cast<float>(upperBound - load) / weight);
+        }
+        // Rule 5
+        if (sum >= lastRelevantJobIndex - lastSizeJobIndex)
+          lpt(state, job);
         return true;
       }
       continueAt = Continuation::STCHECK;
