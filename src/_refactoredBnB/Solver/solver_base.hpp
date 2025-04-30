@@ -511,6 +511,9 @@ private:
     case Continuation::END:
       if (job == 0) {
         foundOptimal = true; // to ensure ending
+        continueExecution = false;
+        scheduler.stop();
+        STInstance.cancelExecution();
       }
       if (SolverConfig.optimizations.use_gists)
         STInstance.addGist(state, job);
@@ -658,6 +661,7 @@ private:
       foundOptimal = true;
       STInstance.cancelExecution();
       continueExecution = false;
+      scheduler.stop();
     }
 
     if (SolverConfig.logging.logBound)
