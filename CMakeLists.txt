@@ -80,7 +80,7 @@ add_executable(RefactoredBnB_custom ${BASEFILES_Refactored} ${CUSTOMSOURCES_Refa
 target_link_libraries(RefactoredBnB_custom PRIVATE BnBdependencies tcmalloc_and_profiler profiler)
 add_dependencies(RefactoredBnB_custom RefactoredBnBTBB RefactoredBnBGrowt)
 
-set(PROFILE_ARGS "201 100000 1  ../benchmarks/lawrinenko/p_cmax-class6-n54-m24-minsize54-maxsize216-seed16650.txt 325")
+set(PROFILE_ARGS "201 100000 1  ../benchmarks/anni/p_cmax-n3665-m4-sc22-secs-anni-seq-MapleLCMDistChrBt-DL-v3.txt 325 467709")
 separate_arguments(PROFILE_ARGS)
 add_custom_target(profile
     COMMAND export "\$(dbus-launch)"
@@ -97,3 +97,10 @@ add_executable(full_refactored src/experiments/readData/readData.cpp
 target_link_libraries(full_refactored PRIVATE RefactoredBnBDependencies)
 
 add_dependencies(full_refactored RefactoredBnBTBB RefactoredBnBGrowt)
+
+
+add_executable(full_refactored_eval src/experiments/readData/readData.cpp
+    src/_refactoredBnB/mainParameterEval.cpp)
+target_link_libraries(full_refactored PRIVATE RefactoredBnBDependencies)
+
+add_dependencies(full_refactored_eval RefactoredBnBTBB RefactoredBnBGrowt)
