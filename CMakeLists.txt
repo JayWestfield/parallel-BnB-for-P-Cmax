@@ -101,6 +101,6 @@ add_dependencies(full_refactored RefactoredBnBTBB RefactoredBnBGrowt)
 
 add_executable(full_refactored_eval src/experiments/readData/readData.cpp
     src/_refactoredBnB/mainParameterEval.cpp)
-target_link_libraries(full_refactored PRIVATE RefactoredBnBDependencies)
+target_link_libraries(full_refactored_eval PRIVATE RefactoredBnBDependencies)
 
 add_dependencies(full_refactored_eval RefactoredBnBTBB RefactoredBnBGrowt)

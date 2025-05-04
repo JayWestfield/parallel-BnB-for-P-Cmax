@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
                  << " " << instancePath << " "
                  << optimalSolutions.at(instanceName);
       auto executable =
-          config.SolverConfig / 100 == 1 ? executableTBB : executableGrowt;
+          config.SolverConfig / 10000 == 1 ? executableTBB : executableGrowt;
       std::string command = executable + " " + argsStream.str();
 
       int returnCode = std::system(command.c_str());
