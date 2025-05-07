@@ -6,12 +6,17 @@
 #include <thread>
 #include <vector>
 
+// added padding for possible false cache sharing
+struct PaddedAtomic {
+  alignas(64) std::atomic<int> value;
+};
+
 struct CustomSharedMutex {
-  std::vector<std::atomic<int>> referenceCounter;
+  std::vector<PaddedAtomic> referenceCounter;
   std::atomic<bool> clearFlag = false;
   CustomSharedMutex(int maxThreads) : referenceCounter(maxThreads) {
     for (int i = 0; i < maxThreads; ++i) {
-      referenceCounter[i].store(0, std::memory_order_relaxed);
+      referenceCounter[i].value.store(0, std::memory_order_relaxed);
     }
   }
   ~CustomSharedMutex() = default;
@@ -22,10 +27,11 @@ public:
   inline CustomTrySharedLock(CustomSharedMutex &mtx) : mtx(mtx) {
     if (mtx.clearFlag.load(std::memory_order_acquire))
       return;
-    mtx.referenceCounter[ws::thread_index_].store(1, std::memory_order_relaxed);
+    mtx.referenceCounter[ws::thread_index_].value.store(
+        1, std::memory_order_relaxed);
     if (mtx.clearFlag.load(std::memory_order_acquire)) {
-      mtx.referenceCounter[ws::thread_index_].store(0,
-                                                    std::memory_order_relaxed);
+      mtx.referenceCounter[ws::thread_index_].value.store(
+          0, std::memory_order_relaxed);
       return;
     }
     holdsLock = true;
@@ -33,10 +39,11 @@ public:
   bool tryLock() {
     if (mtx.clearFlag.load(std::memory_order_acquire))
       return false;
-    mtx.referenceCounter[ws::thread_index_].store(1, std::memory_order_release);
+    mtx.referenceCounter[ws::thread_index_].value.store(
+        1, std::memory_order_release);
     if (mtx.clearFlag.load(std::memory_order_acquire)) {
-      mtx.referenceCounter[ws::thread_index_].store(0,
-                                                    std::memory_order_release);
+      mtx.referenceCounter[ws::thread_index_].value.store(
+          0, std::memory_order_release);
       return false;
     }
     holdsLock = true;
@@ -44,8 +51,8 @@ public:
   }
   inline ~CustomTrySharedLock() {
     if (holdsLock)
-      mtx.referenceCounter[ws::thread_index_].store(0,
-                                                    std::memory_order_release);
+      mtx.referenceCounter[ws::thread_index_].value.store(
+          0, std::memory_order_release);
   }
   inline bool owns_lock() { return holdsLock; }
 
@@ -64,14 +71,14 @@ public:
     bool running = false;
     for (std::size_t i = 0; i < mtx.referenceCounter.size(); i++) {
       running |= static_cast<bool>(
-          mtx.referenceCounter[i].load(std::memory_order_acquire));
+          mtx.referenceCounter[i].value.load(std::memory_order_acquire));
     }
     while (running) {
       std::this_thread::yield();
       running = false;
       for (std::size_t i = 0; i < mtx.referenceCounter.size(); i++) {
         running |= static_cast<bool>(
-            mtx.referenceCounter[i].load(std::memory_order_acquire));
+            mtx.referenceCounter[i].value.load(std::memory_order_acquire));
       }
     }
   }
