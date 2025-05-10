@@ -271,44 +271,7 @@ int main(int argc, char *argv[]) {
                   ((std::chrono::duration<double>)(end - start)).count(),
                   solver.timeFrames, solver.visitedNodes, solver.hardness);
   } break;
-  case 5: {
-    constexpr Optimizations myOpts{true, true, true, true,
-                                   true, true, true, true};
-    constexpr Config myConfig{myOpts, myLogs};
-    solver_base<
-        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
-        myConfig>
-        solver(config.numThreads, solverConfig.initialHashMapSize,
-               solverConfig.notInsertingGists,
-               solverConfig.GistStorageStackSize);
 
-    bool timerExpired = false;
-    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
-                                               &timerExpired, &config]() {
-      std::unique_lock<std::mutex> lock(mtx);
-      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
-                      [&timerExpired] { return timerExpired; })) {
-        return;
-      }
-      if (result == 0) {
-        solver.cancelExecution();
-      }
-    });
-    auto start = std::chrono::high_resolution_clock::now();
-    result = solver.solve(instance);
-    auto end = std::chrono::high_resolution_clock::now();
-
-    {
-      std::lock_guard<std::mutex> lock(mtx);
-      timerExpired = true;
-    }
-    cv.notify_all();
-    canceler.get();
-    assert(result == config.optimalSolution);
-    produceOutput(result, config,
-                  ((std::chrono::duration<double>)(end - start)).count(),
-                  solver.timeFrames, solver.visitedNodes, solver.hardness);
-  } break;
   case 6: {
     constexpr Optimizations myOpts{true, true,  true, true,
                                    true, false, true, true};
@@ -426,44 +389,6 @@ int main(int argc, char *argv[]) {
   case 9: {
     constexpr Optimizations myOpts{true,  true,  true,  false,
                                    false, false, false, true};
-    constexpr Config myConfig{myOpts, myLogs};
-    solver_base<
-        TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,
-        myConfig>
-        solver(config.numThreads, solverConfig.initialHashMapSize,
-               solverConfig.notInsertingGists,
-               solverConfig.GistStorageStackSize);
-
-    bool timerExpired = false;
-    canceler = std::async(std::launch::async, [&solver, &result, &cv, &mtx,
-                                               &timerExpired, &config]() {
-      std::unique_lock<std::mutex> lock(mtx);
-      if (cv.wait_for(lock, std::chrono::seconds(config.timeout),
-                      [&timerExpired] { return timerExpired; })) {
-        return;
-      }
-      if (result == 0) {
-        solver.cancelExecution();
-      }
-    });
-    auto start = std::chrono::high_resolution_clock::now();
-    result = solver.solve(instance);
-    auto end = std::chrono::high_resolution_clock::now();
-
-    {
-      std::lock_guard<std::mutex> lock(mtx);
-      timerExpired = true;
-    }
-    cv.notify_all();
-    canceler.get();
-    assert(result == config.optimalSolution);
-    produceOutput(result, config,
-                  ((std::chrono::duration<double>)(end - start)).count(),
-                  solver.timeFrames, solver.visitedNodes, solver.hardness);
-  } break;
-  case 10: {
-    constexpr Optimizations myOpts{true, true, true, true,
-                                   true, true, true, false};
     constexpr Config myConfig{myOpts, myLogs};
     solver_base<
         TBBHashMap_refactored<myOpts.use_fingerprint, myOpts.use_max_offset>,

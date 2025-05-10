@@ -8,7 +8,6 @@
 #include <tbb/concurrent_hash_map.h>
 #include <utility>
 #include <vector>
-
 using namespace ws;
 template <bool use_fingerprint>
 using tbbMap = tbb::concurrent_hash_map<
@@ -103,7 +102,10 @@ public:
       tbb::concurrent_queue<HashValue> &restart) {
     // TODO can i reuse the accessor? / is that beneficial?
     typename tbbMap<use_fingerprint>::const_accessor accessor;
-
+    static_assert(!use_fingerprint,
+                  "just noticed the iterate methods do not work correctly with "
+                  "the fingerprint since the fingerprint hast to be removed "
+                  "before adding it to maybereinsert!!!");
     for (auto it : storageToIterate) {
       auto value = map_.find(
           accessor, FingerPrintUtil<use_fingerprint>::addFingerprint(it));
