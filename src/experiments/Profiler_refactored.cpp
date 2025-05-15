@@ -60,15 +60,18 @@ int main(int argc, char *argv[]) {
   constexpr Logging noLogs{false, false, false, false};
   constexpr Logging allLogs{true, true, true, true};
   // note the addPrev optimization has problems somehow????ß
-  constexpr Optimizations allOpts{true, true, true, true, true};
+  constexpr Optimizations allOpts{true, true, true, true, false, false};
   constexpr Config myConfig{allOpts, noLogs};
   // TODO big switch for the correct solver
+  ProfilerStop();
 
   for (int i = 0; i < config.timeout; i++) {
-    // solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint>,
+    // solver_base<TBBHashMap_refactored<myConfig.optimizations.use_fingerprint,
+    //                                   myConfig.optimizations.use_max_offset>,
     //             myConfig>
     //     solver(config.numThreads);
-    solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint>,
+    solver_base<GrowtHashMap_refactored<myConfig.optimizations.use_fingerprint,
+                                        myConfig.optimizations.use_max_offset>,
                 myConfig>
         solver(config.numThreads);
     std::string profile_file =
@@ -77,7 +80,7 @@ int main(int argc, char *argv[]) {
     auto start = std::chrono::high_resolution_clock::now();
     result = solver.solve(instance);
     auto end = std::chrono::high_resolution_clock::now();
-    ProfilerStop();
+    // ProfilerStop();
 
     if (result != config.optimalSolution) {
       std::cout << " error_wrong_makespan_of_ " << result << " instead of "

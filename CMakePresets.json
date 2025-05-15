@@ -36,7 +36,7 @@
             "description": "Release build with optimizations",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_CXX_FLAGS": "-O3 -DNDEBUG -funroll-loops"
+                "CMAKE_CXX_FLAGS": "-O3 -DNDEBUG"
             }
         },
         {
